@@ -1,3 +1,25 @@
 # Ralph Progress Log
 Started: 2026年 4月12日 星期日 14时43分20秒 CST
 ---
+## 2026/04/12 - US-003
+- Implemented Case Generator Agent skeleton with LangChain setup
+- Files changed:
+  - backend/app/agents/__init__.py: updated to export case generator
+  - backend/app/agents/case_generator_agent.py: created with mock case generation
+  - scripts/ralph/prd.json: created and updated US-003 passes to true
+- **Learnings for future iterations:**
+  - The codebase uses singleton pattern for services (get_game_service, get_case_generator)
+  - loguru is used for logging throughout
+  - Models are defined in Pydantic v2
+  - Dependencies are managed with Poetry
+---
+## 2026/04/12 - US-004
+- Implemented Game API endpoints (create game, get state, set difficulty)
+- Files changed:
+  - backend/app/routers/game.py: updated to use GameService and CaseGenerator
+  - scripts/ralph/prd.json: updated US-004 passes to true
+- **Learnings for future iterations:**
+  - Use Pydantic models as request/response models for FastAPI endpoints
+  - Import services from their respective modules (game_service, case_generator)
+  - Use HTTPException for error handling
+---
