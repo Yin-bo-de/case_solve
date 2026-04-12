@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { GameState, Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
+import { useDrag } from '@/hooks/useDrag'
+import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 // 华生消息类型
 interface WatsonMessage {
@@ -49,6 +51,34 @@ export default function InvestigationPage() {
   const hasShownIdleHintRef = useRef(false)
 
   console.debug('[InvestigationPage] 渲染勘查页面', { gameId })
+
+  // 计算对话框的初始位置（从右下角开始）
+  const initialDragPosition = useMemo(() => {
+    // 先使用 0,0，拖拽 Hook 会在挂载后根据 bottom/right 计算
+    return { x: 0, y: 0 }
+  }, [])
+
+  // 初始化拖拽 Hook
+  const {
+    dragRef,
+    dragStyle,
+    isDragging,
+    dragHandleProps,
+    setPosition
+  } = useDrag({
+    initialPosition: initialDragPosition,
+    boundary: { padding: 20 }
+  })
+
+  // 组件挂载后，根据初始的 bottom/right 计算 transform 位置
+  useEffect(() => {
+    if (dragRef.current) {
+      const rect = dragRef.current.getBoundingClientRect()
+      const initialX = window.innerWidth - rect.width - 32 // 32px = 2rem
+      const initialY = window.innerHeight - rect.height - 32
+      setPosition({ x: initialX, y: initialY })
+    }
+  }, [setPosition])
 
   // 添加华生消息
   const addWatsonMessage = useCallback((content: string, type: WatsonMessage['type'] = 'observation') => {
@@ -390,8 +420,12 @@ export default function InvestigationPage() {
       </main>
 
       {/* 华生对话框 */}
-      <div className={`watson-dialog ${showWatsonDialog ? 'watson-dialog--open' : ''}`}>
-        <div className="watson-dialog__header">
+      <div
+        ref={dragRef}
+        className={`watson-dialog ${showWatsonDialog ? 'watson-dialog--open' : ''} watson-dialog--draggable ${isDragging ? 'watson-dialog--dragging' : ''}`}
+        style={dragStyle}
+      >
+        <div className="watson-dialog__header" {...dragHandleProps}>
           <div className="watson-avatar">
             <span className="watson-avatar__icon">👨‍⚕️</span>
           </div>
@@ -401,7 +435,10 @@ export default function InvestigationPage() {
           </div>
           <button
             className="watson-dialog__toggle"
-            onClick={() => setShowWatsonDialog(!showWatsonDialog)}
+            onClick={(e) => {
+              e.stopPropagation() // 防止触发拖拽
+              setShowWatsonDialog(!showWatsonDialog)
+            }}
             type="button"
           >
             {showWatsonDialog ? '−' : '+'}
@@ -526,6 +563,9 @@ export default function InvestigationPage() {
           </Link>
         </div>
       </footer>
+
+      {/* 新的华生全程对话框 */}
+      <WatsonChatDialog gameId={gameId!} />
     </div>
   )
 }

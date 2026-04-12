@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { GameDifficulty, GameState } from '@/types/game'
+import type { GameDifficulty } from '@/types/game'
 import { gameApi } from '@/services/api'
+import { useGameStore } from '@/store'
+import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 const DIFFICULTY_LABELS: Record<GameDifficulty, string> = {
   easy: '简单',
@@ -18,33 +20,53 @@ const DIFFICULTY_DESCRIPTIONS: Record<GameDifficulty, string> = {
 export default function StartPage() {
   const navigate = useNavigate()
   const [selectedDifficulty, setSelectedDifficulty] = useState<GameDifficulty>('classic')
-  const [isLoading, setIsLoading] = useState(false)
-  const [gameState, setGameState] = useState<GameState | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const {
+    gameState,
+    isLoading,
+    error,
+    setGameState,
+    setLoading,
+    setError,
+    resetGame
+  } = useGameStore()
 
   console.debug('[StartPage] 渲染起始页面', { selectedDifficulty, isLoading })
 
+  // 组件挂载时重置游戏状态
+  useEffect(() => {
+    console.debug('[StartPage] 组件挂载，重置游戏状态')
+    resetGame()
+  }, [resetGame])
+
   const handleStartGame = async () => {
     console.info('[StartPage] 开始新游戏', { difficulty: selectedDifficulty })
-    setIsLoading(true)
+    setLoading(true)
     setError(null)
 
     try {
       // 创建新游戏
       const state = await gameApi.createNewGame(selectedDifficulty)
       console.info('[StartPage] 游戏创建成功', state)
+
+      // 保存到全局 store
       setGameState(state)
+
+      // 获取有效的 gameId（支持两种命名格式）
+      const gameId = (state as any).gameId || (state as any).game_id
+      if (!gameId) {
+        throw new Error('游戏创建成功但 ID 缺失')
+      }
 
       // 短暂显示案件信息后跳转到勘查页面
       setTimeout(() => {
-        console.info('[StartPage] 跳转到勘查页面', { gameId: state.gameId })
-        navigate(`/investigation/${state.gameId}`)
+        console.info('[StartPage] 跳转到勘查页面', { gameId })
+        navigate(`/investigation/${gameId}`)
       }, 3000)
     } catch (err) {
       console.error('[StartPage] 创建游戏失败', err)
       setError(err instanceof Error ? err.message : '创建游戏失败，请稍后重试')
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -112,6 +134,11 @@ export default function StartPage() {
           </>
         )}
       </div>
+
+      {/* 华生对话框 */}
+      {gameState && (
+        <WatsonChatDialog gameId={gameState.gameId} />
+      )}
     </div>
   )
 }

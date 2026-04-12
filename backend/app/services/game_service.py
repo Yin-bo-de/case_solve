@@ -4,8 +4,12 @@
 from typing import Dict, Optional, List, Any
 from loguru import logger
 from datetime import datetime
+import uuid
 
-from app.models.game import GameState, GameDifficulty, GamePhase
+from app.models.game import (
+    GameState, GameDifficulty, GamePhase,
+    WatsonChatMessage, WatsonChatContext
+)
 from app.models.case import (
     Case, Observation, Inference, Hypothesis, DeductionChain
 )
@@ -17,6 +21,7 @@ class GameService:
     def __init__(self):
         self._games: Dict[str, GameState] = {}
         self._deduction_chains: Dict[str, DeductionChain] = {}
+        self._watson_chat_history: Dict[str, List[WatsonChatMessage]] = {}
         logger.info("[GameService] 初始化游戏服务")
 
     def create_game(self, difficulty: GameDifficulty = GameDifficulty.CLASSIC) -> GameState:
@@ -431,6 +436,64 @@ class GameService:
                 if not c.is_red_herring
             ]
         }
+
+    def add_watson_chat_message(
+        self,
+        game_id: str,
+        role: str,
+        content: str,
+        message_type: str
+    ) -> WatsonChatMessage:
+        """添加华生对话消息"""
+        if game_id not in self._watson_chat_history:
+            self._watson_chat_history[game_id] = []
+
+        message = WatsonChatMessage(
+            id=str(uuid.uuid4()),
+            role=role,
+            content=content,
+            message_type=message_type,
+            timestamp=datetime.utcnow()
+        )
+
+        self._watson_chat_history[game_id].append(message)
+        logger.info(f"[GameService] 添加华生对话消息: {game_id} -> {role}")
+        return message
+
+    def get_watson_chat_history(self, game_id: str) -> List[WatsonChatMessage]:
+        """获取华生对话历史"""
+        return self._watson_chat_history.get(game_id, [])
+
+    def build_watson_chat_context(self, game_id: str) -> Optional[WatsonChatContext]:
+        """构建华生对话上下文"""
+        game = self.get_game(game_id)
+        if not game:
+            return None
+
+        chain = self.get_or_create_deduction_chain(game_id)
+
+        # 统计线索数量
+        clues_collected = 0
+        current_clue_ids = []
+        if game.case:
+            clues_collected = len([c for c in game.case.clues if c.discovered])
+            current_clue_ids = [c.id for c in game.case.clues if c.discovered]
+
+        # 统计嫌疑人
+        current_suspect_ids = []
+        if game.case:
+            current_suspect_ids = [s.id for s in game.case.suspects]
+
+        return WatsonChatContext(
+            game_phase=game.phase,
+            observations_count=len(chain.observations),
+            clues_collected=clues_collected,
+            suspects_interviewed=game.interviewed_suspect_ids,
+            inferences_count=len(chain.inferences),
+            hypotheses_count=len(chain.hypotheses),
+            current_clue_ids=current_clue_ids,
+            current_suspect_ids=current_suspect_ids
+        )
 
 
 # 全局游戏服务实例

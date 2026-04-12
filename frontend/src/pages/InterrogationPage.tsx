@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { GameState, Suspect } from '@/types/game'
 import {
@@ -8,6 +8,8 @@ import {
   type ContradictionResult,
   type GroupControlAction,
 } from '@/services/api'
+import { useDrag } from '@/hooks/useDrag'
+import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 // 审讯模式
 type InterrogationMode = 'private' | 'group'
@@ -73,6 +75,33 @@ export default function InterrogationPage() {
   const questionInputRef = useRef<HTMLTextAreaElement>(null)
 
   console.debug('[InterrogationPage] 渲染审讯页面', { gameId, mode })
+
+  // 计算对话框的初始位置（从右下角开始）
+  const initialDragPosition = useMemo(() => {
+    return { x: 0, y: 0 }
+  }, [])
+
+  // 初始化拖拽 Hook
+  const {
+    dragRef,
+    dragStyle,
+    isDragging,
+    dragHandleProps,
+    setPosition
+  } = useDrag({
+    initialPosition: initialDragPosition,
+    boundary: { padding: 20 }
+  })
+
+  // 组件挂载后，根据初始的 bottom/right 计算 transform 位置
+  useEffect(() => {
+    if (dragRef.current) {
+      const rect = dragRef.current.getBoundingClientRect()
+      const initialX = window.innerWidth - rect.width - 32 // 32px = 2rem
+      const initialY = window.innerHeight - rect.height - 32
+      setPosition({ x: initialX, y: initialY })
+    }
+  }, [setPosition])
 
   // 添加华生消息
   const addWatsonMessage = useCallback((content: string, type: WatsonMessage['type'] = 'question') => {
@@ -370,14 +399,15 @@ export default function InterrogationPage() {
     }
     setConversationHistory(prev => [...prev, suspectMessage])
 
-    // 设置谎言检测结果
-    setLieDetection(response.lie_detection)
+    // 设置谎言检测结果（响应拦截器已转换为 camelCase）
+    const lieDetection = response.lieDetection ?? null
+    setLieDetection(lieDetection)
 
-    // 华生评论
-    if (response.lie_detection.lie_detected && response.lie_detection.microexpression) {
+    // 华生评论（添加防御性检查）
+    if (lieDetection && lieDetection.lieDetected && lieDetection.microexpression) {
       setTimeout(() => {
         addWatsonMessage(
-          `你注意到了吗？${selectedSuspect.name}${response.lie_detection.microexpression}。我觉得${response.lie_detection.notes}。`,
+          `你注意到了吗？${selectedSuspect.name}${lieDetection.microexpression}。我觉得${lieDetection.notes || '这里有点可疑'}。`,
           'observation'
         )
       }, 800)
@@ -840,8 +870,12 @@ export default function InterrogationPage() {
       </main>
 
       {/* 华生对话框 */}
-      <div className={`watson-dialog ${showWatsonDialog ? 'watson-dialog--open' : ''}`}>
-        <div className="watson-dialog__header">
+      <div
+        ref={dragRef}
+        className={`watson-dialog ${showWatsonDialog ? 'watson-dialog--open' : ''} watson-dialog--draggable ${isDragging ? 'watson-dialog--dragging' : ''}`}
+        style={dragStyle}
+      >
+        <div className="watson-dialog__header" {...dragHandleProps}>
           <div className="watson-avatar">
             <span className="watson-avatar__icon">👨‍⚕️</span>
           </div>
@@ -851,7 +885,10 @@ export default function InterrogationPage() {
           </div>
           <button
             className="watson-dialog__toggle"
-            onClick={() => setShowWatsonDialog(!showWatsonDialog)}
+            onClick={(e) => {
+              e.stopPropagation() // 防止触发拖拽
+              setShowWatsonDialog(!showWatsonDialog)
+            }}
             type="button"
           >
             {showWatsonDialog ? '−' : '+'}
@@ -1405,7 +1442,19 @@ export default function InterrogationPage() {
           box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
           z-index: 100;
           overflow: hidden;
-          transition: all 0.3s ease;
+          transition: width 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .watson-dialog--draggable {
+          /* 当启用拖拽时，使用 transform 定位而不是 bottom/right */
+          bottom: auto;
+          right: auto;
+          transition: box-shadow 0.2s ease;
+        }
+
+        .watson-dialog--dragging {
+          box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+          z-index: 1000;
         }
 
         .watson-dialog--open {
@@ -1413,12 +1462,37 @@ export default function InterrogationPage() {
         }
 
         .watson-dialog__header {
+          position: relative;
           display: flex;
           align-items: center;
           gap: 1rem;
           padding: 1rem 1.25rem;
           background: rgba(212, 175, 55, 0.1);
           border-bottom: 1px solid #333;
+          cursor: move;
+          cursor: grab;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+
+        .watson-dialog__header:active {
+          cursor: grabbing;
+        }
+
+        .watson-dialog__header::before {
+          content: '';
+          position: absolute;
+          top: 4px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 40px;
+          height: 4px;
+          background: rgba(212, 175, 55, 0.3);
+          border-radius: 2px;
+        }
+
+        .watson-dialog__header:hover::before {
+          background: rgba(212, 175, 55, 0.6);
         }
 
         .watson-avatar {
@@ -1815,6 +1889,9 @@ export default function InterrogationPage() {
           display: none;
         }
       `}</style>
+
+      {/* 华生对话框 */}
+      <WatsonChatDialog gameId={gameId!} />
     </div>
   )
 }

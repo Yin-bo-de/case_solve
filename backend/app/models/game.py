@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 from app.models.case import Case, DeductionChain
@@ -23,6 +23,36 @@ class GamePhase(str, Enum):
     INTERROGATION = "interrogation"
     DEDUCTION = "deduction"
     CONCLUSION = "conclusion"
+
+
+class WatsonChatMessage(BaseModel):
+    """华生对话消息"""
+    id: str
+    role: Literal["user", "watson"]
+    content: str
+    message_type: Literal[
+        "guidance",
+        "clue_discussion",
+        "suspect_analysis",
+        "deduction_review",
+        "knowledge",
+        "encouragement",
+        "general"
+    ]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class WatsonChatContext(BaseModel):
+    """华生对话上下文"""
+    game_phase: GamePhase
+    observations_count: int
+    clues_collected: int
+    suspects_interviewed: List[str]
+    inferences_count: int
+    hypotheses_count: int
+    current_clue_ids: List[str] = []
+    current_suspect_ids: List[str] = []
+    recent_conversation_summary: Optional[str] = None
 
 
 class GameState(BaseModel):

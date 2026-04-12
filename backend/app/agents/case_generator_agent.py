@@ -7,8 +7,8 @@ from datetime import datetime
 import uuid
 
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
 
 from app.config import get_settings
 from app.models.case import Case, Suspect, Clue
@@ -23,6 +23,7 @@ class CaseGeneratorAgent:
         self.llm = ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
             temperature=0.8,  # 较高温度增加创造性
         )
         logger.info("[CaseGeneratorAgent] 初始化案件生成Agent")

@@ -1,15 +1,16 @@
 """
 华生NPC Agent - 主动的探案伙伴
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from loguru import logger
 from datetime import datetime
 
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import get_settings
 from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain
+from app.models.game import WatsonChatContext
 
 
 class WatsonAgent:
@@ -21,6 +22,7 @@ class WatsonAgent:
         self.llm = ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
             temperature=0.7,
         )
         logger.info("[WatsonAgent] 初始化华生NPC Agent")
@@ -228,6 +230,218 @@ class WatsonAgent:
             suggestions.append("考虑与嫌疑人再次交谈")
 
         return suggestions[:3]  # 最多返回3个建议
+
+    async def chat(
+        self,
+        user_message: str,
+        context: WatsonChatContext
+    ) -> Tuple[str, str]:
+        """
+        与华生进行自由对话
+
+        Args:
+            user_message: 用户的消息
+            context: 对话上下文（当前游戏状态）
+
+        Returns:
+            (response, message_type) - 华生的回复和消息类型
+        """
+        logger.info(f"[WatsonAgent] 收到用户消息: {user_message[:50]}...")
+
+        # 分析消息类型
+        message_type = self._classify_message(user_message, context)
+        logger.info(f"[WatsonAgent] 消息类型: {message_type}")
+
+        # 根据类型生成回复
+        response = await self._generate_response(user_message, message_type, context)
+
+        return response, message_type
+
+    def _classify_message(self, message: str, context: WatsonChatContext) -> str:
+        """分类用户消息类型"""
+        message_lower = message.lower()
+
+        # 阶段指导关键词
+        guidance_keywords = [
+            "下一步", "该做什么", "接下来", "应该", "去哪", "哪里",
+            "how", "what", "next", "where", "should"
+        ]
+        if any(keyword in message_lower for keyword in guidance_keywords):
+            return "guidance"
+
+        # 线索讨论关键词
+        clue_keywords = [
+            "线索", "这个", "意味着", "意思", "觉得", "看",
+            "clue", "mean", "think", "look"
+        ]
+        if any(keyword in message_lower for keyword in clue_keywords) and context.clues_collected > 0:
+            return "clue_discussion"
+
+        # 嫌疑人分析关键词
+        suspect_keywords = [
+            "嫌疑人", "他", "她", "说谎", "动机", "觉得",
+            "suspect", "he", "she", "lie", "motive"
+        ]
+        if any(keyword in message_lower for keyword in suspect_keywords):
+            return "suspect_analysis"
+
+        # 推理梳理关键词
+        deduction_keywords = [
+            "推理", "完整", "逻辑", "缺口", "假设",
+            "deduction", "logic", "gap", "hypothesis"
+        ]
+        if any(keyword in message_lower for keyword in deduction_keywords):
+            return "deduction_review"
+
+        # 知识咨询关键词
+        knowledge_keywords = [
+            "医学", "军事", "毒药", "伤口", "火药", "血迹",
+            "medical", "military", "poison", "wound", "gunpowder", "blood"
+        ]
+        if any(keyword in message_lower for keyword in knowledge_keywords):
+            return "knowledge"
+
+        # 情感支持关键词
+        encouragement_keywords = [
+            "累", "难", "困惑", "毫无头绪", "不知道", "放弃",
+            "tired", "hard", "confused", "stuck", "give up"
+        ]
+        if any(keyword in message_lower for keyword in encouragement_keywords):
+            return "encouragement"
+
+        # 默认类型
+        return "general"
+
+    async def _generate_response(
+        self,
+        message: str,
+        message_type: str,
+        context: WatsonChatContext
+    ) -> str:
+        """根据消息类型生成回复"""
+        import random
+
+        # TODO: 实际调用LLM生成回复，当前使用mock实现
+
+        if message_type == "guidance":
+            return self._generate_guidance_response(context)
+        elif message_type == "clue_discussion":
+            return self._generate_clue_discussion_response(context)
+        elif message_type == "suspect_analysis":
+            return self._generate_suspect_analysis_response(context)
+        elif message_type == "deduction_review":
+            return self._generate_deduction_review_response(context)
+        elif message_type == "knowledge":
+            return await self._generate_knowledge_response(message)
+        elif message_type == "encouragement":
+            return await self.encourage()
+        else:
+            return self._generate_general_response(context)
+
+    def _generate_guidance_response(self, context: WatsonChatContext) -> str:
+        """生成阶段指导回复"""
+        import random
+
+        phase_guidance = {
+            "start": [
+                "让我们先看看这个案子的基本情况，然后前往案发现场。",
+                "老朋友，我们先了解一下受害者和嫌疑人，然后开始调查吧！",
+                "这个案子看起来很有意思。准备好去现场了吗？"
+            ],
+            "investigation": [
+                f"我们已经收集了 {context.observations_count} 条观察记录。也许再仔细看看现场的其他区域？",
+                "让我想想...我们应该继续勘查现场，或者去审问嫌疑人？你觉得呢？",
+                f"还有一些地方没看过。我们已经检查了 {context.clues_collected} 个线索，继续吧！"
+            ],
+            "interrogation": [
+                f"我们已经询问了 {len(context.suspects_interviewed)} 个嫌疑人。也许应该再和其他人谈谈？",
+                "审问进行得怎么样？有没有发现什么矛盾的证词？",
+                "注意观察他们的表情和语气，有时候肢体语言比语言更能说明问题。"
+            ],
+            "deduction": [
+                f"我们有 {context.inferences_count} 个推理和 {context.hypotheses_count} 个假设。让我们把它们串起来！",
+                "看看我们的推理链条，有没有什么逻辑缺口？",
+                "试着把线索和嫌疑人关联起来，看看能不能发现什么。"
+            ],
+            "conclusion": [
+                "是时候做出决定了。你觉得谁是凶手？",
+                "让我们回顾一下所有的证据，确保我们没有漏掉什么。",
+                "准备好了吗？是时候揭示真相了！"
+            ]
+        }
+
+        phase = context.game_phase.value if hasattr(context.game_phase, 'value') else context.game_phase
+        responses = phase_guidance.get(phase, [
+            "让我们继续调查吧！",
+            "你觉得我们下一步该怎么做？"
+        ])
+        return random.choice(responses)
+
+    def _generate_clue_discussion_response(self, context: WatsonChatContext) -> str:
+        """生成线索讨论回复"""
+        import random
+        responses = [
+            "这条线索很有意思。你觉得它和案子有什么关系？",
+            "嗯...让我仔细看看。这可能是关键证据，也可能是个红鲱鱼。",
+            "你注意到了吗？这条线索可能指向某个人，但我们需要更多证据。",
+            "很有趣的发现！让我们把它记下来，看看能不能和其他线索关联起来。"
+        ]
+        return random.choice(responses)
+
+    def _generate_suspect_analysis_response(self, context: WatsonChatContext) -> str:
+        """生成嫌疑人分析回复"""
+        import random
+        responses = [
+            "这个人的证词有些地方值得怀疑。你觉得呢？",
+            "我注意到他说话时有些紧张。可能在隐瞒什么？",
+            "我们需要更多证据来证实或排除他的嫌疑。",
+            "动机是有的，但有没有作案时间呢？这是个关键问题。"
+        ]
+        return random.choice(responses)
+
+    def _generate_deduction_review_response(self, context: WatsonChatContext) -> str:
+        """生成推理梳理回复"""
+        import random
+
+        if context.hypotheses_count == 0:
+            return "我们还没有形成任何假设。先试着把一些观察关联起来形成推理吧！"
+        elif context.inferences_count < 3:
+            return "我们有了一些推理，但还需要更多。让我们继续把线索关联起来。"
+        else:
+            responses = [
+                "我们的推理正在成型。看看能不能把它们组合成一个完整的假设？",
+                "很好！现在让我们验证一下这些假设，看看哪个最合理。",
+                "逻辑链条正在形成。你觉得哪个方向最有希望？"
+            ]
+            return random.choice(responses)
+
+    async def _generate_knowledge_response(self, message: str) -> str:
+        """生成知识咨询回复"""
+        # 先尝试用现有的知识库
+        knowledge = await self.provide_knowledge(message)
+        if knowledge:
+            return knowledge
+
+        import random
+        responses = [
+            "作为一名军医，我见过不少类似的情况。让我想想...",
+            "这让我想起在阿富汗时见过的一些事情。根据我的经验...",
+            "我读过一些关于这方面的书籍。从医学角度来看...",
+            "这个问题很专业。让我尽力给你一些有用的信息。"
+        ]
+        return random.choice(responses)
+
+    def _generate_general_response(self, context: WatsonChatContext) -> str:
+        """生成通用回复"""
+        import random
+        responses = [
+            "有意思，你继续说。",
+            "我在听，老朋友。",
+            "嗯，这确实值得思考。",
+            "好的，让我们仔细想想。",
+            "你有什么想法？我很想听听。"
+        ]
+        return random.choice(responses)
 
 
 # 全局华生Agent实例

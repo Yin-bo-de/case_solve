@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { gameApi } from '@/services/api'
 import type { GameState, DeductionChain, Inference, Hypothesis } from '@/types/game'
+import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 console.debug('[DeductionBoard.tsx] 加载模块')
 
@@ -877,6 +878,9 @@ const DeductionBoard: React.FC<DeductionBoardProps> = () => {
             </Link>
           </div>
         </footer>
+
+        {/* 华生对话框 */}
+        <WatsonChatDialog gameId={gameId!} />
       </div>
     </div>
   )

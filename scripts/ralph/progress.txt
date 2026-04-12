@@ -174,3 +174,38 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Navigation links should be accessible from all major pages (investigation, deduction, interrogation)
   - The step-by-step wizard pattern works well for linear flows like conclusion
 ---
+## 2026/04/12 - US-021
+- 实现华生全程对话陪伴功能
+- 扩展 WatsonAgent 类，新增 chat() 方法支持自由对话
+- 实现对话上下文感知（当前阶段、已收集线索、证词等）
+- 支持多种对话类型：阶段指导、线索讨论、嫌疑人分析、推理梳理、知识咨询、情感支持
+- 新增后端 API 端点：POST /{gameId}/watson/chat 和 GET /{gameId}/watson/history
+- 创建可复用的 WatsonChatDialog 组件，支持输入框、对话历史、快捷按钮
+- 实现华生对话 Zustand Store，管理对话历史和加载状态
+- 在所有页面（StartPage、InvestigationPage、DeductionBoard、InterrogationPage、ConclusionPage）集成华生对话框
+- 对话框支持可拖拽、展开/收起功能
+- 对话历史在页面切换时保持
+- 前端日志记录华生对话过程
+- Typecheck passes
+- Files changed:
+  - backend/app/models/game.py: 新增 WatsonChatMessage 和 WatsonChatContext 数据模型
+  - backend/app/agents/watson_agent.py: 扩展 WatsonAgent 类，新增 chat() 方法
+  - backend/app/services/game_service.py: 新增对话历史存储和管理功能
+  - backend/app/routers/game.py: 新增 POST /{game_id}/watson/chat 和 GET /{game_id}/watson/history API 端点
+  - frontend/src/types/game.ts: 新增 WatsonMessageType, WatsonChatMessage, QuickQuestion 类型定义
+  - frontend/src/services/api.ts: 新增 sendWatsonMessage() 和 getWatsonChatHistory() API 方法
+  - frontend/src/store/watsonChatStore.ts: 新建 Zustand store，管理对话状态和历史
+  - frontend/src/components/WatsonChatDialog.tsx: 新建可复用组件，支持拖拽、展开/收起、快捷提问、消息列表等功能
+  - frontend/src/pages/StartPage.tsx: 集成 WatsonChatDialog 组件
+  - frontend/src/pages/InvestigationPage.tsx: 集成 WatsonChatDialog 组件
+  - frontend/src/pages/DeductionBoard.tsx: 集成 WatsonChatDialog 组件
+  - frontend/src/pages/InterrogationPage.tsx: 集成 WatsonChatDialog 组件
+  - frontend/src/pages/ConclusionPage.tsx: 集成 WatsonChatDialog 组件
+  - scripts/ralph/prd.json: 标记 US-021 为完成
+- **Learnings for future iterations:**
+  - 默认导出的组件在导入时不需要花括号
+  - 始终在提交前运行完整的类型检查，确保没有未使用的变量和导入
+  - 组件集成时要注意保持页面结构的完整性
+  - Zustand store 的 actions 应该包含完整的日志记录，便于调试
+  - 对话框组件使用 position: fixed 定位，可以在所有页面复用
+---

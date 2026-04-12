@@ -2,10 +2,38 @@
 import axios from 'axios'
 import type {
   GameState, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain,
-  ConclusionReadiness, AccusationResult, CaseReveal
+  ConclusionReadiness, AccusationResult, CaseReveal,
+  WatsonChatMessage, WatsonMessageType
 } from '@/types/game'
 
 console.info('[api.ts] 初始化 API 服务')
+
+// 验证 gameId 的辅助函数
+const validateGameId = (gameId: string, functionName: string): void => {
+  if (!gameId || gameId === 'undefined') {
+    console.error(`[gameApi] ${functionName} 被调用时 gameId 无效`, { gameId })
+    throw new Error(`gameId 不能为空 (${functionName})`)
+  }
+}
+
+// 将 snake_case 转换为 camelCase
+const snakeToCamel = (str: string): string => {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+}
+
+// 递归转换对象的键从 snake_case 到 camelCase
+const convertKeysToCamel = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(convertKeysToCamel)
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((result: any, key) => {
+      const camelKey = snakeToCamel(key)
+      result[camelKey] = convertKeysToCamel(obj[key])
+      return result
+    }, {})
+  }
+  return obj
+}
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
@@ -26,10 +54,14 @@ apiClient.interceptors.request.use(
   }
 )
 
-// 响应拦截器 - 记录所有 API 响应
+// 响应拦截器 - 记录所有 API 响应并转换字段名
 apiClient.interceptors.response.use(
   (response) => {
     console.debug(`[API] 响应: ${response.status}`, response.data)
+    // 转换响应数据的键从 snake_case 到 camelCase
+    if (response.data) {
+      response.data = convertKeysToCamel(response.data)
+    }
     return response
   },
   (error) => {
@@ -45,9 +77,10 @@ export interface ConversationMessage {
   timestamp?: string
 }
 
-// 谎言检测结果类型
+// 谎言检测结果类型（支持两种命名格式）
 export interface LieDetectionResult {
   lie_detected: boolean
+  lieDetected?: boolean
   confidence: number
   microexpression?: string
   notes?: string
@@ -84,6 +117,10 @@ export const gameApi = {
 
   /** 获取游戏状态 */
   async getGameState(gameId: string): Promise<GameState> {
+    if (!gameId || gameId === 'undefined') {
+      console.error('[gameApi] 尝试获取游戏状态但 gameId 无效', { gameId })
+      throw new Error('gameId 不能为空')
+    }
     console.info('[gameApi] 获取游戏状态', { gameId })
     const response = await apiClient.get<GameState>(`/api/game/${gameId}`)
     return response.data
@@ -91,6 +128,7 @@ export const gameApi = {
 
   /** 设置游戏难度 */
   async setDifficulty(gameId: string, difficulty: GameDifficulty): Promise<{ gameId: string; difficulty: GameDifficulty }> {
+    validateGameId(gameId, 'setDifficulty')
     console.info('[gameApi] 设置游戏难度', { gameId, difficulty })
     const response = await apiClient.post<{ gameId: string; difficulty: GameDifficulty }>(
       `/api/game/${gameId}/difficulty`,
@@ -101,6 +139,7 @@ export const gameApi = {
 
   /** 获取华生对观察的评论 */
   async getWatsonObservationComment(gameId: string, observation: Observation): Promise<{ comment: string }> {
+    validateGameId(gameId, 'getWatsonObservationComment')
     console.info('[gameApi] 获取华生观察评论', { gameId, observationId: observation.id })
     const response = await apiClient.post<{ comment: string }>(
       `/api/game/${gameId}/watson/observation`,
@@ -117,6 +156,7 @@ export const gameApi = {
     areasExamined: number = 0,
     totalAreas: number = 0
   ): Promise<{ hint: string | null }> {
+    validateGameId(gameId, 'getWatsonHint')
     console.info('[gameApi] 获取华生提示', { gameId, hintType })
     const response = await apiClient.post<{ hint: string | null }>(`/api/game/${gameId}/watson/hint`, {
       hint_type: hintType,
@@ -137,9 +177,12 @@ export const gameApi = {
     otherSuspectIds: string[] = []
   ): Promise<{
     suspect_id: string
+    suspectId?: string
     suspect_name: string
+    suspectName?: string
     response: string
     lie_detection: LieDetectionResult
+    lieDetection?: LieDetectionResult
   }> {
     console.info('[gameApi] 向嫌疑人提问', { gameId, suspectId, question: question.substring(0, 50) })
     const response = await apiClient.post(`/api/game/${gameId}/interrogation/question`, {
@@ -199,6 +242,7 @@ export const gameApi = {
 
   /** 获取推理链条 */
   async getDeductionChain(gameId: string): Promise<DeductionChain> {
+    validateGameId(gameId, 'getDeductionChain')
     console.info('[gameApi] 获取推理链条', { gameId })
     const response = await apiClient.get<DeductionChain>(`/api/game/${gameId}/deduction`)
     return response.data
@@ -283,6 +327,7 @@ export const gameApi = {
 
   /** 检查结案准备状态 */
   async checkConclusionReadiness(gameId: string): Promise<ConclusionReadiness> {
+    validateGameId(gameId, 'checkConclusionReadiness')
     console.info('[gameApi] 检查结案准备状态', { gameId })
     const response = await apiClient.get<ConclusionReadiness>(`/api/game/${gameId}/conclusion/readiness`)
     return response.data
@@ -294,6 +339,7 @@ export const gameApi = {
     suspectId: string,
     reasoningSteps: string[] = []
   ): Promise<AccusationResult> {
+    validateGameId(gameId, 'makeAccusation')
     console.info('[gameApi] 指认凶手', { gameId, suspectId })
     const response = await apiClient.post<AccusationResult>(`/api/game/${gameId}/conclusion/accuse`, {
       suspect_id: suspectId,
@@ -304,8 +350,38 @@ export const gameApi = {
 
   /** 获取案件真相 */
   async getCaseReveal(gameId: string): Promise<CaseReveal> {
+    validateGameId(gameId, 'getCaseReveal')
     console.info('[gameApi] 获取案件真相', { gameId })
     const response = await apiClient.get<CaseReveal>(`/api/game/${gameId}/conclusion/reveal`)
+    return response.data
+  },
+
+  /** 与华生对话 */
+  async sendWatsonMessage(
+    gameId: string,
+    message: string
+  ): Promise<{
+    message: string
+    messageType: WatsonMessageType
+  }> {
+    validateGameId(gameId, 'sendWatsonMessage')
+    console.info('[gameApi] 与华生对话', { gameId, message: message.substring(0, 50) })
+    const response = await apiClient.post<{
+      message: string
+      messageType: WatsonMessageType
+    }>(`/api/game/${gameId}/watson/chat`, { message })
+    return response.data
+  },
+
+  /** 获取华生对话历史 */
+  async getWatsonChatHistory(gameId: string): Promise<{
+    messages: WatsonChatMessage[]
+  }> {
+    validateGameId(gameId, 'getWatsonChatHistory')
+    console.info('[gameApi] 获取华生对话历史', { gameId })
+    const response = await apiClient.get<{
+      messages: WatsonChatMessage[]
+    }>(`/api/game/${gameId}/watson/history`)
     return response.data
   },
 }

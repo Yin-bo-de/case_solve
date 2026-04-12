@@ -4,6 +4,31 @@ export type GameDifficulty = 'easy' | 'classic' | 'hardcore'
 
 export type GamePhase = 'start' | 'investigation' | 'interrogation' | 'deduction' | 'conclusion'
 
+// 华生对话消息类型
+export type WatsonMessageType =
+  | 'guidance'
+  | 'clue_discussion'
+  | 'suspect_analysis'
+  | 'deduction_review'
+  | 'knowledge'
+  | 'encouragement'
+  | 'general'
+
+export interface WatsonChatMessage {
+  id: string
+  role: 'user' | 'watson'
+  content: string
+  messageType: WatsonMessageType
+  timestamp: string
+}
+
+// 快捷提问配置
+export interface QuickQuestion {
+  label: string
+  message: string
+  phase: GamePhase[]
+}
+
 export interface Suspect {
   id: string
   name: string

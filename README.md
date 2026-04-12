@@ -33,7 +33,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 - Python 3.11+
 - Node.js 18+
-- Poetry (Python 包管理)
+- pip3 (Python 包管理)
 - npm 或 yarn
 
 ### 后端设置
@@ -43,8 +43,8 @@ cd backend
 cp .env.example .env
 # 编辑 .env 文件，填入你的 OpenAI API Key
 
-poetry install
-poetry run uvicorn app.main:app --reload
+pip3 install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
 ### 前端设置

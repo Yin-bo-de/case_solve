@@ -327,6 +327,28 @@
       "priority": 20,
       "passes": false,
       "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "实现华生全程对话陪伴功能",
+      "description": "作为用户，我希望在游戏的任何阶段都能与华生对话，以便获得指导、讨论线索、梳理思路。",
+      "acceptanceCriteria": [
+        "扩展 WatsonAgent 类，新增 chat() 方法支持自由对话",
+        "实现对话上下文感知（当前阶段、已收集线索、证词等）",
+        "支持多种对话类型：阶段指导、线索讨论、嫌疑人分析、推理梳理、知识咨询、情感支持",
+        "新增后端 API 端点：POST /{gameId}/watson/chat 和 GET /{gameId}/watson/history",
+        "创建可复用的 WatsonChatDialog 组件，支持输入框、对话历史、快捷按钮",
+        "实现华生对话 Zustand Store，管理对话历史和加载状态",
+        "在所有页面（StartPage、InvestigationPage、DeductionBoard、InterrogationPage、ConclusionPage）集成华生对话框",
+        "对话框支持可拖拽、展开/收起功能",
+        "对话历史在页面切换时保持",
+        "前端日志记录华生对话过程",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "已完成华生全程对话陪伴功能，支持所有游戏阶段的自由对话"
     }
   ]
 }

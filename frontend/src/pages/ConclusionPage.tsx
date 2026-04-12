@@ -8,6 +8,7 @@ import type {
   CaseReveal,
   DeductionChain
 } from '@/types/game'
+import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 console.debug('[ConclusionPage.tsx] 加载模块')
 
@@ -439,6 +440,9 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
           </div>
         )}
       </div>
+
+      {/* 华生对话框 */}
+      <WatsonChatDialog gameId={gameId!} />
     </div>
   )
 }

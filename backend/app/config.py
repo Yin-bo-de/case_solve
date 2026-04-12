@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # OpenAI
     openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4-turbo-preview"
 
     # 日志

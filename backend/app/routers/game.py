@@ -7,7 +7,10 @@ from pydantic import BaseModel
 from loguru import logger
 from typing import Optional, List, Dict, Any
 
-from app.models.game import GameState, CreateGameRequest, GameDifficulty, GamePhase
+from app.models.game import (
+    GameState, CreateGameRequest, GameDifficulty, GamePhase,
+    WatsonChatMessage
+)
 from app.models.case import Observation, Inference, Hypothesis, DeductionChain
 from app.services.game_service import get_game_service
 from app.agents.case_generator_agent import get_case_generator
@@ -82,6 +85,16 @@ class MakeAccusationRequest(BaseModel):
     """指认凶手请求"""
     suspect_id: str
     reasoning_steps: List[str] = []
+
+
+class WatsonChatRequest(BaseModel):
+    """华生对话请求"""
+    message: str
+
+
+class GetWatsonHistoryResponse(BaseModel):
+    """获取对话历史响应"""
+    messages: List[WatsonChatMessage]
 
 
 @router.post("/new", response_model=GameState)
@@ -607,3 +620,55 @@ async def get_case_reveal(game_id: str):
 
     reveal = game_service.get_case_reveal(game_id)
     return reveal
+
+
+@router.post("/{game_id}/watson/chat")
+async def chat_with_watson(game_id: str, request: WatsonChatRequest):
+    """与华生对话"""
+    logger.info(f"[API] 与华生对话: {game_id}, 消息: {request.message[:50]}...")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    # 构建对话上下文
+    context = game_service.build_watson_chat_context(game_id)
+    if not context:
+        raise HTTPException(status_code=500, detail="构建对话上下文失败")
+
+    # 保存用户消息
+    game_service.add_watson_chat_message(
+        game_id, "user", request.message, "general"
+    )
+
+    # 调用华生Agent
+    watson = get_watson_agent()
+    response, message_type = await watson.chat(request.message, context)
+
+    # 保存华生回复
+    game_service.add_watson_chat_message(
+        game_id, "watson", response, message_type
+    )
+
+    logger.info(f"[API] 华生回复生成成功: {game_id}, 类型: {message_type}")
+    return {
+        "message": response,
+        "message_type": message_type
+    }
+
+
+@router.get("/{game_id}/watson/history", response_model=GetWatsonHistoryResponse)
+async def get_watson_chat_history(game_id: str):
+    """获取华生对话历史"""
+    logger.info(f"[API] 获取华生对话历史: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    messages = game_service.get_watson_chat_history(game_id)
+    return {"messages": messages}

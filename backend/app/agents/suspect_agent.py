@@ -7,7 +7,7 @@ from datetime import datetime
 import random
 
 from langchain_openai import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import get_settings
 from app.models.case import Suspect, Case
@@ -22,6 +22,7 @@ class SuspectAgent:
         self.llm = ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
             temperature=0.8,
         )
         logger.info("[SuspectAgent] 初始化嫌疑人 Agent")

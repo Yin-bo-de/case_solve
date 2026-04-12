@@ -662,7 +662,19 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   z-index: 100;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: width 0.3s ease, box-shadow 0.3s ease;
+}
+
+.watson-dialog--draggable {
+  /* 当启用拖拽时，使用 transform 定位而不是 bottom/right */
+  bottom: auto;
+  right: auto;
+  transition: box-shadow 0.2s ease;
+}
+
+.watson-dialog--dragging {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+  z-index: 1000;
 }
 
 .watson-dialog--open {
@@ -670,12 +682,37 @@ body {
 }
 
 .watson-dialog__header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.25rem;
   background: rgba(212, 175, 55, 0.1);
   border-bottom: 1px solid #333;
+  cursor: move;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.watson-dialog__header:active {
+  cursor: grabbing;
+}
+
+.watson-dialog__header::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 4px;
+  background: rgba(212, 175, 55, 0.3);
+  border-radius: 2px;
+}
+
+.watson-dialog__header:hover::before {
+  background: rgba(212, 175, 55, 0.6);
 }
 
 .watson-avatar {
