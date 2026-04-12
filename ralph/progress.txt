@@ -14,7 +14,7 @@ Start Date: 2026-04-12
 ## User Stories
 
 - [x] US-001: 项目基础结构与配置
-- [ ] US-002: 设计案件数据模型
+- [x] US-002: 设计案件数据模型
 - [ ] US-003: 实现案件生成 Agent（维多利亚版）
 - [ ] US-004: 实现后端游戏服务基础 API
 - [ ] US-005: 创建前端起始页面（贝克街221B）
@@ -53,4 +53,17 @@ Start Date: 2026-04-12
   - 所有 API 调用通过 axios 拦截器记录日志
   - 数据模型使用 Pydantic v2（后端）和 TypeScript 接口（前端）
   - 游戏服务采用单例模式管理游戏状态
+---
+
+## 2026-04-12 - US-002
+- 增强了案件数据模型，完善了所有要求的类型定义
+- 修改的文件：
+  - backend/app/models/case.py：增强 Suspect/Clue/Case，新增 Observation/Inference/Hypothesis
+  - backend/app/models/game.py：修复 Field 导入，更新 GameState
+  - frontend/src/types/game.ts：同步更新所有 TypeScript 类型
+- **Learnings for future iterations:**
+  - 后端使用 snake_case，前端使用 camelCase，保持命名约定一致性
+  - 推理链条采用分层设计：Observation → Inference → Hypothesis → Conclusion
+  - Pydantic v2 用于数据验证，TypeScript 用于前端类型安全
+  - 模型包含完整的维多利亚时代案件所需字段（personality_traits, secrets, murder_method 等）
 ---
