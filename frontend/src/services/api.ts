@@ -50,6 +50,27 @@ export interface LieDetectionResult {
   notes?: string
 }
 
+// 矛盾检测结果类型
+export interface ContradictionResult {
+  type: string
+  topic: string
+  suspect_1: {
+    suspect_id: string
+    suspect_name: string
+    statement: string
+  }
+  suspect_2: {
+    suspect_id: string
+    suspect_name: string
+    statement: string
+  }
+  description: string
+  confidence: number
+}
+
+// 全体质询控制动作类型
+export type GroupControlAction = 'quiet' | 'let_speak' | 'continue'
+
 export const gameApi = {
   /** 创建新游戏 */
   async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<GameState> {
@@ -142,6 +163,34 @@ export const gameApi = {
       context,
     })
     const response = await apiClient.post(`/api/game/${gameId}/interrogation/interjection?${params.toString()}`)
+    return response.data
+  },
+
+  /** 检测证词矛盾 */
+  async checkContradictions(
+    gameId: string,
+    conversationHistory: ConversationMessage[] = [],
+    suspectStatements: Record<string, string[]> = {}
+  ): Promise<{ contradictions: ContradictionResult[]; count: number }> {
+    console.info('[gameApi] 检测证词矛盾', { gameId })
+    const response = await apiClient.post(`/api/game/${gameId}/interrogation/contradiction-check`, {
+      conversation_history: conversationHistory,
+      suspect_statements: suspectStatements,
+    })
+    return response.data
+  },
+
+  /** 全体质询控场 */
+  async groupControl(
+    gameId: string,
+    action: GroupControlAction,
+    targetSuspectId?: string
+  ): Promise<{ success: boolean; message: string }> {
+    console.info('[gameApi] 全体质询控场', { gameId, action, targetSuspectId })
+    const response = await apiClient.post(`/api/game/${gameId}/interrogation/group-control`, {
+      action,
+      target_suspect_id: targetSuspectId,
+    })
     return response.data
   },
 }

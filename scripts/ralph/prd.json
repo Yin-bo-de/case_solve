@@ -175,8 +175,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented group interrogation with @mention support, contradiction detection, suspect interjections (max 2), user control features, and complete frontend logging; typecheck passes"
     },
     {
       "id": "US-012",

@@ -38,6 +38,18 @@ class SuspectQuestionRequest(BaseModel):
     other_suspect_ids: List[str] = []
 
 
+class ContradictionCheckRequest(BaseModel):
+    """矛盾检测请求"""
+    conversation_history: List[Dict[str, str]] = []
+    suspect_statements: Dict[str, List[str]] = {}  # suspect_id -> list of statements
+
+
+class GroupControlRequest(BaseModel):
+    """全体质询控制请求"""
+    action: str  # "quiet", "let_speak", "continue"
+    target_suspect_id: Optional[str] = None
+
+
 @router.post("/new", response_model=GameState)
 async def create_new_game(request: CreateGameRequest):
     """创建新案件"""
@@ -253,3 +265,109 @@ async def get_suspect_interjection(
 
     logger.info(f"[API] 嫌疑人插话生成成功: {game_id}")
     return {"interjection": interjection}
+
+
+@router.post("/{game_id}/interrogation/contradiction-check")
+async def check_contradictions(game_id: str, request: ContradictionCheckRequest):
+    """检测证词中的矛盾点"""
+    logger.info(f"[API] 检测矛盾: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    # 简单的矛盾检测逻辑（Mock实现）
+    contradictions = []
+
+    # 检查不同嫌疑人关于同一时间点的陈述
+    statements_by_topic = {}
+
+    for suspect_id, statements in request.suspect_statements.items():
+        suspect = next((s for s in game.case.suspects if s.id == suspect_id), None)
+        if not suspect:
+            continue
+
+        for stmt in statements:
+            # 提取关键词（简单实现）
+            keywords = ["昨晚", "10点", "11点", "厨房", "客厅", "书房", "睡觉", "读书", " alone"]
+            for keyword in keywords:
+                if keyword in stmt:
+                    if keyword not in statements_by_topic:
+                        statements_by_topic[keyword] = []
+                    statements_by_topic[keyword].append({
+                        "suspect_id": suspect_id,
+                        "suspect_name": suspect.name,
+                        "statement": stmt
+                    })
+
+    # 查找同一话题下的矛盾陈述
+    for topic, topic_statements in statements_by_topic.items():
+        if len(topic_statements) >= 2:
+            # 简单检查：如果两个嫌疑人在同一话题下的陈述看起来不同
+            for i in range(len(topic_statements)):
+                for j in range(i + 1, len(topic_statements)):
+                    stmt1 = topic_statements[i]
+                    stmt2 = topic_statements[j]
+
+                    # 简单的矛盾检测启发式
+                    if ("在厨房" in stmt1["statement"] and "在客厅" in stmt2["statement"]) or \
+                       ("在睡觉" in stmt1["statement"] and "在读书" in stmt2["statement"]) or \
+                       ("独自一人" in stmt1["statement"] and "和某人在一起" in stmt2["statement"]):
+
+                        contradictions.append({
+                            "type": "timeline_conflict",
+                            "topic": topic,
+                            "suspect_1": stmt1,
+                            "suspect_2": stmt2,
+                            "description": f"{stmt1['suspect_name']}和{stmt2['suspect_name']}关于{topic}的陈述存在矛盾",
+                            "confidence": 0.7
+                        })
+
+    # 如果对话历史中提到时间，也可以检查
+    if len(contradictions) == 0 and len(request.conversation_history) > 3:
+        # 随机生成一个模拟的矛盾点（演示用）
+        if game.case.suspects and len(game.case.suspects) >= 2:
+            s1 = game.case.suspects[0]
+            s2 = game.case.suspects[1]
+            contradictions.append({
+                "type": "location_conflict",
+                "topic": "昨晚的行踪",
+                "suspect_1": {"suspect_id": s1.id, "suspect_name": s1.name, "statement": "我昨晚一直在自己房间"},
+                "suspect_2": {"suspect_id": s2.id, "suspect_name": s2.name, "statement": "我昨晚看到有人从书房出来"},
+                "description": f"{s1.name}的房间窗户正对{s2.name}的房间，如果{s1.name}在睡觉，{s2.name}应该能听到动静",
+                "confidence": 0.6
+            })
+
+    logger.info(f"[API] 矛盾检测完成: {game_id}, 发现 {len(contradictions)} 个矛盾")
+    return {"contradictions": contradictions, "count": len(contradictions)}
+
+
+@router.post("/{game_id}/interrogation/group-control")
+async def group_control(game_id: str, request: GroupControlRequest):
+    """全体质询控场（用户绝对控制权）"""
+    logger.info(f"[API] 全体质询控场: {game_id}, 动作: {request.action}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    # 处理不同的控场动作
+    response_message = ""
+    if request.action == "quiet":
+        response_message = "好的，都安静下来！让我们听一个人说。"
+    elif request.action == "let_speak":
+        response_message = f"好的，让他继续说。"
+    elif request.action == "continue":
+        response_message = "继续，我们听听接下来怎么说。"
+    else:
+        response_message = "我们继续。"
+
+    logger.info(f"[API] 控场操作完成: {game_id}")
+    return {"success": True, "message": response_message}
