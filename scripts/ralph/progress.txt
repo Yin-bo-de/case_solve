@@ -76,3 +76,20 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Methods are async to support future LangChain integrations
   - Mock implementations include personality-based responses and lie detection
 ---
+## 2026/04/12 - US-010
+- Implemented Interrogation Page (单独审讯页面)
+- Files changed:
+  - backend/app/routers/game.py: added interrogation API endpoints (ask question, get interjection)
+  - frontend/src/pages/InterrogationPage.tsx: created with suspect selection, conversation, lie detection, Watson integration
+  - frontend/src/App.tsx: added route for interrogation page
+  - frontend/src/services/api.ts: added interrogation API methods
+  - frontend/src/index.css: added disabled-link style
+  - frontend/src/pages/InvestigationPage.tsx: added Link to interrogation page
+  - scripts/ralph/prd.json: marked US-010 as passes=true
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Frontend types use camelCase (personalityTraits, interviewedSuspectIds), backend uses snake_case
+  - Use inline style tags for component-specific CSS
+  - Conversation history uses role-based messages (user/suspect)
+  - Lie detection result includes confidence score and microexpression
+---

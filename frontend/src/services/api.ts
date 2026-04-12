@@ -35,6 +35,21 @@ apiClient.interceptors.response.use(
   }
 )
 
+// 对话历史消息类型
+export interface ConversationMessage {
+  role: 'user' | 'suspect' | 'watson'
+  content: string
+  timestamp?: string
+}
+
+// 谎言检测结果类型
+export interface LieDetectionResult {
+  lie_detected: boolean
+  confidence: number
+  microexpression?: string
+  notes?: string
+}
+
 export const gameApi = {
   /** 创建新游戏 */
   async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<GameState> {
@@ -85,6 +100,48 @@ export const gameApi = {
       areas_examined: areasExamined,
       total_areas: totalAreas,
     })
+    return response.data
+  },
+
+  /** 向嫌疑人提问 */
+  async askSuspectQuestion(
+    gameId: string,
+    suspectId: string,
+    question: string,
+    conversationHistory: ConversationMessage[] = [],
+    isPrivate: boolean = true,
+    otherSuspectIds: string[] = []
+  ): Promise<{
+    suspect_id: string
+    suspect_name: string
+    response: string
+    lie_detection: LieDetectionResult
+  }> {
+    console.info('[gameApi] 向嫌疑人提问', { gameId, suspectId, question: question.substring(0, 50) })
+    const response = await apiClient.post(`/api/game/${gameId}/interrogation/question`, {
+      suspect_id: suspectId,
+      question,
+      conversation_history: conversationHistory,
+      is_private: isPrivate,
+      other_suspect_ids: otherSuspectIds,
+    })
+    return response.data
+  },
+
+  /** 获取嫌疑人插话 */
+  async getSuspectInterjection(
+    gameId: string,
+    respondingSuspectId: string,
+    otherSuspectId: string,
+    context: string
+  ): Promise<{ interjection: string | null }> {
+    console.info('[gameApi] 获取嫌疑人插话', { gameId, respondingSuspectId, otherSuspectId })
+    const params = new URLSearchParams({
+      responding_suspect_id: respondingSuspectId,
+      other_suspect_id: otherSuspectId,
+      context,
+    })
+    const response = await apiClient.post(`/api/game/${gameId}/interrogation/interjection?${params.toString()}`)
     return response.data
   },
 }

@@ -157,8 +157,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created InterrogationPage with suspect selection, conversation history, lie detection, Watson integration, and Victorian styling; added interrogation API endpoints to game router; typecheck passes"
     },
     {
       "id": "US-011",

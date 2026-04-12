@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { GameState, Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
 
@@ -499,9 +499,18 @@ export default function InvestigationPage() {
         <div className="footer-progress">
           <span>勘查进度: {areas.filter(a => a.examined).length} / {areas.length}</span>
         </div>
-        <button className="footer-button footer-button--next" disabled={observations.length === 0} type="button">
+        <Link
+          to={`/interrogation/${gameId}`}
+          className={`footer-button footer-button--next ${observations.length === 0 ? 'disabled-link' : ''}`}
+          aria-disabled={observations.length === 0}
+          onClick={(e) => {
+            if (observations.length === 0) {
+              e.preventDefault()
+            }
+          }}
+        >
           下一步: 审讯嫌疑人
-        </button>
+        </Link>
       </footer>
     </div>
   )

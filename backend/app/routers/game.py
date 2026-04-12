@@ -4,13 +4,14 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from loguru import logger
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from app.models.game import GameState, CreateGameRequest, GameDifficulty
 from app.models.case import Observation
 from app.services.game_service import get_game_service
 from app.agents.case_generator_agent import get_case_generator
 from app.agents.watson_agent import get_watson_agent
+from app.agents.suspect_agent import get_suspect_agent
 
 router = APIRouter()
 
@@ -26,6 +27,15 @@ class WatsonHintRequest(BaseModel):
     observations_count: int = 0
     areas_examined: int = 0
     total_areas: int = 0
+
+
+class SuspectQuestionRequest(BaseModel):
+    """嫌疑人提问请求"""
+    suspect_id: str
+    question: str
+    conversation_history: List[Dict[str, str]] = []
+    is_private: bool = True
+    other_suspect_ids: List[str] = []
 
 
 @router.post("/new", response_model=GameState)
@@ -153,3 +163,93 @@ async def get_watson_hint(game_id: str, request: WatsonHintRequest):
 
     logger.info(f"[API] 华生提示生成成功: {game_id}")
     return {"hint": hint}
+
+
+@router.post("/{game_id}/interrogation/question")
+async def ask_suspect_question(game_id: str, request: SuspectQuestionRequest):
+    """向嫌疑人提问（单独审讯或全体质询）"""
+    logger.info(f"[API] 向嫌疑人提问: {game_id}, 嫌疑人: {request.suspect_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    # 找到对应的嫌疑人
+    suspect = next(
+        (s for s in game.case.suspects if s.id == request.suspect_id),
+        None
+    )
+    if not suspect:
+        raise HTTPException(status_code=404, detail=f"嫌疑人不存在: {request.suspect_id}")
+
+    # 调用嫌疑人Agent生成回复
+    suspect_agent = get_suspect_agent()
+    response = await suspect_agent.generate_response(
+        suspect=suspect,
+        case=game.case,
+        user_question=request.question,
+        conversation_history=request.conversation_history,
+        is_private=request.is_private,
+        other_suspects_present=request.other_suspect_ids
+    )
+
+    # 检测谎言
+    lie_detection = await suspect_agent.detect_lie(suspect, response, game.case)
+
+    logger.info(f"[API] 嫌疑人回复生成成功: {game_id}")
+    return {
+        "suspect_id": suspect.id,
+        "suspect_name": suspect.name,
+        "response": response,
+        "lie_detection": lie_detection
+    }
+
+
+@router.post("/{game_id}/interrogation/interjection")
+async def get_suspect_interjection(
+    game_id: str,
+    responding_suspect_id: str,
+    other_suspect_id: str,
+    context: str
+):
+    """获取嫌疑人的插话/反驳（全体质询时）"""
+    logger.info(f"[API] 获取嫌疑人插话: {game_id}, {other_suspect_id} -> {responding_suspect_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    # 找到对应的嫌疑人
+    responding_suspect = next(
+        (s for s in game.case.suspects if s.id == responding_suspect_id),
+        None
+    )
+    other_suspect = next(
+        (s for s in game.case.suspects if s.id == other_suspect_id),
+        None
+    )
+
+    if not responding_suspect or not other_suspect:
+        raise HTTPException(status_code=404, detail="嫌疑人不存在")
+
+    # 调用嫌疑人Agent生成插话
+    suspect_agent = get_suspect_agent()
+    interjection = await suspect_agent.generate_interjection(
+        responding_suspect=responding_suspect,
+        other_suspect=other_suspect,
+        case=game.case,
+        context=context
+    )
+
+    logger.info(f"[API] 嫌疑人插话生成成功: {game_id}")
+    return {"interjection": interjection}

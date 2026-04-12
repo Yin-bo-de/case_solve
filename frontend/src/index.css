@@ -626,6 +626,13 @@ body {
   cursor: not-allowed;
 }
 
+.disabled-link {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  text-decoration: none;
+}
+
 .footer-progress {
   color: #a0a0a0;
   font-size: 1rem;
