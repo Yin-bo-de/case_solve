@@ -7,13 +7,40 @@ from loguru import logger
 from typing import Optional, List, Dict, Any
 
 from app.models.game import GameState, CreateGameRequest, GameDifficulty
-from app.models.case import Observation
+from app.models.case import Observation, Inference, Hypothesis, DeductionChain
 from app.services.game_service import get_game_service
 from app.agents.case_generator_agent import get_case_generator
 from app.agents.watson_agent import get_watson_agent
 from app.agents.suspect_agent import get_suspect_agent
 
 router = APIRouter()
+
+
+class CreateInferenceRequest(BaseModel):
+    """创建推理请求"""
+    content: str
+    observation_ids: List[str] = []
+    parent_inference_ids: List[str] = []
+
+
+class CreateHypothesisRequest(BaseModel):
+    """创建假设请求"""
+    title: str
+    description: str
+    inference_ids: List[str] = []
+    suspect_id: Optional[str] = None
+
+
+class VerifyHypothesisRequest(BaseModel):
+    """验证假设请求"""
+    is_verified: bool
+    verification_notes: Optional[str] = None
+
+
+class WatsonDeductionFeedbackRequest(BaseModel):
+    """华生推理反馈请求"""
+    inference_ids: List[str] = []
+    hypothesis_ids: List[str] = []
 
 
 class WatsonObservationRequest(BaseModel):
@@ -371,3 +398,144 @@ async def group_control(game_id: str, request: GroupControlRequest):
 
     logger.info(f"[API] 控场操作完成: {game_id}")
     return {"success": True, "message": response_message}
+
+
+@router.get("/{game_id}/deduction", response_model=DeductionChain)
+async def get_deduction_chain(game_id: str):
+    """获取推理链条"""
+    logger.info(f"[API] 获取推理链条: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    deduction_chain = game_service.get_or_create_deduction_chain(game_id)
+    return deduction_chain
+
+
+@router.post("/{game_id}/deduction/inference", response_model=Inference)
+async def create_inference(game_id: str, request: CreateInferenceRequest):
+    """创建推理"""
+    logger.info(f"[API] 创建推理: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    inference = game_service.create_inference(
+        game_id,
+        request.content,
+        request.observation_ids,
+        request.parent_inference_ids
+    )
+    return inference
+
+
+@router.delete("/{game_id}/deduction/inference/{inference_id}")
+async def delete_inference(game_id: str, inference_id: str):
+    """删除推理"""
+    logger.info(f"[API] 删除推理: {game_id}, {inference_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    success = game_service.delete_inference(game_id, inference_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"推理不存在: {inference_id}")
+
+    return {"success": True}
+
+
+@router.post("/{game_id}/deduction/hypothesis", response_model=Hypothesis)
+async def create_hypothesis(game_id: str, request: CreateHypothesisRequest):
+    """创建假设"""
+    logger.info(f"[API] 创建假设: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    hypothesis = game_service.create_hypothesis(
+        game_id,
+        request.title,
+        request.description,
+        request.inference_ids,
+        request.suspect_id
+    )
+    return hypothesis
+
+
+@router.post("/{game_id}/deduction/hypothesis/{hypothesis_id}/verify", response_model=Hypothesis)
+async def verify_hypothesis(game_id: str, hypothesis_id: str, request: VerifyHypothesisRequest):
+    """验证假设"""
+    logger.info(f"[API] 验证假设: {game_id}, {hypothesis_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    hypothesis = game_service.verify_hypothesis(
+        game_id,
+        hypothesis_id,
+        request.is_verified,
+        request.verification_notes
+    )
+    if not hypothesis:
+        raise HTTPException(status_code=404, detail=f"假设不存在: {hypothesis_id}")
+
+    return hypothesis
+
+
+@router.delete("/{game_id}/deduction/hypothesis/{hypothesis_id}")
+async def delete_hypothesis(game_id: str, hypothesis_id: str):
+    """删除假设"""
+    logger.info(f"[API] 删除假设: {game_id}, {hypothesis_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    success = game_service.delete_hypothesis(game_id, hypothesis_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"假设不存在: {hypothesis_id}")
+
+    return {"success": True}
+
+
+@router.post("/{game_id}/deduction/watson-feedback")
+async def get_watson_deduction_feedback(game_id: str, request: WatsonDeductionFeedbackRequest):
+    """获取华生对推理的反馈"""
+    logger.info(f"[API] 获取华生推理反馈: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    deduction_chain = game_service.get_or_create_deduction_chain(game_id)
+
+    # 分析推理链条
+    logic_gaps = game_service.detect_logic_gaps(game_id, request.inference_ids, request.hypothesis_ids)
+
+    watson = get_watson_agent()
+    feedback = await watson.analyze_deduction(deduction_chain, logic_gaps)
+
+    return {
+        "feedback": feedback["analysis"],
+        "suggestions": feedback["suggestions"],
+        "logic_gaps": logic_gaps
+    }

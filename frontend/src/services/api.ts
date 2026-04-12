@@ -1,6 +1,6 @@
 // API 服务
 import axios from 'axios'
-import type { GameState, GameDifficulty, Observation } from '@/types/game'
+import type { GameState, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain } from '@/types/game'
 
 console.info('[api.ts] 初始化 API 服务')
 
@@ -190,6 +190,90 @@ export const gameApi = {
     const response = await apiClient.post(`/api/game/${gameId}/interrogation/group-control`, {
       action,
       target_suspect_id: targetSuspectId,
+    })
+    return response.data
+  },
+
+  /** 获取推理链条 */
+  async getDeductionChain(gameId: string): Promise<DeductionChain> {
+    console.info('[gameApi] 获取推理链条', { gameId })
+    const response = await apiClient.get<DeductionChain>(`/api/game/${gameId}/deduction`)
+    return response.data
+  },
+
+  /** 创建推理 */
+  async createInference(
+    gameId: string,
+    content: string,
+    observationIds: string[],
+    parentInferenceIds: string[] = []
+  ): Promise<Inference> {
+    console.info('[gameApi] 创建推理', { gameId, content, observationIds, parentInferenceIds })
+    const response = await apiClient.post<Inference>(`/api/game/${gameId}/deduction/inference`, {
+      content,
+      observation_ids: observationIds,
+      parent_inference_ids: parentInferenceIds,
+    })
+    return response.data
+  },
+
+  /** 创建假设 */
+  async createHypothesis(
+    gameId: string,
+    title: string,
+    description: string,
+    inferenceIds: string[],
+    suspectId?: string
+  ): Promise<Hypothesis> {
+    console.info('[gameApi] 创建假设', { gameId, title, inferenceIds, suspectId })
+    const response = await apiClient.post<Hypothesis>(`/api/game/${gameId}/deduction/hypothesis`, {
+      title,
+      description,
+      inference_ids: inferenceIds,
+      suspect_id: suspectId,
+    })
+    return response.data
+  },
+
+  /** 验证假设 */
+  async verifyHypothesis(
+    gameId: string,
+    hypothesisId: string,
+    isVerified: boolean,
+    verificationNotes?: string
+  ): Promise<Hypothesis> {
+    console.info('[gameApi] 验证假设', { gameId, hypothesisId, isVerified })
+    const response = await apiClient.post<Hypothesis>(`/api/game/${gameId}/deduction/hypothesis/${hypothesisId}/verify`, {
+      is_verified: isVerified,
+      verification_notes: verificationNotes,
+    })
+    return response.data
+  },
+
+  /** 删除推理 */
+  async deleteInference(gameId: string, inferenceId: string): Promise<{ success: boolean }> {
+    console.info('[gameApi] 删除推理', { gameId, inferenceId })
+    const response = await apiClient.delete(`/api/game/${gameId}/deduction/inference/${inferenceId}`)
+    return response.data
+  },
+
+  /** 删除假设 */
+  async deleteHypothesis(gameId: string, hypothesisId: string): Promise<{ success: boolean }> {
+    console.info('[gameApi] 删除假设', { gameId, hypothesisId })
+    const response = await apiClient.delete(`/api/game/${gameId}/deduction/hypothesis/${hypothesisId}`)
+    return response.data
+  },
+
+  /** 获取华生对推理的反馈 */
+  async getWatsonDeductionFeedback(
+    gameId: string,
+    inferenceIds: string[],
+    hypothesisIds: string[]
+  ): Promise<{ feedback: string; suggestions: string[]; logic_gaps?: any[] }> {
+    console.info('[gameApi] 获取华生推理反馈', { gameId, inferenceIds, hypothesisIds })
+    const response = await apiClient.post(`/api/game/${gameId}/deduction/watson-feedback`, {
+      inference_ids: inferenceIds,
+      hypothesis_ids: hypothesisIds,
     })
     return response.data
   },

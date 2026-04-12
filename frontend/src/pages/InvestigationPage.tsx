@@ -499,18 +499,26 @@ export default function InvestigationPage() {
         <div className="footer-progress">
           <span>勘查进度: {areas.filter(a => a.examined).length} / {areas.length}</span>
         </div>
-        <Link
-          to={`/interrogation/${gameId}`}
-          className={`footer-button footer-button--next ${observations.length === 0 ? 'disabled-link' : ''}`}
-          aria-disabled={observations.length === 0}
-          onClick={(e) => {
-            if (observations.length === 0) {
-              e.preventDefault()
-            }
-          }}
-        >
-          下一步: 审讯嫌疑人
-        </Link>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Link
+            to={`/deduction/${gameId}`}
+            className="footer-button footer-button--secondary"
+          >
+            推理板
+          </Link>
+          <Link
+            to={`/interrogation/${gameId}`}
+            className={`footer-button footer-button--next ${observations.length === 0 ? 'disabled-link' : ''}`}
+            aria-disabled={observations.length === 0}
+            onClick={(e) => {
+              if (observations.length === 0) {
+                e.preventDefault()
+              }
+            }}
+          >
+            下一步: 审讯嫌疑人
+          </Link>
+        </div>
       </footer>
     </div>
   )

@@ -190,8 +190,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in backend/app/models/case.py and frontend/src/types/game.ts"
     },
     {
       "id": "US-013",
@@ -207,8 +207,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created DeductionBoard component with observation selection, inference creation, hypothesis creation, Watson feedback, and Victorian styling; added navigation links in InvestigationPage and InterrogationPage; added API methods for deduction chain management; typecheck passes"
     },
     {
       "id": "US-014",
@@ -223,8 +223,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented hypothesis verification with supporting evidence display, logic gap detection, Watson feedback integration, and verification UI"
     },
     {
       "id": "US-015",

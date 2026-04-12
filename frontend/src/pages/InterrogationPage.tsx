@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { GameState, Suspect } from '@/types/game'
 import {
   gameApi,
@@ -892,13 +892,21 @@ export default function InterrogationPage() {
         <div className="footer-progress">
           <span>已审讯: {gameState.interviewedSuspectIds?.length || 0} / {gameState.case?.suspects?.length || 0}</span>
         </div>
-        <button
-          className="footer-button footer-button--next"
-          disabled={true}
-          type="button"
-        >
-          下一步: 推理链条 (开发中)
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Link
+            to={`/deduction/${gameId}`}
+            className="footer-button footer-button--secondary"
+          >
+            推理板
+          </Link>
+          <button
+            className="footer-button footer-button--next"
+            disabled={true}
+            type="button"
+          >
+            下一步: 结案 (开发中)
+          </button>
+        </div>
       </footer>
 
       {/* 审讯页面样式 */}
@@ -1573,6 +1581,19 @@ export default function InterrogationPage() {
         .footer-button--next:hover:not(:disabled) {
           transform: translateY(-1px);
           box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+        }
+
+        .footer-button--secondary {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid #8b7355;
+          color: #c9a962;
+          text-decoration: none;
+        }
+
+        .footer-button--secondary:hover:not(:disabled) {
+          background: rgba(139, 115, 85, 0.2);
+          border-color: #a08060;
+          transform: translateY(-1px);
         }
 
         .footer-button:disabled {

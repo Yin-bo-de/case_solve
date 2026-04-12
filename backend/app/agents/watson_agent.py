@@ -1,7 +1,7 @@
 """
 华生NPC Agent - 主动的探案伙伴
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from loguru import logger
 from datetime import datetime
 
@@ -9,7 +9,7 @@ from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from app.config import get_settings
-from app.models.case import Observation, Inference, Hypothesis, Clue
+from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain
 
 
 class WatsonAgent:
@@ -132,6 +132,102 @@ class WatsonAgent:
             if key in topic:
                 return knowledge
         return None
+
+    async def analyze_deduction(
+        self,
+        deduction_chain: DeductionChain,
+        logic_gaps: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        分析推理链条并给出反馈
+
+        Args:
+            deduction_chain: 当前的推理链条
+            logic_gaps: 检测到的逻辑缺口
+
+        Returns:
+            包含分析和建议的字典
+        """
+        logger.info(f"[WatsonAgent] 分析推理链条 (推理: {len(deduction_chain.inferences)}, 假设: {len(deduction_chain.hypotheses)})")
+
+        # 生成整体分析
+        analysis = self._generate_deduction_analysis(deduction_chain, logic_gaps)
+
+        # 生成具体建议
+        suggestions = self._generate_deduction_suggestions(deduction_chain, logic_gaps)
+
+        return {
+            "analysis": analysis,
+            "suggestions": suggestions
+        }
+
+    def _generate_deduction_analysis(
+        self,
+        deduction_chain: DeductionChain,
+        logic_gaps: List[Dict[str, Any]]
+    ) -> str:
+        """生成推理分析"""
+        if len(deduction_chain.inferences) == 0 and len(deduction_chain.hypotheses) == 0:
+            return "我们才刚刚开始，老朋友。让我们先整理一下已有的观察记录，看看能得出什么推论。"
+
+        # 检查逻辑缺口
+        if len(logic_gaps) > 0:
+            gap = logic_gaps[0]
+            if gap["type"] == "unused_observations":
+                return f"我注意到还有一些观察记录没有被用到。也许我们应该看看能不能把它们也纳入推理中？"
+            elif gap["type"] == "insufficient_evidence":
+                return "这个推论很有意思，但我觉得证据还不够充分。我们需要更多的支持。"
+            elif gap["type"] == "insufficient_inferences":
+                return "这个假设还需要更多的推理节点来支撑。让我们一步步来。"
+
+        # 根据推理数量给出反馈
+        if len(deduction_chain.hypotheses) > 0:
+            hypothesis = deduction_chain.hypotheses[-1]
+            if hypothesis.is_verified:
+                return f"很好！我们已经验证了'{hypothesis.title}'这个假设。看来我们正朝着正确的方向前进。"
+            else:
+                return f"'{hypothesis.title}'是一个有趣的假设。你觉得我们应该如何验证它？"
+
+        if len(deduction_chain.inferences) >= 3:
+            return "我们已经有了几个可靠的推论。也许是时候开始形成一些假设了？"
+
+        return "我们的推理正在逐步成型。继续把观察记录联系起来，看看能发现什么。"
+
+    def _generate_deduction_suggestions(
+        self,
+        deduction_chain: DeductionChain,
+        logic_gaps: List[Dict[str, Any]]
+    ) -> List[str]:
+        """生成推理建议"""
+        suggestions = []
+
+        # 基于逻辑缺口生成建议
+        for gap in logic_gaps:
+            if gap["type"] == "unused_observations":
+                suggestions.append(f"考虑将未使用的观察记录整合到推理中")
+            elif gap["type"] == "insufficient_evidence":
+                suggestions.append(f"为推理寻找更多的支持证据")
+            elif gap["type"] == "insufficient_inferences":
+                suggestions.append(f"建立更多推理节点来支撑假设")
+            elif gap["type"] == "no_suspect_linked":
+                suggestions.append(f"考虑将假设与具体嫌疑人关联起来")
+
+        # 通用建议
+        if len(deduction_chain.inferences) > 0 and len(deduction_chain.hypotheses) == 0:
+            suggestions.append("尝试基于现有的推理提出一个假设")
+
+        if len(deduction_chain.hypotheses) > 0:
+            unverified = [h for h in deduction_chain.hypotheses if not h.is_verified]
+            if len(unverified) > 0:
+                suggestions.append(f"考虑如何验证'{unverified[0].title}'这个假设")
+
+        # 确保有一些建议
+        if len(suggestions) == 0:
+            suggestions.append("继续收集更多线索")
+            suggestions.append("回顾已有的观察记录，看看有没有新的发现")
+            suggestions.append("考虑与嫌疑人再次交谈")
+
+        return suggestions[:3]  # 最多返回3个建议
 
 
 # 全局华生Agent实例

@@ -1,12 +1,14 @@
 """
 游戏服务
 """
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 from loguru import logger
 from datetime import datetime
 
 from app.models.game import GameState, GameDifficulty, GamePhase
-from app.models.case import Case
+from app.models.case import (
+    Case, Observation, Inference, Hypothesis, DeductionChain
+)
 
 
 class GameService:
@@ -14,6 +16,7 @@ class GameService:
 
     def __init__(self):
         self._games: Dict[str, GameState] = {}
+        self._deduction_chains: Dict[str, DeductionChain] = {}
         logger.info("[GameService] 初始化游戏服务")
 
     def create_game(self, difficulty: GameDifficulty = GameDifficulty.CLASSIC) -> GameState:
@@ -45,6 +48,10 @@ class GameService:
         )
 
         self._games[game_id] = game_state
+
+        # 初始化推理链条
+        self._init_deduction_chain(game_id)
+
         logger.info(f"[GameService] 创建游戏: {game_id}, 难度: {difficulty}")
         return game_state
 
@@ -62,8 +69,212 @@ class GameService:
         game.case = case
         game.phase = GamePhase.INVESTIGATION
         game.updated_at = datetime.utcnow()
+
+        # 将案件线索转换为观察记录
+        deduction_chain = self.get_or_create_deduction_chain(game_id)
+        for clue in case.clues:
+            if clue.discovered:
+                observation = Observation(
+                    id=str(uuid.uuid4()),
+                    description=clue.description,
+                    location=clue.location or "未知位置",
+                    related_clue_ids=[clue.id]
+                )
+                deduction_chain.observations.append(observation)
+
         logger.info(f"[GameService] 设置案件: {game_id} -> {case.id}")
         return True
+
+    def _init_deduction_chain(self, game_id: str) -> DeductionChain:
+        """初始化推理链条"""
+        import uuid
+        chain_id = str(uuid.uuid4())
+        chain = DeductionChain(id=chain_id)
+        self._deduction_chains[game_id] = chain
+        return chain
+
+    def get_or_create_deduction_chain(self, game_id: str) -> DeductionChain:
+        """获取或创建推理链条"""
+        if game_id not in self._deduction_chains:
+            return self._init_deduction_chain(game_id)
+        return self._deduction_chains[game_id]
+
+    def create_inference(
+        self,
+        game_id: str,
+        content: str,
+        observation_ids: List[str],
+        parent_inference_ids: List[str]
+    ) -> Inference:
+        """创建推理"""
+        import uuid
+        chain = self.get_or_create_deduction_chain(game_id)
+
+        # 计算置信度（基于观察数量）
+        confidence = min(0.3 + len(observation_ids) * 0.15, 0.95)
+
+        # 识别支持和反对证据
+        supporting_evidence = []
+        contradicting_evidence = []
+
+        # 从观察中提取支持证据
+        for obs in chain.observations:
+            if obs.id in observation_ids:
+                supporting_evidence.append(obs.description)
+
+        inference = Inference(
+            id=str(uuid.uuid4()),
+            content=content,
+            observation_ids=observation_ids,
+            parent_inference_ids=parent_inference_ids,
+            confidence=confidence,
+            supporting_evidence=supporting_evidence,
+            contradicting_evidence=contradicting_evidence
+        )
+
+        chain.inferences.append(inference)
+        chain.updated_at = datetime.utcnow()
+        logger.info(f"[GameService] 创建推理: {game_id} -> {inference.id}")
+        return inference
+
+    def delete_inference(self, game_id: str, inference_id: str) -> bool:
+        """删除推理"""
+        chain = self.get_or_create_deduction_chain(game_id)
+        initial_len = len(chain.inferences)
+        chain.inferences = [i for i in chain.inferences if i.id != inference_id]
+        chain.updated_at = datetime.utcnow()
+        success = len(chain.inferences) < initial_len
+        logger.info(f"[GameService] 删除推理: {game_id} -> {inference_id}, 成功: {success}")
+        return success
+
+    def create_hypothesis(
+        self,
+        game_id: str,
+        title: str,
+        description: str,
+        inference_ids: List[str],
+        suspect_id: Optional[str]
+    ) -> Hypothesis:
+        """创建假设"""
+        import uuid
+        chain = self.get_or_create_deduction_chain(game_id)
+
+        # 收集支持证据
+        supporting_evidence = []
+        opposing_evidence = []
+        for inference in chain.inferences:
+            if inference.id in inference_ids:
+                supporting_evidence.extend(inference.supporting_evidence)
+
+        # 计算支持度评分
+        support_score = sum(
+            inf.confidence for inf in chain.inferences
+            if inf.id in inference_ids
+        )
+
+        hypothesis = Hypothesis(
+            id=str(uuid.uuid4()),
+            title=title,
+            description=description,
+            inference_ids=inference_ids,
+            suspect_id=suspect_id,
+            is_verified=False,
+            support_score=support_score
+        )
+
+        chain.hypotheses.append(hypothesis)
+        chain.updated_at = datetime.utcnow()
+        logger.info(f"[GameService] 创建假设: {game_id} -> {hypothesis.id}")
+        return hypothesis
+
+    def verify_hypothesis(
+        self,
+        game_id: str,
+        hypothesis_id: str,
+        is_verified: bool,
+        verification_notes: Optional[str]
+    ) -> Optional[Hypothesis]:
+        """验证假设"""
+        chain = self.get_or_create_deduction_chain(game_id)
+
+        for hypothesis in chain.hypotheses:
+            if hypothesis.id == hypothesis_id:
+                hypothesis.is_verified = is_verified
+                hypothesis.verification_notes = verification_notes
+                chain.updated_at = datetime.utcnow()
+                logger.info(f"[GameService] 验证假设: {game_id} -> {hypothesis_id}, 状态: {is_verified}")
+                return hypothesis
+
+        return None
+
+    def delete_hypothesis(self, game_id: str, hypothesis_id: str) -> bool:
+        """删除假设"""
+        chain = self.get_or_create_deduction_chain(game_id)
+        initial_len = len(chain.hypotheses)
+        chain.hypotheses = [h for h in chain.hypotheses if h.id != hypothesis_id]
+        chain.updated_at = datetime.utcnow()
+        success = len(chain.hypotheses) < initial_len
+        logger.info(f"[GameService] 删除假设: {game_id} -> {hypothesis_id}, 成功: {success}")
+        return success
+
+    def detect_logic_gaps(
+        self,
+        game_id: str,
+        inference_ids: List[str],
+        hypothesis_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        """检测逻辑缺口"""
+        chain = self.get_or_create_deduction_chain(game_id)
+        gaps = []
+
+        # 检查推理是否有足够的观察支持
+        for inference in chain.inferences:
+            if inference.id in inference_ids and len(inference.observation_ids) < 2:
+                gaps.append({
+                    "type": "insufficient_evidence",
+                    "target_type": "inference",
+                    "target_id": inference.id,
+                    "description": "这个推理只有很少的观察支持，可能需要更多证据"
+                })
+
+        # 检查假设是否有足够的推理支持
+        for hypothesis in chain.hypotheses:
+            if hypothesis.id in hypothesis_ids:
+                if len(hypothesis.inference_ids) < 2:
+                    gaps.append({
+                        "type": "insufficient_inferences",
+                        "target_type": "hypothesis",
+                        "target_id": hypothesis.id,
+                        "description": "这个假设只有很少的推理支持，建议建立更多推理节点"
+                    })
+
+                # 检查是否关联了嫌疑人
+                if not hypothesis.suspect_id:
+                    gaps.append({
+                        "type": "no_suspect_linked",
+                        "target_type": "hypothesis",
+                        "target_id": hypothesis.id,
+                        "description": "这个假设没有关联具体的嫌疑人，考虑是否需要关联"
+                    })
+
+        # 检查是否有未使用的观察
+        used_observation_ids = set()
+        for inference in chain.inferences:
+            used_observation_ids.update(inference.observation_ids)
+
+        unused_observations = [
+            obs for obs in chain.observations
+            if obs.id not in used_observation_ids
+        ]
+
+        if len(unused_observations) > 0:
+            gaps.append({
+                "type": "unused_observations",
+                "description": f"还有 {len(unused_observations)} 条观察记录没有被用于任何推理",
+                "unused_count": len(unused_observations)
+            })
+
+        return gaps
 
 
 # 全局游戏服务实例

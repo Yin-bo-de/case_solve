@@ -93,3 +93,63 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Conversation history uses role-based messages (user/suspect)
   - Lie detection result includes confidence score and microexpression
 ---
+## 2026/04/12 - US-011
+- Implemented Group Interrogation (全体质询功能)
+- Files changed:
+  - backend/app/routers/game.py: added contradiction check and group control endpoints
+  - frontend/src/services/api.ts: added contradiction check, group control types and methods
+  - frontend/src/pages/InterrogationPage.tsx: complete rewrite to support both private and group modes, @mention support, contradiction detection, suspect interjections (max 2), user control features
+  - scripts/ralph/prd.json: marked US-011 as passes=true
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Use textarea instead of input for multi-line @mention support
+  - Track suspect statements separately for contradiction detection
+  - Use per-suspect counters for interjection limits
+  - Absolute positioning for @mention dropdown menus
+---
+## 2026/04/12 - US-012
+- Verified Deduction Chain data models are already implemented
+- Files checked:
+  - backend/app/models/case.py: Observation, Inference, Hypothesis, DeductionChain models defined
+  - frontend/src/types/game.ts: corresponding TypeScript types defined
+  - backend/app/models/game.py: GameState includes deduction_chain field
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Always check existing code before implementing - models were already in US-002 commit
+  - Backend uses snake_case, frontend uses camelCase for property names
+  - DeductionChain is already integrated into GameState model
+---
+## 2026/04/12 - US-013
+- Implemented Deduction Board page (演绎推理板)
+- Files changed:
+  - frontend/src/pages/DeductionBoard.tsx: created with observation list, inference cards, hypothesis cards, Watson feedback integration
+  - frontend/src/App.tsx: added /deduction/:gameId route
+  - frontend/src/pages/InvestigationPage.tsx: added link to deduction board
+  - frontend/src/pages/InterrogationPage.tsx: added link to deduction board
+  - frontend/src/index.css: added deduction board Victorian-style CSS
+  - frontend/src/services/api.ts: added deduction chain API methods (getDeductionChain, createInference, createHypothesis, verifyHypothesis, deleteInference, deleteHypothesis, getWatsonDeductionFeedback)
+  - scripts/ralph/prd.json: marked US-013 as passes=true
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Don't use style jsx in Vite projects - move styles to index.css instead
+  - Keep CSS in separate files to avoid TypeScript parsing issues with curly braces
+  - Use console.debug/info/warn/error consistently for frontend logging
+  - Add footer-button--secondary style for secondary navigation buttons
+---
+## 2026/04/12 - US-014
+- Implemented hypothesis verification feature (假设验证功能)
+- Files changed:
+  - backend/app/routers/game.py: added deduction endpoints (get deduction chain, create/delete inference, create/verify/delete hypothesis, Watson deduction feedback)
+  - backend/app/services/game_service.py: added deduction chain management, evidence tracking, and logic gap detection
+  - backend/app/agents/watson_agent.py: added analyze_deduction method for deduction feedback
+  - frontend/src/pages/DeductionBoard.tsx: enhanced with hypothesis expand/collapse, evidence display, verification UI, and logic gap alerts
+  - frontend/src/index.css: added styles for hypothesis details, evidence sections, verification, and logic gaps
+  - frontend/src/services/api.ts: updated Watson feedback type to include logic_gaps
+  - scripts/ralph/prd.json: marked US-014 as passes=true
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Keep hypothesis cards expandable to show detailed evidence without cluttering the view
+  - Track supporting evidence at both inference and hypothesis levels for clear audit trail
+  - Use color coding for evidence status (green for supporting, etc.)
+  - Logic gap detection helps guide users to build more robust deductions
+---
