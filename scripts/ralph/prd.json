@@ -93,8 +93,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed in commits 8549a70 and 790158d"
     },
     {
       "id": "US-007",
@@ -124,8 +124,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed in commit 790158d"
     },
     {
       "id": "US-009",
@@ -139,8 +139,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created suspect_agent.py with response generation, lie detection, and interjection methods; added loguru logging and singleton pattern"
     },
     {
       "id": "US-010",

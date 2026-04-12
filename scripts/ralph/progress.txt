@@ -50,3 +50,29 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Use console.debug/info/warn/error for frontend logging
   - TypeScript typecheck passes before committing
 ---
+## 2026/04/12 - US-006 & US-008
+- Verified US-006 (现场勘查页面) and US-008 (华生提示集成) are already implemented
+- Files checked:
+  - frontend/src/pages/InvestigationPage.tsx: complete implementation with clickable areas, observation notes, Watson dialog
+  - frontend/src/index.css: complete Victorian styling for investigation page
+  - backend/app/routers/game.py: Watson API endpoints implemented
+  - backend/app/agents/watson_agent.py: Watson agent with mock comments
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Check git log for existing commits before starting work
+  - InvestigationPage uses React hooks (useState, useEffect, useRef, useCallback)
+  - Idle detection for Watson hints uses setInterval
+  - Modal patterns for area details
+  - CSS uses BEM naming convention (block__element--modifier)
+---
+## 2026/04/12 - US-009
+- Implemented Suspect Agent (嫌疑人Agent)
+- Files changed:
+  - backend/app/agents/suspect_agent.py: created with response generation, lie detection, interjection methods
+  - backend/app/agents/__init__.py: updated to export SuspectAgent
+  - scripts/ralph/prd.json: marked US-009 as passes=true
+- **Learnings for future iterations:**
+  - SuspectAgent follows the same singleton pattern as other agents
+  - Methods are async to support future LangChain integrations
+  - Mock implementations include personality-based responses and lie detection
+---
