@@ -139,8 +139,8 @@
         "Typecheck passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现SuspectAgent，包含对话生成、谎言检测、插话反驳功能"
     },
     {
       "id": "US-010",
@@ -157,8 +157,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现InterrogationPage，包含单独审讯和全体质询两种模式"
     },
     {
       "id": "US-011",
@@ -175,8 +175,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现全体质询功能，包含矛盾检测、插话反驳、用户控场"
     },
     {
       "id": "US-012",
@@ -190,8 +190,8 @@
         "Typecheck passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已在case.py中定义所有推理链条数据模型"
     },
     {
       "id": "US-013",
@@ -207,8 +207,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现DeductionBoard，包含观察选择、推理创建、假设构建"
     },
     {
       "id": "US-014",
@@ -223,8 +223,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现假设验证功能，包含逻辑缺口检测、华生反馈、验证状态管理"
     },
     {
       "id": "US-015",
@@ -241,8 +241,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现ConclusionPage，包含三步结案流程、案件真相揭露"
     },
     {
       "id": "US-016",
@@ -258,8 +258,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现系统判断与反馈，包含正确/错误指认处理、错误次数限制、结案报告、再玩一局功能"
     },
     {
       "id": "US-017",
@@ -277,8 +277,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现基础难度系统：三个难度级别，影响错误次数限制和时间限制；其他难度影响（线索明显度、华生主动性、提示频率、红鲱鱼数量）待完善"
     },
     {
       "id": "US-018",
@@ -294,8 +294,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 18,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "已实现基础维多利亚风格：暗色主题、金色点缀、Georgia复古字体、时代气息场景描述；煤气灯效果和木质纹理待完善"
     },
     {
       "id": "US-019",

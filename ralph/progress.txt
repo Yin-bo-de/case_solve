@@ -21,16 +21,16 @@ Start Date: 2026-04-12
 - [x] US-006: 实现现场勘查页面（观察记录系统）
 - [x] US-007: 实现华生 Agent 基础
 - [x] US-008: 在勘查页面集成华生提示
-- [ ] US-009: 实现嫌疑人 Agent
-- [ ] US-010: 创建单独审讯页面
-- [ ] US-011: 实现全体质询功能
-- [ ] US-012: 设计推理链条数据结构
-- [ ] US-013: 创建推理链条页面（演绎推理板）
-- [ ] US-014: 实现假设验证功能
-- [ ] US-015: 创建结案阶段页面
-- [ ] US-016: 实现系统判断与反馈
-- [ ] US-017: 实现难度系统
-- [ ] US-018: UI风格改造为维多利亚哥特风
+- [x] US-009: 实现嫌疑人 Agent
+- [x] US-010: 创建单独审讯页面
+- [x] US-011: 实现全体质询功能
+- [x] US-012: 设计推理链条数据结构
+- [x] US-013: 创建推理链条页面（演绎推理板）
+- [x] US-014: 实现假设验证功能
+- [x] US-015: 创建结案阶段页面
+- [x] US-016: 实现系统判断与反馈
+- [x] US-017: 实现难度系统
+- [x] US-018: UI风格改造为维多利亚哥特风
 - [ ] US-019: 实现前端 Zustand 状态管理
 - [ ] US-020: 集成所有模块并端到端测试
 
@@ -157,4 +157,211 @@ Start Date: 2026-04-12
   - 固定定位对话框使用 z-index 层级管理
   - CSS 动画实现消息滑入效果和打字弹跳效果
   - 前端类型使用 window.setInterval/window.clearInterval 代替 NodeJS.Timeout
+---
+
+## 2026-04-12 - US-009
+- 实现了嫌疑人 Agent（SuspectAgent）
+- 创建/修改的文件：
+  - backend/app/agents/suspect_agent.py：SuspectAgent 类，包含对话生成、谎言检测、插话反驳
+  - backend/app/agents/__init__.py：导出 get_suspect_agent() 单例
+  - backend/app/routers/game.py：新增嫌疑人相关API端点
+- **功能实现：**
+  - generate_response()：生成符合嫌疑人性格的维多利亚时代对话
+  - detect_lie()：检测谎言并分析微表情
+  - generate_interjection()：生成嫌疑人插话/反驳（全体质询时）
+  - 支持单独审讯和全体质询两种模式
+  - 模拟实现包含预设回复库和随机选择
+- **Learnings for future iterations:**
+  - 嫌疑人根据性格特质（personality_traits）调整回复风格
+  - 真凶会隐瞒信息，无辜者可能紧张或愤怒
+  - 谎言检测返回置信度和微表情观察
+  - 全体质询时嫌疑人有30%概率插话反驳
+---
+
+## 2026-04-12 - US-010
+- 创建了单独审讯页面（InterrogationPage）
+- 修改/创建的文件：
+  - frontend/src/pages/InterrogationPage.tsx：完整的审讯页面组件
+  - frontend/src/services/api.ts：新增嫌疑人API调用方法
+  - frontend/src/index.css：新增审讯页面样式
+- **功能实现：**
+  - 两种模式切换：单独审讯 / 全体质询
+  - 单独审讯模式：选择单个嫌疑人进行私密对话
+  - 显示嫌疑人头像、姓名、背景信息
+  - 用户输入问题发送给嫌疑人
+  - 华生对话框显示低声提示和观察
+  - 谎言检测结果和微表情反馈
+  - 对话历史记录和时间戳
+- **Learnings for future iterations:**
+  - 标签页模式切换（单独审讯/全体质询）
+  - 对话列表使用自动滚动到底部
+  - 输入框支持Enter发送，Shift+Enter换行
+  - 华生提示框半透明悬浮在右下角
+  - 嫌疑人头像使用名字首字母作为占位符
+---
+
+## 2026-04-12 - US-011
+- 实现了全体质询功能
+- 修改/创建的文件：
+  - frontend/src/pages/InterrogationPage.tsx：新增全体质询模式UI
+  - backend/app/routers/game.py：新增矛盾检测和控场API
+- **功能实现：**
+  - 全体质询模式：所有嫌疑人同时在场
+  - 支持@某一个或多个嫌疑人提问
+  - 系统自动检测证词矛盾点并高亮提示
+  - 嫌疑人之间可以插话/反驳（最多2次）
+  - 用户有绝对控场权（安静、让某人说话、继续）
+  - 矛盾检测基于关键词匹配和时间线冲突
+  - 插话概率30%，显示在对话流中
+- **Learnings for future iterations:**
+  - 使用@提及语法指定提问对象
+  - 矛盾点用红色边框高亮显示
+  - 控场按钮在全体质询模式时显示
+  - 插话用不同的背景色区分
+  - 对话历史按时间顺序排列，标记说话人
+---
+
+## 2026-04-12 - US-012
+- 完善了推理链条数据结构
+- 修改的文件：
+  - backend/app/models/case.py：Observation/Inference/Hypothesis/DeductionChain完整定义
+  - frontend/src/types/game.ts：同步TypeScript类型
+- **数据模型设计：**
+  - Observation：观察记录（location, description, related_clue_ids）
+  - Inference：推理节点（content, observation_ids, confidence, supporting_evidence）
+  - Hypothesis：假设（title, description, inference_ids, suspect_id, is_verified）
+  - DeductionChain：完整链条（observations, inferences, hypotheses, conclusion）
+- **Learnings for future iterations:**
+  - 推理分层设计：Observation → Inference → Hypothesis → Conclusion
+  - confidence字段表示推理置信度（0.0-1.0）
+  - supporting_evidence和contradicting_evidence列出正反证据
+  - suspect_id可选关联假设到具体嫌疑人
+  - 时间戳记录创建和更新时间
+---
+
+## 2026-04-12 - US-013
+- 创建了推理链条页面（演绎推理板）
+- 修改/创建的文件：
+  - frontend/src/pages/DeductionBoard.tsx：完整的演绎推理板组件
+  - backend/app/routers/game.py：新增推理链条API端点
+  - backend/app/services/game_service.py：新增推理链条管理逻辑
+- **功能实现：**
+  - 三栏布局：观察记录侧边栏 + 推理节点 + 假设
+  - 选择多条观察记录创建推理节点
+  - 选择多个推理节点创建假设
+  - 推理节点显示置信度和支持证据数量
+  - 假设可以关联具体嫌疑人
+  - 支持删除推理和假设
+  - 观察记录卡片点击选择/取消
+- **Learnings for future iterations:**
+  - 使用selectionMode状态管理选择流程
+  - 多选观察用复选框风格UI
+  - 推理卡片网格布局，自适应宽度
+  - 支持证据预览（selected-items-preview）
+  - 删除按钮用×图标，点击事件stopPropagation
+---
+
+## 2026-04-12 - US-014
+- 实现了假设验证功能
+- 修改/创建的文件：
+  - frontend/src/pages/DeductionBoard.tsx：新增假设验证UI
+  - backend/app/routers/game.py：新增验证假设和华生反馈API
+  - backend/app/services/game_service.py：新增逻辑缺口检测
+  - backend/app/agents/watson_agent.py：新增analyze_deduction()方法
+- **功能实现：**
+  - 假设可以标记为已验证/未验证
+  - 验证时可添加验证笔记
+  - 系统自动检测逻辑缺口并提示
+  - 华生对推理链条提供反馈和建议
+  - 逻辑缺口类型：证据不足、推理不足、未关联嫌疑人、未使用观察
+  - 支持度评分基于推理置信度累加
+  - 展开假设卡片查看详细信息和验证状态
+- **Learnings for future iterations:**
+  - 验证模式（verificationMode）管理验证流程
+  - 逻辑缺口用不同图标和颜色表示
+  - 华生反馈显示在顶部可关闭面板
+  - 假设卡片可展开/折叠查看详情
+  - 支持证据列表从关联推理自动提取
+---
+
+## 2026-04-12 - US-015
+- 创建了结案阶段页面
+- 修改/创建的文件：
+  - frontend/src/pages/ConclusionPage.tsx：完整的结案页面组件
+  - backend/app/routers/game.py：新增结案准备检查、指认凶手、案件真相API
+  - backend/app/services/game_service.py：新增结案相关逻辑
+- **功能实现：**
+  - 三步结案流程：选择凶手 → 陈述推理 → 戏剧性揭露
+  - 线索足够时自动解锁「指认凶手」按钮
+  - 第一步：嫌疑人卡片网格选择真凶
+  - 第二步：推理步骤列表展示，支持添加/删除步骤
+  - 第三步：指认结果显示，正确/错误不同反馈
+  - 华生根据结果给出反馈
+  - 错误次数限制，用完则游戏结束
+  - 正确指认后显示完整案件真相（死者、真凶、作案手法、关键线索）
+  - 提供「再玩一局」功能返回起始页
+- **Learnings for future iterations:**
+  - 步骤指示器（step-indicator）显示当前进度
+  - 结案准备检查：最少5条观察记录
+  - 推理步骤自动从演绎推理板提取
+  - 指认结果根据难度显示错误次数
+  - 案件真相揭露有戏剧性排版和分隔
+  - 「返回继续调查」和「再玩一局」导航
+---
+
+## 2026-04-12 - US-016
+- 实现了系统判断与反馈功能
+- 修改/创建的文件：
+  - backend/app/services/game_service.py：make_accusation()方法实现正确/错误指认处理
+  - backend/app/routers/game.py：POST /{game_id}/conclusion/accuse和GET /{game_id}/conclusion/reveal端点
+  - frontend/src/pages/ConclusionPage.tsx：指认结果展示、再玩一局功能
+- **功能实现：**
+  - 正确指认：给予正面反馈，公布完整案件真相
+  - 错误指认：华生指出推理漏洞，引导继续调查
+  - 根据难度设置错误次数限制
+  - 生成完整结案报告（死者、真凶、作案手法、关键线索）
+  - 提供「再玩一局」功能返回起始页
+- **Learnings for future iterations:**
+  - 指认结果根据is_correct显示不同的UI和反馈
+  - 错误次数在GameState中追踪，与难度挂钩
+  - 案件真相揭露分章节展示（死者、真凶、作案手法、关键线索）
+---
+
+## 2026-04-12 - US-017
+- 实现了基础难度系统
+- 修改/创建的文件：
+  - backend/app/models/game.py：GameDifficulty枚举定义
+  - backend/app/services/game_service.py：create_game()根据难度设置max_mistakes和time_limit_minutes
+  - backend/app/routers/game.py：POST /{game_id}/difficulty端点
+  - frontend/src/pages/StartPage.tsx：难度选择器UI
+- **功能实现：**
+  - 三个难度：简单/经典/硬核
+  - 难度影响时间限制（简单60分钟、经典90分钟、硬核无限制）
+  - 难度影响错误指认次数（简单3次、经典2次、硬核1次）
+- **Learnings for future iterations:**
+  - GameDifficulty枚举使用FastAPI兼容的定义方式
+  - 难度参数在游戏创建时设置，也可后续调整
+  - 难度影响未来可扩展到线索明显度、华生主动性等
+---
+
+## 2026-04-12 - US-018
+- 实现了基础维多利亚哥特风格UI
+- 修改/创建的文件：
+  - frontend/src/index.css：完整的维多利亚时代CSS样式
+  - frontend/src/pages/StartPage.tsx：金色标题、暗色渐变背景
+  - frontend/src/pages/InvestigationPage.tsx：维多利亚风格场景和卡片
+  - frontend/src/pages/InterrogationPage.tsx：复古审讯室UI
+  - frontend/src/pages/DeductionBoard.tsx：演绎推理板维多利亚风格
+  - frontend/src/pages/ConclusionPage.tsx：戏剧性揭露页面样式
+- **功能实现：**
+  - 暗色木质纹理主题基础（#1a1a2e, #16213e, #0f0f23配色）
+  - 使用Georgia/Times New Roman复古字体
+  - 金色点缀（#d4af37）用于标题和重要元素
+  - 场景描述带有时代气息（白教堂区、贝克街221B等）
+  - 所有文本采用19世纪风格（正式、优雅的措辞）
+- **Learnings for future iterations:**
+  - CSS变量定义主题配色，便于统一管理
+  - 文字阴影增强复古氛围（text-shadow: 0 0 20px rgba(212, 175, 55, 0.3)）
+  - 半透明背景（rgba(0, 0, 0, 0.4)）营造层次感
+  - 圆角边框（border-radius: 8px）软化复古风格
 ---
