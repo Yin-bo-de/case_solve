@@ -20,7 +20,7 @@ Start Date: 2026-04-12
 - [x] US-005: 创建前端起始页面（贝克街221B）
 - [x] US-006: 实现现场勘查页面（观察记录系统）
 - [x] US-007: 实现华生 Agent 基础
-- [ ] US-008: 在勘查页面集成华生提示
+- [x] US-008: 在勘查页面集成华生提示
 - [ ] US-009: 实现嫌疑人 Agent
 - [ ] US-010: 创建单独审讯页面
 - [ ] US-011: 实现全体质询功能
@@ -132,4 +132,29 @@ Start Date: 2026-04-12
   - 模态框使用React Portal思路（fixed定位+z-index）
   - CSS渐变和半透明背景营造维多利亚时代氛围
   - 前端日志记录所有用户交互（点击区域、记录观察等）
+---
+
+## 2026-04-12 - US-008
+- 在勘查页面集成了华生提示功能
+- 修改/创建的文件：
+  - backend/app/routers/game.py：新增 POST /{game_id}/watson/observation 和 POST /{game_id}/watson/hint 端点
+  - frontend/src/services/api.ts：新增 getWatsonObservationComment() 和 getWatsonHint() 方法
+  - frontend/src/pages/InvestigationPage.tsx：集成华生对话框、空闲检测、用户活动追踪
+  - frontend/src/index.css：新增华生对话框样式（头像、消息、打字动画等）
+- **功能实现：**
+  - 华生对话框固定在右下角，支持展开/收起
+  - 页面加载时显示华生欢迎消息
+  - 用户勘查区域后，华生有70%概率给出观察评论
+  - 30秒无操作自动触发空闲提示（提醒检查未勘查区域或给予鼓励）
+  - 华生消息按类型显示不同颜色（观察-金色、欢迎-绿色、提示-橙色、鼓励-蓝色）
+  - 打字动画显示华生正在思考
+  - 所有华生对话通过 console.info 记录日志
+  - 用户活动检测（点击页面重置空闲计时器）
+- **Learnings for future iterations:**
+  - 使用 useRef 存储不需要触发重渲染的状态（lastActivityTime, idleTimer）
+  - 使用 useCallback 优化频繁调用的函数性能
+  - 空闲检测使用 setInterval 定期检查，useEffect 清理函数防止内存泄漏
+  - 固定定位对话框使用 z-index 层级管理
+  - CSS 动画实现消息滑入效果和打字弹跳效果
+  - 前端类型使用 window.setInterval/window.clearInterval 代替 NodeJS.Timeout
 ---

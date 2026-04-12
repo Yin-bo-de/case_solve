@@ -1,7 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import type { GameState, Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
+
+// 华生消息类型
+interface WatsonMessage {
+  id: string
+  content: string
+  type: 'observation' | 'hint' | 'welcome' | 'encouragement'
+  timestamp: Date
+}
 
 // 现场可点击区域定义
 interface InvestigationArea {
@@ -15,6 +23,9 @@ interface InvestigationArea {
   examined: boolean
 }
 
+// 空闲检测时长（毫秒）
+const IDLE_TIMEOUT = 30000 // 30秒无操作后触发提示
+
 export default function InvestigationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
@@ -27,7 +38,79 @@ export default function InvestigationPage() {
   const [showObservations, setShowObservations] = useState(false)
   const [areas, setAreas] = useState<InvestigationArea[]>([])
 
+  // 华生相关状态
+  const [watsonMessages, setWatsonMessages] = useState<WatsonMessage[]>([])
+  const [isWatsonTyping, setIsWatsonTyping] = useState(false)
+  const [showWatsonDialog, setShowWatsonDialog] = useState(true)
+
+  // 空闲检测相关
+  const lastActivityRef = useRef<number>(Date.now())
+  const idleTimerRef = useRef<number | null>(null)
+  const hasShownIdleHintRef = useRef(false)
+
   console.debug('[InvestigationPage] 渲染勘查页面', { gameId })
+
+  // 添加华生消息
+  const addWatsonMessage = useCallback((content: string, type: WatsonMessage['type'] = 'observation') => {
+    const message: WatsonMessage = {
+      id: `watson-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      content,
+      type,
+      timestamp: new Date(),
+    }
+    console.info('[InvestigationPage] 华生消息', { content, type })
+    setWatsonMessages(prev => [...prev, message])
+  }, [])
+
+  // 请求华生观察评论
+  const requestWatsonObservationComment = useCallback(async (observation: Observation) => {
+    if (!gameId) return
+
+    try {
+      setIsWatsonTyping(true)
+      console.info('[InvestigationPage] 请求华生观察评论', { observationId: observation.id })
+
+      const response = await gameApi.getWatsonObservationComment(gameId, observation)
+      addWatsonMessage(response.comment, 'observation')
+    } catch (err) {
+      console.warn('[InvestigationPage] 获取华生评论失败', err)
+    } finally {
+      setIsWatsonTyping(false)
+    }
+  }, [gameId, addWatsonMessage])
+
+  // 请求华生空闲提示
+  const requestWatsonIdleHint = useCallback(async () => {
+    if (!gameId || hasShownIdleHintRef.current) return
+
+    try {
+      setIsWatsonTyping(true)
+      console.info('[InvestigationPage] 请求华生空闲提示')
+
+      const response = await gameApi.getWatsonHint(
+        gameId,
+        'idle',
+        observations.length,
+        areas.filter(a => a.examined).length,
+        areas.length
+      )
+
+      if (response.hint) {
+        addWatsonMessage(response.hint, 'hint')
+        hasShownIdleHintRef.current = true
+      }
+    } catch (err) {
+      console.warn('[InvestigationPage] 获取华生提示失败', err)
+    } finally {
+      setIsWatsonTyping(false)
+    }
+  }, [gameId, observations.length, areas, addWatsonMessage])
+
+  // 记录用户活动
+  const recordActivity = useCallback(() => {
+    lastActivityRef.current = Date.now()
+    hasShownIdleHintRef.current = false
+  }, [])
 
   // 初始化现场区域
   const initializeAreas = () => {
@@ -110,6 +193,14 @@ export default function InvestigationPage() {
         console.info('[InvestigationPage] 游戏状态加载成功', state)
         setGameState(state)
         initializeAreas()
+
+        // 显示华生欢迎消息
+        setTimeout(() => {
+          addWatsonMessage(
+            '老朋友，我们到了。这就是案发现场。仔细看看周围，任何细节都可能是重要的线索。',
+            'welcome'
+          )
+        }, 500)
       } catch (err) {
         console.error('[InvestigationPage] 加载游戏失败', err)
         setError(err instanceof Error ? err.message : '加载游戏失败')
@@ -119,11 +210,35 @@ export default function InvestigationPage() {
     }
 
     loadGame()
-  }, [gameId])
+  }, [gameId, addWatsonMessage])
+
+  // 空闲检测
+  useEffect(() => {
+    if (isLoading) return
+
+    const checkIdle = () => {
+      const now = Date.now()
+      const idleTime = now - lastActivityRef.current
+
+      if (idleTime >= IDLE_TIMEOUT && !hasShownIdleHintRef.current) {
+        console.debug('[InvestigationPage] 检测到用户空闲，请求华生提示')
+        requestWatsonIdleHint()
+      }
+    }
+
+    idleTimerRef.current = window.setInterval(checkIdle, 5000)
+
+    return () => {
+      if (idleTimerRef.current) {
+        window.clearInterval(idleTimerRef.current)
+      }
+    }
+  }, [isLoading, requestWatsonIdleHint])
 
   // 处理点击勘查区域
   const handleAreaClick = (area: InvestigationArea) => {
     console.debug('[InvestigationPage] 点击勘查区域', { areaId: area.id, areaName: area.name })
+    recordActivity()
 
     if (!gameState?.case) return
 
@@ -152,11 +267,17 @@ export default function InvestigationPage() {
     setObservations(prev => [...prev, newObservation])
 
     setSelectedArea({ ...area, examined: true })
+
+    // 请求华生对这个观察的评论（有一定概率，不是每次都说话）
+    if (Math.random() > 0.3) {
+      requestWatsonObservationComment(newObservation)
+    }
   }
 
   // 关闭区域详情
   const closeAreaDetail = () => {
     console.debug('[InvestigationPage] 关闭区域详情')
+    recordActivity()
     setSelectedArea(null)
   }
 
@@ -185,7 +306,7 @@ export default function InvestigationPage() {
   }
 
   return (
-    <div className="investigation-page">
+    <div className="investigation-page" onClick={recordActivity}>
       {/* 顶部导航栏 */}
       <header className="investigation-header">
         <div className="header-content">
@@ -267,6 +388,54 @@ export default function InvestigationPage() {
           </div>
         </aside>
       </main>
+
+      {/* 华生对话框 */}
+      <div className={`watson-dialog ${showWatsonDialog ? 'watson-dialog--open' : ''}`}>
+        <div className="watson-dialog__header">
+          <div className="watson-avatar">
+            <span className="watson-avatar__icon">👨‍⚕️</span>
+          </div>
+          <div className="watson-info">
+            <h4 className="watson-name">约翰·华生</h4>
+            <span className="watson-status">{isWatsonTyping ? '正在思考...' : '在线'}</span>
+          </div>
+          <button
+            className="watson-dialog__toggle"
+            onClick={() => setShowWatsonDialog(!showWatsonDialog)}
+            type="button"
+          >
+            {showWatsonDialog ? '−' : '+'}
+          </button>
+        </div>
+
+        {showWatsonDialog && (
+          <div className="watson-dialog__content">
+            <div className="watson-messages">
+              {watsonMessages.length === 0 ? (
+                <div className="watson-welcome">
+                  <p>华生医生会在这里给你提示和建议。</p>
+                </div>
+              ) : (
+                watsonMessages.map(msg => (
+                  <div key={msg.id} className={`watson-message watson-message--${msg.type}`}>
+                    <div className="watson-message__content">{msg.content}</div>
+                    <div className="watson-message__time">
+                      {msg.timestamp.toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))
+              )}
+              {isWatsonTyping && (
+                <div className="watson-typing">
+                  <span className="typing-dot"></span>
+                  <span className="typing-dot"></span>
+                  <span className="typing-dot"></span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 区域详情弹窗 */}
       {selectedArea && (

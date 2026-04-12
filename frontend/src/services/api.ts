@@ -1,6 +1,6 @@
 // API 服务
 import axios from 'axios'
-import type { GameState, GameDifficulty } from '@/types/game'
+import type { GameState, GameDifficulty, Observation } from '@/types/game'
 
 console.info('[api.ts] 初始化 API 服务')
 
@@ -57,6 +57,34 @@ export const gameApi = {
       `/api/game/${gameId}/difficulty`,
       { difficulty }
     )
+    return response.data
+  },
+
+  /** 获取华生对观察的评论 */
+  async getWatsonObservationComment(gameId: string, observation: Observation): Promise<{ comment: string }> {
+    console.info('[gameApi] 获取华生观察评论', { gameId, observationId: observation.id })
+    const response = await apiClient.post<{ comment: string }>(
+      `/api/game/${gameId}/watson/observation`,
+      { observation }
+    )
+    return response.data
+  },
+
+  /** 获取华生提示 */
+  async getWatsonHint(
+    gameId: string,
+    hintType: string = 'idle',
+    observationsCount: number = 0,
+    areasExamined: number = 0,
+    totalAreas: number = 0
+  ): Promise<{ hint: string | null }> {
+    console.info('[gameApi] 获取华生提示', { gameId, hintType })
+    const response = await apiClient.post<{ hint: string | null }>(`/api/game/${gameId}/watson/hint`, {
+      hint_type: hintType,
+      observations_count: observationsCount,
+      areas_examined: areasExamined,
+      total_areas: totalAreas,
+    })
     return response.data
   },
 }
