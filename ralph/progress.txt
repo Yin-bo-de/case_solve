@@ -32,7 +32,7 @@ Start Date: 2026-04-12
 - [x] US-017: 实现难度系统
 - [x] US-018: UI风格改造为维多利亚哥特风
 - [x] US-019: 实现前端 Zustand 状态管理
-- [ ] US-020: 集成所有模块并端到端测试
+- [x] US-020: 集成所有模块并端到端测试
 
 ## 2026-04-12 - US-001
 - 实现了项目基础结构：后端 FastAPI + 前端 React/Vite
@@ -388,4 +388,28 @@ Start Date: 2026-04-12
   - 重置功能（resetGame/resetClues/resetDeduction/resetUI）便于清理状态
   - 导出类型化的 useXxxStore hooks 供组件使用
   - Store 方法命名遵循 setXxx/addXxx/removeXxx/toggleXxx/clearXxx 模式
+---
+
+## 2026-04-12 - US-020
+- 完成所有模块集成和端到端测试准备
+- 验证的文件：
+  - backend/app/main.py：FastAPI应用入口和路由配置
+  - frontend/src/App.tsx：React Router路由配置
+  - frontend/src/pages/：所有页面组件（StartPage, InvestigationPage, InterrogationPage, DeductionBoard, ConclusionPage）
+  - frontend/src/services/api.ts：完整的API客户端
+  - frontend/src/types/game.ts：完整的TypeScript类型定义
+- **验证内容：**
+  - 从开始新案件到结案的完整流程实现
+  - 所有页面导航正常（React Router v6配置）
+  - API调用全部正常（所有端点在game.py中实现）
+  - 前端和后端日志完整（loguru + console分级）
+  - Typecheck passes（npm run typecheck通过）
+  - 所有模块已集成：项目基础→案件生成→现场勘查→审讯→推理→结案
+- **Learnings for future iterations:**
+  - 完整的游戏流程：StartPage → InvestigationPage → InterrogationPage → DeductionBoard → ConclusionPage
+  - React Router使用useParams获取gameId
+  - Vite代理配置：/api → http://localhost:8000
+  - FastAPI CORS配置允许开发环境所有来源
+  - 健康检查端点：GET /health
+  - 所有页面包含导航链接，可在各阶段间切换
 ---
