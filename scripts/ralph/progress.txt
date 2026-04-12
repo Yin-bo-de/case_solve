@@ -23,7 +23,7 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Import services from their respective modules (game_service, case_generator)
   - Use HTTPException for error handling
 ---
-## 2026/04/12 - US-005
+## 2026/04/12 - US-005 (Watson Agent)
 - Implemented Watson Agent skeleton with all core methods
 - Files changed:
   - backend/app/agents/__init__.py: updated to export WatsonAgent
@@ -33,4 +33,20 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - The singleton pattern is consistently used for all agents/services
   - Methods should be async to support future LangChain integrations
   - Mock implementations help establish the API before full LLM integration
+---
+## 2026/04/12 - US-005 (Frontend Start Page)
+- Implemented frontend Start Page (221B Baker Street)
+- Files changed:
+  - frontend/src/pages/StartPage.tsx: created with difficulty selector, start button, case preview
+  - frontend/src/pages/InvestigationPage.tsx: created placeholder
+  - frontend/src/App.tsx: updated routes
+  - frontend/src/index.css: added Victorian-era styling
+  - frontend/src/services/api.ts: fixed createNewGame return type
+  - scripts/ralph/prd.json: synced full PRD and marked US-005 as passes=true
+- **Learnings for future iterations:**
+  - Backend uses snake_case, frontend uses camelCase for properties
+  - API client needs to match exact backend response types
+  - Avoid Next.js-specific features like style jsx in Vite projects
+  - Use console.debug/info/warn/error for frontend logging
+  - TypeScript typecheck passes before committing
 ---

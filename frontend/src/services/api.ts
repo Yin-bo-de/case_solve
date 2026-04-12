@@ -37,9 +37,9 @@ apiClient.interceptors.response.use(
 
 export const gameApi = {
   /** 创建新游戏 */
-  async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<{ gameId: string }> {
+  async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<GameState> {
     console.info('[gameApi] 创建新游戏', { difficulty })
-    const response = await apiClient.post<{ gameId: string }>('/api/game/new', { difficulty })
+    const response = await apiClient.post<GameState>('/api/game/new', { difficulty })
     return response.data
   },
 

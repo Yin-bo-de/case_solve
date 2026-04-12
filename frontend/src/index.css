@@ -1,12 +1,12 @@
-/* 基础样式 - 维多利亚风格将在后续迭代中完善 */
+/* 基础样式 - 维多利亚风格 */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  line-height: 1.6;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: dark;
   color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  background-color: #1a1a2e;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -29,4 +29,143 @@ body {
 #root {
   width: 100%;
   min-height: 100vh;
+}
+
+/* 起始页面样式 */
+.start-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  padding: 2rem;
+}
+
+.start-page__content {
+  max-width: 600px;
+  text-align: center;
+  color: #e8e8e8;
+}
+
+.start-page__title {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  color: #d4af37;
+  text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+.start-page__subtitle {
+  font-size: 1.2rem;
+  margin-bottom: 3rem;
+  color: #a0a0a0;
+  line-height: 1.6;
+}
+
+.start-page__error {
+  background: rgba(220, 53, 69, 0.2);
+  border: 1px solid #dc3545;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+  color: #ff6b6b;
+}
+
+.start-page__case-preview {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #d4af37;
+  border-radius: 8px;
+  padding: 2rem;
+}
+
+.case-preview__location {
+  font-size: 1.1rem;
+  color: #d4af37;
+  margin-bottom: 0.5rem;
+}
+
+.case-preview__victim {
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.case-preview__summary {
+  color: #a0a0a0;
+  line-height: 1.6;
+}
+
+.start-page__difficulty {
+  margin-bottom: 2rem;
+}
+
+.start-page__difficulty h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: #d4af37;
+}
+
+.difficulty-options {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.difficulty-option {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid #333;
+  border-radius: 8px;
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  color: #e8e8e8;
+}
+
+.difficulty-option:hover {
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.1);
+}
+
+.difficulty-option--selected {
+  border-color: #d4af37;
+  background: rgba(212, 175, 55, 0.15);
+}
+
+.difficulty-option__label {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #d4af37;
+  margin-bottom: 0.5rem;
+}
+
+.difficulty-option__description {
+  display: block;
+  color: #a0a0a0;
+  font-size: 0.95rem;
+}
+
+.start-page__start-button {
+  width: 100%;
+  padding: 1.25rem 2rem;
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: #1a1a2e;
+  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.start-page__start-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(212, 175, 55, 0.4);
+}
+
+.start-page__start-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
