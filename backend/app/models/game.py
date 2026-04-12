@@ -4,7 +4,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.case import Case, DeductionChain
 
@@ -32,7 +32,6 @@ class GameState(BaseModel):
     phase: GamePhase = GamePhase.START
     case: Optional[Case] = None
     deduction_chain: Optional[DeductionChain] = None
-    observations: List[str] = []
     interviewed_suspect_ids: List[str] = []
     mistakes_made: int = 0
     max_mistakes: int = 2

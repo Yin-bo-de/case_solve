@@ -12,6 +12,8 @@ export interface Suspect {
   motive: string
   timeline: string
   isGuilty: boolean
+  personalityTraits: string[]
+  secrets: string[]
 }
 
 export interface Clue {
@@ -21,6 +23,8 @@ export interface Clue {
   location?: string
   relatedSuspectIds: string[]
   isRedHerring: boolean
+  discovered: boolean
+  discoveryNotes?: string
 }
 
 export interface Case {
@@ -34,6 +38,52 @@ export interface Case {
   suspects: Suspect[]
   clues: Clue[]
   summary: string
+  murderMethod: string
+  trueMurdererId?: string
+  investigationLocations: string[]
+}
+
+export interface Observation {
+  id: string
+  description: string
+  location: string
+  timestamp: string
+  relatedClueIds: string[]
+  notes?: string
+}
+
+export interface Inference {
+  id: string
+  content: string
+  observationIds: string[]
+  parentInferenceIds: string[]
+  confidence: number
+  createdAt: string
+  supportingEvidence: string[]
+  contradictingEvidence: string[]
+}
+
+export interface Hypothesis {
+  id: string
+  title: string
+  description: string
+  inferenceIds: string[]
+  suspectId?: string
+  isVerified: boolean
+  verificationNotes?: string
+  createdAt: string
+  supportScore: number
+}
+
+export interface DeductionChain {
+  id: string
+  observations: Observation[]
+  inferences: Inference[]
+  hypotheses: Hypothesis[]
+  conclusion?: string
+  finalAccusation?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface GameState {
@@ -41,7 +91,7 @@ export interface GameState {
   difficulty: GameDifficulty
   phase: GamePhase
   case?: Case
-  observations: string[]
+  deductionChain?: DeductionChain
   interviewedSuspectIds: string[]
   mistakesMade: number
   maxMistakes: number
