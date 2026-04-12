@@ -3,9 +3,17 @@
 Branch: ralph/sherlock-holmes-detective-game
 Start Date: 2026-04-12
 
+## Codebase Patterns
+- 后端使用 FastAPI + Poetry 依赖管理
+- 前端使用 React + Vite + TypeScript
+- 日志使用 loguru（后端）和 console 分级（前端）
+- 状态管理使用 Zustand
+- 所有 API 端点前缀为 /api
+- 项目配置使用 pydantic-settings 和 .env 文件
+
 ## User Stories
 
-- [ ] US-001: 项目基础结构与配置
+- [x] US-001: 项目基础结构与配置
 - [ ] US-002: 设计案件数据模型
 - [ ] US-003: 实现案件生成 Agent（维多利亚版）
 - [ ] US-004: 实现后端游戏服务基础 API
@@ -25,3 +33,24 @@ Start Date: 2026-04-12
 - [ ] US-018: UI风格改造为维多利亚哥特风
 - [ ] US-019: 实现前端 Zustand 状态管理
 - [ ] US-020: 集成所有模块并端到端测试
+
+## 2026-04-12 - US-001
+- 实现了项目基础结构：后端 FastAPI + 前端 React/Vite
+- 创建的文件：
+  - backend/pyproject.toml, .env, .gitignore
+  - backend/app/__init__.py, config.py, main.py
+  - backend/app/routers/__init__.py, game.py
+  - backend/app/models/__init__.py, case.py, game.py
+  - backend/app/services/__init__.py, game_service.py
+  - backend/app/agents/__init__.py
+  - frontend/package.json, tsconfig.json, vite.config.ts, .gitignore, .env
+  - frontend/index.html, src/main.tsx, App.tsx, index.css
+  - frontend/src/types/game.ts, src/services/api.ts, src/store/index.ts
+  - README.md, .gitignore (项目根目录)
+- **Learnings for future iterations:**
+  - 后端使用 Poetry 管理依赖，pyproject.toml 包含所有必要的配置（mypy, black, isort）
+  - 前端使用 Vite + React + TypeScript，配置了路径别名 @/ 指向 src/
+  - 所有 API 调用通过 axios 拦截器记录日志
+  - 数据模型使用 Pydantic v2（后端）和 TypeScript 接口（前端）
+  - 游戏服务采用单例模式管理游戏状态
+---

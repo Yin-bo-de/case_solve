@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "sherlock-holmes-detective-game-backend"
+version = "0.1.0"
+description = "AI驱动的福尔摩斯式探案游戏 - 后端服务"
+authors = ["AI Team"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.109.0"
+uvicorn = {extras = ["standard"], version = "^0.27.0"}
+pydantic = "^2.5.0"
+pydantic-settings = "^2.1.0"
+python-multipart = "^0.0.6"
+langchain = "^0.1.0"
+langchain-openai = "^0.0.5"
+loguru = "^0.7.2"
+python-dotenv = "^1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.23.0"
+httpx = "^0.26.0"
+black = "^23.12.0"
+isort = "^5.13.0"
+mypy = "^1.8.0"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
