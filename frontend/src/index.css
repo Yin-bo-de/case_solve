@@ -169,3 +169,465 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* 勘查页面样式 */
+.investigation-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #0f0f23 0%, #1a1a2e 100%);
+  color: #e8e8e8;
+}
+
+.investigation-page--loading,
+.investigation-page--error {
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-spinner,
+.error-message {
+  text-align: center;
+  padding: 2rem;
+}
+
+.error-message h2 {
+  color: #dc3545;
+  margin-bottom: 1rem;
+}
+
+.error-message button {
+  margin-top: 1.5rem;
+  padding: 0.75rem 2rem;
+  background: #d4af37;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: 'Georgia', serif;
+}
+
+/* 顶部导航栏 */
+.investigation-header {
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 2px solid #d4af37;
+  padding: 1rem 2rem;
+}
+
+.header-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-title {
+  font-size: 1.75rem;
+  color: #d4af37;
+}
+
+.header-info {
+  display: flex;
+  gap: 2rem;
+  font-size: 1rem;
+}
+
+.case-location {
+  color: #a0a0a0;
+}
+
+.observation-count {
+  color: #d4af37;
+}
+
+/* 主内容区 */
+.investigation-main {
+  flex: 1;
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* 案发现场 */
+.crime-scene {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.crime-scene__background {
+  flex: 1;
+  position: relative;
+  background: linear-gradient(180deg, #2d2d44 0%, #1a1a2e 60%, #0f0f23 100%);
+  border: 2px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 400px;
+}
+
+.scene-wall--back {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(180deg, #3d3d54 0%, #2d2d44 100%);
+  border-bottom: 4px solid #1a1a2e;
+}
+
+.scene-floor {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  background: linear-gradient(180deg, #4a3728 0%, #2d1f14 100%);
+  border-top: 2px solid #1a1a0a;
+}
+
+/* 可点击勘查区域 */
+.investigation-area {
+  position: absolute;
+  background: rgba(212, 175, 55, 0.1);
+  border: 2px dashed rgba(212, 175, 55, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.investigation-area:hover {
+  background: rgba(212, 175, 55, 0.25);
+  border-color: #d4af37;
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+.investigation-area--examined {
+  background: rgba(76, 175, 80, 0.15);
+  border: 2px solid rgba(76, 175, 80, 0.6);
+}
+
+.investigation-area--examined:hover {
+  background: rgba(76, 175, 80, 0.25);
+  border-color: #4caf50;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+}
+
+.area-label {
+  font-size: 0.85rem;
+  color: #d4af37;
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}
+
+.area-checkmark {
+  font-size: 1.2rem;
+  color: #4caf50;
+}
+
+/* 场景说明 */
+.scene-description {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.scene-description h2 {
+  color: #d4af37;
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.scene-description p {
+  color: #a0a0a0;
+  line-height: 1.6;
+}
+
+/* 观察笔记面板 */
+.observation-panel {
+  width: 320px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid #333;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+}
+
+.observation-panel--open {
+  width: 380px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #333;
+}
+
+.panel-header h3 {
+  color: #d4af37;
+  font-size: 1.1rem;
+}
+
+.panel-toggle {
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid #d4af37;
+  color: #d4af37;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-family: 'Georgia', serif;
+}
+
+.panel-toggle:hover {
+  background: rgba(212, 175, 55, 0.2);
+}
+
+.panel-content {
+  flex: 1;
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+}
+
+.no-observations {
+  color: #666;
+  text-align: center;
+  padding: 2rem 0;
+  line-height: 1.6;
+}
+
+.observation-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.observation-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.observation-location {
+  color: #d4af37;
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.observation-description {
+  color: #c0c0c0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
+}
+
+.observation-time {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+/* 区域详情弹窗 */
+.area-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.area-modal {
+  background: linear-gradient(180deg, #1a1a2e 0%, #0f0f23 100%);
+  border: 2px solid #d4af37;
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #333;
+}
+
+.modal-header h2 {
+  color: #d4af37;
+  font-size: 1.5rem;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #a0a0a0;
+  font-size: 2rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: #fff;
+}
+
+.modal-content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.area-description {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: #e8e8e8;
+  margin-bottom: 1.5rem;
+}
+
+.related-clues h3 {
+  color: #d4af37;
+  font-size: 1.15rem;
+  margin-bottom: 1rem;
+}
+
+.no-clues {
+  color: #666;
+  font-style: italic;
+}
+
+.clue-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.clue-item {
+  background: rgba(212, 175, 55, 0.08);
+  border-left: 3px solid #d4af37;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+}
+
+.clue-item--red-herring {
+  background: rgba(255, 152, 0, 0.08);
+  border-left-color: #ff9800;
+}
+
+.clue-type {
+  color: #d4af37;
+  font-weight: bold;
+  font-size: 0.85rem;
+  margin-right: 0.5rem;
+}
+
+.clue-description {
+  color: #c0c0c0;
+  line-height: 1.5;
+}
+
+.modal-footer {
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid #333;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.modal-button {
+  padding: 0.75rem 2rem;
+  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  color: #1a1a2e;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  font-family: 'Georgia', serif;
+}
+
+.modal-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
+
+/* 底部导航 */
+.investigation-footer {
+  background: rgba(0, 0, 0, 0.5);
+  border-top: 2px solid #333;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  font-family: 'Georgia', serif;
+  transition: all 0.3s ease;
+}
+
+.footer-button--back {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #555;
+  color: #a0a0a0;
+}
+
+.footer-button--back:hover {
+  border-color: #888;
+  color: #fff;
+}
+
+.footer-button--next {
+  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  border: none;
+  color: #1a1a2e;
+  font-weight: bold;
+}
+
+.footer-button--next:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+}
+
+.footer-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.footer-progress {
+  color: #a0a0a0;
+  font-size: 1rem;
+}
+

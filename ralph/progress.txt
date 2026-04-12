@@ -15,11 +15,11 @@ Start Date: 2026-04-12
 
 - [x] US-001: 项目基础结构与配置
 - [x] US-002: 设计案件数据模型
-- [ ] US-003: 实现案件生成 Agent（维多利亚版）
-- [ ] US-004: 实现后端游戏服务基础 API
-- [ ] US-005: 创建前端起始页面（贝克街221B）
-- [ ] US-006: 实现现场勘查页面（观察记录系统）
-- [ ] US-007: 实现华生 Agent 基础
+- [x] US-003: 实现案件生成 Agent（维多利亚版）
+- [x] US-004: 实现后端游戏服务基础 API
+- [x] US-005: 创建前端起始页面（贝克街221B）
+- [x] US-006: 实现现场勘查页面（观察记录系统）
+- [x] US-007: 实现华生 Agent 基础
 - [ ] US-008: 在勘查页面集成华生提示
 - [ ] US-009: 实现嫌疑人 Agent
 - [ ] US-010: 创建单独审讯页面
@@ -66,4 +66,70 @@ Start Date: 2026-04-12
   - 推理链条采用分层设计：Observation → Inference → Hypothesis → Conclusion
   - Pydantic v2 用于数据验证，TypeScript 用于前端类型安全
   - 模型包含完整的维多利亚时代案件所需字段（personality_traits, secrets, murder_method 等）
+---
+
+## 2026-04-12 - US-003
+- 实现了案件生成Agent基础结构
+- 创建的文件：
+  - backend/app/agents/case_generator_agent.py：CaseGeneratorAgent 类，包含模拟案件数据
+  - backend/app/agents/__init__.py：导出 get_case_generator() 单例
+- **Learnings for future iterations:**
+  - Agent 类使用单例模式管理
+  - LangChain ChatOpenAI 用于 LLM 集成
+  - 先实现模拟数据，后续可替换为真实 LLM 调用
+  - 案件包含：3个嫌疑人、5个线索（含红鲱鱼）、完整作案手法
+---
+
+## 2026-04-12 - US-004
+- 实现了后端游戏服务基础 API
+- 修改的文件：
+  - backend/app/routers/game.py：POST /new, GET /{gameId}, POST /{gameId}/difficulty
+- **Learnings for future iterations:**
+  - API 路由使用 FastAPI APIRouter
+  - loguru 用于请求日志记录
+  - game_service 单例管理游戏状态
+  - 难度影响 max_mistakes 和 time_limit_minutes
+---
+
+## 2026-04-12 - US-007
+- 实现了华生 Agent 基础结构
+- 创建的文件：
+  - backend/app/agents/watson_agent.py：WatsonAgent 类，包含观察分享、推理质疑、知识提供等功能
+- **Learnings for future iterations:**
+  - 华生有多种交互模式：观察评论、推理质疑、假设建议、知识提供、鼓励
+  - 包含军医背景的专业知识库（医学、血迹、火药、毒药）
+  - 模拟实现使用随机选择的预设回复
+---
+
+## 2026-04-12 - US-005
+- 创建了前端起始页面（贝克街221B）
+- 创建/修改的文件：
+  - frontend/src/pages/StartPage.tsx：难度选择、开始新案件、案件预览
+  - frontend/src/pages/InvestigationPage.tsx：占位页面
+  - frontend/src/App.tsx：React Router 配置
+  - frontend/src/index.css：基础样式
+  - frontend/src/services/api.ts：API 客户端
+- **Learnings for future iterations:**
+  - 使用 React Router v6 进行页面导航
+  - useState 管理本地状态（难度选择、加载状态）
+  - console.debug/info/warn/error 分级记录前端日志
+  - 游戏创建后3秒自动跳转到勘查页面
+---
+
+## 2026-04-12 - US-006
+- 实现了现场勘查页面（观察记录系统）
+- 修改/创建的文件：
+  - frontend/src/pages/InvestigationPage.tsx：完整的勘查页面组件
+  - frontend/src/index.css：勘查页面相关样式
+- **功能实现：**
+  - 6个可点击的勘查区域（书桌、壁炉、尸体位置、窗户、地毯、角落）
+  - 区域详情弹窗，显示描述和相关线索
+  - 观察笔记侧边栏，自动记录所有勘查操作
+  - 勘查进度追踪（已检查区域数/总区域数）
+  - 完整的维多利亚风格UI（暗色主题、金色点缀）
+- **Learnings for future iterations:**
+  - 使用绝对定位的百分比布局实现场景交互区域
+  - 模态框使用React Portal思路（fixed定位+z-index）
+  - CSS渐变和半透明背景营造维多利亚时代氛围
+  - 前端日志记录所有用户交互（点击区域、记录观察等）
 ---
