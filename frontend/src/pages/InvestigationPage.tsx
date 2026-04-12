@@ -508,7 +508,7 @@ export default function InvestigationPage() {
           </Link>
           <Link
             to={`/interrogation/${gameId}`}
-            className={`footer-button footer-button--next ${observations.length === 0 ? 'disabled-link' : ''}`}
+            className={`footer-button footer-button--secondary ${observations.length === 0 ? 'disabled-link' : ''}`}
             aria-disabled={observations.length === 0}
             onClick={(e) => {
               if (observations.length === 0) {
@@ -516,7 +516,13 @@ export default function InvestigationPage() {
               }
             }}
           >
-            下一步: 审讯嫌疑人
+            审讯嫌疑人
+          </Link>
+          <Link
+            to={`/conclusion/${gameId}`}
+            className="footer-button footer-button--next"
+          >
+            指认凶手
           </Link>
         </div>
       </footer>

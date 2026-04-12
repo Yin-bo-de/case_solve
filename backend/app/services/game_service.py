@@ -276,6 +276,162 @@ class GameService:
 
         return gaps
 
+    def check_conclusion_readiness(self, game_id: str) -> Dict[str, Any]:
+        """检查是否可以进入结案阶段"""
+        chain = self.get_or_create_deduction_chain(game_id)
+        game = self.get_game(game_id)
+
+        if not game or not game.case:
+            return {
+                "is_ready": False,
+                "reason": "案件未设置",
+                "observations_count": 0,
+                "inferences_count": 0,
+                "hypotheses_count": 0,
+                "minimum_observations": 5
+            }
+
+        # 计算已收集的观察数量
+        observations_count = len(chain.observations)
+        inferences_count = len(chain.inferences)
+        hypotheses_count = len(chain.hypotheses)
+
+        # 最低要求：至少5条观察记录
+        minimum_observations = 5
+        is_ready = observations_count >= minimum_observations
+
+        reason = ""
+        if not is_ready:
+            reason = f"还需要收集 {minimum_observations - observations_count} 条观察记录才能进入结案阶段"
+
+        return {
+            "is_ready": is_ready,
+            "reason": reason,
+            "observations_count": observations_count,
+            "inferences_count": inferences_count,
+            "hypotheses_count": hypotheses_count,
+            "minimum_observations": minimum_observations
+        }
+
+    def make_accusation(
+        self,
+        game_id: str,
+        suspect_id: str,
+        reasoning_steps: List[str]
+    ) -> Dict[str, Any]:
+        """指认凶手"""
+        game = self.get_game(game_id)
+        chain = self.get_or_create_deduction_chain(game_id)
+
+        if not game or not game.case:
+            raise ValueError("案件未设置")
+
+        # 找到被指控的嫌疑人
+        accused_suspect = next(
+            (s for s in game.case.suspects if s.id == suspect_id),
+            None
+        )
+
+        if not accused_suspect:
+            raise ValueError("嫌疑人不存在")
+
+        # 检查是否正确
+        true_murderer_id = game.case.true_murderer_id
+        is_correct = suspect_id == true_murderer_id
+
+        # 记录错误次数
+        if not is_correct:
+            game.mistakes_made += 1
+
+        # 找到真凶
+        true_murderer = next(
+            (s for s in game.case.suspects if s.id == true_murderer_id),
+            None
+        )
+
+        # 更新推理链条
+        chain.final_accusation = suspect_id
+        chain.conclusion = f"指认了 {accused_suspect.name}，结果: {'正确' if is_correct else '错误'}"
+        chain.updated_at = datetime.utcnow()
+
+        # 华生的反馈
+        watson_feedback = ""
+        if is_correct:
+            watson_feedback = f"太棒了，老朋友！你完全正确！{accused_suspect.name} 就是凶手！"
+        else:
+            watson_feedback = f"我觉得这里可能有问题...{accused_suspect.name} 似乎不是真正的凶手。我们再仔细想想？"
+
+        return {
+            "is_correct": is_correct,
+            "accused_suspect": {
+                "id": accused_suspect.id,
+                "name": accused_suspect.name,
+                "background": accused_suspect.background
+            },
+            "true_murderer": {
+                "id": true_murderer.id if true_murderer else None,
+                "name": true_murderer.name if true_murderer else None
+            } if is_correct else None,
+            "watson_feedback": watson_feedback,
+            "mistakes_made": game.mistakes_made,
+            "max_mistakes": game.max_mistakes,
+            "can_continue": game.mistakes_made < game.max_mistakes
+        }
+
+    def get_case_reveal(self, game_id: str) -> Dict[str, Any]:
+        """获取完整案件真相"""
+        game = self.get_game(game_id)
+
+        if not game or not game.case:
+            raise ValueError("案件未设置")
+
+        # 找到真凶
+        true_murderer = next(
+            (s for s in game.case.suspects if s.id == game.case.true_murderer_id),
+            None
+        )
+
+        return {
+            "victim": {
+                "name": game.case.victim_name,
+                "background": game.case.victim_background,
+                "cause_of_death": game.case.cause_of_death,
+                "time_of_death": game.case.time_of_death,
+                "location": game.case.location
+            },
+            "true_murderer": {
+                "id": true_murderer.id if true_murderer else None,
+                "name": true_murderer.name if true_murderer else None,
+                "age": true_murderer.age if true_murderer else None,
+                "background": true_murderer.background if true_murderer else None,
+                "motive": true_murderer.motive if true_murderer else None,
+                "secrets": true_murderer.secrets if true_murderer else []
+            } if true_murderer else None,
+            "murder_method": game.case.murder_method,
+            "case_summary": game.case.summary,
+            "all_suspects": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "age": s.age,
+                    "background": s.background,
+                    "motive": s.motive,
+                    "is_guilty": s.is_guilty
+                }
+                for s in game.case.suspects
+            ],
+            "key_clues": [
+                {
+                    "id": c.id,
+                    "description": c.description,
+                    "clue_type": c.clue_type,
+                    "is_red_herring": c.is_red_herring
+                }
+                for c in game.case.clues
+                if not c.is_red_herring
+            ]
+        }
+
 
 # 全局游戏服务实例
 _game_service: Optional[GameService] = None

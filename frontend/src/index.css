@@ -1383,3 +1383,521 @@ body {
   margin-bottom: 0;
 }
 
+/* ========== 结案页面样式 ========== */
+.conclusion-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  padding: 2rem;
+}
+
+.conclusion-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.conclusion-title {
+  font-size: 32px;
+  color: #c9a962;
+  text-align: center;
+  margin-bottom: 30px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+/* 步骤指示器 */
+.step-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 40px;
+  gap: 10px;
+}
+
+.step {
+  padding: 10px 20px;
+  background: rgba(60, 55, 50, 0.6);
+  border: 2px solid #6b5335;
+  border-radius: 20px;
+  color: #8b7355;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.step.active {
+  background: rgba(100, 80, 50, 0.9);
+  border-color: #c9a962;
+  color: #c9a962;
+  box-shadow: 0 0 15px rgba(201, 169, 98, 0.3);
+}
+
+.step.completed {
+  background: rgba(80, 120, 80, 0.3);
+  border-color: #80c980;
+  color: #80c980;
+}
+
+.step-separator {
+  width: 40px;
+  height: 2px;
+  background: #6b5335;
+}
+
+/* 步骤内容 */
+.step-content {
+  background: rgba(40, 35, 30, 0.95);
+  border: 3px solid #8b7355;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.step-title {
+  font-size: 22px;
+  color: #c9a962;
+  margin-bottom: 10px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.step-description {
+  font-size: 16px;
+  color: #a09080;
+  margin-bottom: 25px;
+}
+
+/* 嫌疑人网格 */
+.suspect-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.suspect-card {
+  background: rgba(60, 55, 50, 0.8);
+  border: 2px solid #8b7355;
+  border-radius: 10px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.suspect-card:hover {
+  background: rgba(80, 75, 70, 0.9);
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.suspect-card.selected {
+  border-color: #c9a962;
+  box-shadow: 0 0 20px rgba(201, 169, 98, 0.4);
+  background: rgba(100, 80, 50, 0.9);
+}
+
+.suspect-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b7355 0%, #6b5335 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #e8d5b7;
+  margin-bottom: 15px;
+  border: 2px solid #a09080;
+}
+
+.suspect-name {
+  font-size: 18px;
+  color: #e8d5b7;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.suspect-age {
+  font-size: 13px;
+  color: #a09080;
+  margin-bottom: 10px;
+}
+
+.suspect-background {
+  font-size: 13px;
+  color: #c9b999;
+  line-height: 1.5;
+}
+
+.selected-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #c9a962;
+  color: #1a1a2e;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* 选中嫌疑人摘要 */
+.selected-suspect-summary {
+  background: rgba(100, 80, 50, 0.2);
+  border: 1px solid #c9a962;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 25px;
+}
+
+.selected-suspect-summary .label {
+  color: #a09080;
+  font-size: 14px;
+}
+
+.selected-suspect-summary .suspect-name {
+  color: #c9a962;
+  font-size: 18px;
+  font-weight: bold;
+  margin-left: 8px;
+}
+
+/* 推理步骤 */
+.reasoning-steps {
+  margin-bottom: 30px;
+}
+
+.subsection-title {
+  font-size: 18px;
+  color: #c9a962;
+  margin-bottom: 15px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.steps-list {
+  background: rgba(60, 55, 50, 0.6);
+  border: 1px solid #6b5335;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+  min-height: 100px;
+}
+
+.reasoning-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(139, 115, 85, 0.3);
+}
+
+.reasoning-step:last-child {
+  border-bottom: none;
+}
+
+.step-number {
+  color: #c9a962;
+  font-weight: bold;
+  font-size: 14px;
+  min-width: 25px;
+}
+
+.step-content {
+  flex: 1;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e8d5b7;
+}
+
+.remove-step-btn {
+  background: none;
+  border: none;
+  color: #8b5555;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.remove-step-btn:hover {
+  color: #c95555;
+}
+
+.add-step-form {
+  display: flex;
+  gap: 10px;
+}
+
+.add-step-form .input {
+  flex: 1;
+  padding: 10px;
+  background: rgba(40, 35, 30, 0.9);
+  border: 1px solid #8b7355;
+  border-radius: 4px;
+  color: #e8d5b7;
+  font-size: 14px;
+}
+
+.add-step-form .input:focus {
+  outline: none;
+  border-color: #c9a962;
+}
+
+.button--small {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+/* 步骤操作按钮 */
+.step-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.step-actions .button {
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+/* 按钮样式 */
+.button {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #8b7355 0%, #6b5335 100%);
+  color: #e8d5b7;
+  border: 1px solid #8b7355;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 15px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.button:hover {
+  background: linear-gradient(135deg, #9b8365 0%, #7b6345 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.button--primary {
+  background: linear-gradient(135deg, #c9a962 0%, #a98942 100%);
+  border-color: #c9a962;
+  color: #1a1a2e;
+  font-weight: bold;
+}
+
+.button--primary:hover {
+  background: linear-gradient(135deg, #d9b972 0%, #b99952 100%);
+}
+
+.button--secondary {
+  background: rgba(60, 55, 50, 0.8);
+}
+
+.button--secondary:hover {
+  background: rgba(80, 75, 70, 0.9);
+}
+
+/* 指认结果 */
+.accusation-result {
+  text-align: center;
+  padding: 30px;
+  margin-bottom: 30px;
+  border-radius: 12px;
+}
+
+.accusation-result.correct {
+  background: rgba(80, 120, 80, 0.2);
+  border: 2px solid #80c980;
+}
+
+.accusation-result.incorrect {
+  background: rgba(120, 80, 80, 0.2);
+  border: 2px solid #c98080;
+}
+
+.result-icon {
+  font-size: 60px;
+  margin-bottom: 20px;
+}
+
+.result-title {
+  font-size: 28px;
+  color: #e8d5b7;
+  margin-bottom: 20px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.watson-feedback {
+  background: rgba(50, 60, 70, 0.8);
+  border: 1px solid #6b8b95;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.watson-label {
+  color: #8bb5c9;
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.watson-text {
+  color: #e8d5b7;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.mistake-info {
+  margin-top: 20px;
+}
+
+.mistake-info p {
+  color: #a09080;
+  margin-bottom: 15px;
+}
+
+.game-over {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(120, 80, 80, 0.1);
+  border-radius: 8px;
+}
+
+/* 案件真相揭露 */
+.case-reveal {
+  margin-top: 30px;
+  padding-top: 30px;
+  border-top: 2px solid #6b5335;
+}
+
+.reveal-title {
+  font-size: 24px;
+  color: #c9a962;
+  margin-bottom: 25px;
+  text-align: center;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.reveal-section {
+  background: rgba(60, 55, 50, 0.6);
+  border: 1px solid #6b5335;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.reveal-section h4 {
+  font-size: 16px;
+  color: #c9a962;
+  margin-bottom: 10px;
+}
+
+.reveal-section p {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #e8d5b7;
+  margin-bottom: 8px;
+}
+
+.reveal-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.reveal-section li {
+  font-size: 14px;
+  padding: 8px 10px;
+  background: rgba(40, 35, 30, 0.5);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  color: #e8d5b7;
+  border-left: 3px solid #c9a962;
+}
+
+.final-actions {
+  text-align: center;
+  margin-top: 30px;
+}
+
+/* 未准备好状态 */
+.not-ready {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  padding: 2rem;
+}
+
+.not-ready-container {
+  max-width: 600px;
+  text-align: center;
+  background: rgba(40, 35, 30, 0.95);
+  border: 3px solid #8b7355;
+  border-radius: 12px;
+  padding: 40px;
+}
+
+.not-ready-title {
+  font-size: 28px;
+  color: #c9a962;
+  margin-bottom: 15px;
+  font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.not-ready-message {
+  font-size: 16px;
+  color: #e8d5b7;
+  margin-bottom: 25px;
+  line-height: 1.6;
+}
+
+.readiness-stats {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #a09080;
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  font-size: 24px;
+  color: #c9a962;
+  font-weight: bold;
+}
+
+.not-ready-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+

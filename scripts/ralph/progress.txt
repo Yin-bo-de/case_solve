@@ -153,3 +153,24 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Use color coding for evidence status (green for supporting, etc.)
   - Logic gap detection helps guide users to build more robust deductions
 ---
+## 2026/04/12 - US-015
+- Implemented Conclusion Page with all three steps (select murderer, present reasoning, dramatic reveal)
+- Files changed:
+  - backend/app/routers/game.py: added conclusion endpoints (readiness check, make accusation, get case reveal)
+  - backend/app/services/game_service.py: added check_conclusion_readiness, make_accusation, get_case_reveal methods
+  - frontend/src/types/game.ts: added conclusion-related types (ConclusionReadiness, AccusationResult, CaseReveal, etc.)
+  - frontend/src/services/api.ts: added conclusion API methods (checkConclusionReadiness, makeAccusation, getCaseReveal)
+  - frontend/src/pages/ConclusionPage.tsx: created complete conclusion page with all three steps
+  - frontend/src/App.tsx: added /conclusion/:gameId route
+  - frontend/src/pages/InvestigationPage.tsx: added navigation link to conclusion page
+  - frontend/src/pages/DeductionBoard.tsx: added navigation footer with link to conclusion page
+  - frontend/src/index.css: added complete Victorian-style CSS for conclusion page
+  - scripts/ralph/prd.json: marked US-015 as passes=true
+- Typecheck passes (npm run typecheck in frontend)
+- **Learnings for future iterations:**
+  - Always remove unused imports and variables before running typecheck
+  - Keep step indicators and navigation consistent across all pages
+  - Use the same Victorian-style color scheme (gold accents, dark wood textures) for all pages
+  - Navigation links should be accessible from all major pages (investigation, deduction, interrogation)
+  - The step-by-step wizard pattern works well for linear flows like conclusion
+---

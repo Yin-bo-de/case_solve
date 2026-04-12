@@ -1,12 +1,13 @@
 """
 游戏相关 API 路由
 """
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from loguru import logger
 from typing import Optional, List, Dict, Any
 
-from app.models.game import GameState, CreateGameRequest, GameDifficulty
+from app.models.game import GameState, CreateGameRequest, GameDifficulty, GamePhase
 from app.models.case import Observation, Inference, Hypothesis, DeductionChain
 from app.services.game_service import get_game_service
 from app.agents.case_generator_agent import get_case_generator
@@ -75,6 +76,12 @@ class GroupControlRequest(BaseModel):
     """全体质询控制请求"""
     action: str  # "quiet", "let_speak", "continue"
     target_suspect_id: Optional[str] = None
+
+
+class MakeAccusationRequest(BaseModel):
+    """指认凶手请求"""
+    suspect_id: str
+    reasoning_steps: List[str] = []
 
 
 @router.post("/new", response_model=GameState)
@@ -539,3 +546,64 @@ async def get_watson_deduction_feedback(game_id: str, request: WatsonDeductionFe
         "suggestions": feedback["suggestions"],
         "logic_gaps": logic_gaps
     }
+
+
+@router.get("/{game_id}/conclusion/readiness")
+async def check_conclusion_readiness(game_id: str):
+    """检查是否可以进入结案阶段"""
+    logger.info(f"[API] 检查结案准备状态: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    readiness = game_service.check_conclusion_readiness(game_id)
+    return readiness
+
+
+@router.post("/{game_id}/conclusion/accuse")
+async def make_accusation(game_id: str, request: MakeAccusationRequest):
+    """指认凶手"""
+    logger.info(f"[API] 指认凶手: {game_id}, 嫌疑人: {request.suspect_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    result = game_service.make_accusation(
+        game_id,
+        request.suspect_id,
+        request.reasoning_steps
+    )
+
+    # 更新游戏阶段
+    game.phase = GamePhase.CONCLUSION
+    game.updated_at = datetime.utcnow()
+
+    logger.info(f"[API] 指认结果: {game_id}, 正确: {result['is_correct']}")
+    return result
+
+
+@router.get("/{game_id}/conclusion/reveal")
+async def get_case_reveal(game_id: str):
+    """获取完整案件真相"""
+    logger.info(f"[API] 获取案件真相: {game_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    reveal = game_service.get_case_reveal(game_id)
+    return reveal

@@ -1,6 +1,9 @@
 // API 服务
 import axios from 'axios'
-import type { GameState, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain } from '@/types/game'
+import type {
+  GameState, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain,
+  ConclusionReadiness, AccusationResult, CaseReveal
+} from '@/types/game'
 
 console.info('[api.ts] 初始化 API 服务')
 
@@ -275,6 +278,34 @@ export const gameApi = {
       inference_ids: inferenceIds,
       hypothesis_ids: hypothesisIds,
     })
+    return response.data
+  },
+
+  /** 检查结案准备状态 */
+  async checkConclusionReadiness(gameId: string): Promise<ConclusionReadiness> {
+    console.info('[gameApi] 检查结案准备状态', { gameId })
+    const response = await apiClient.get<ConclusionReadiness>(`/api/game/${gameId}/conclusion/readiness`)
+    return response.data
+  },
+
+  /** 指认凶手 */
+  async makeAccusation(
+    gameId: string,
+    suspectId: string,
+    reasoningSteps: string[] = []
+  ): Promise<AccusationResult> {
+    console.info('[gameApi] 指认凶手', { gameId, suspectId })
+    const response = await apiClient.post<AccusationResult>(`/api/game/${gameId}/conclusion/accuse`, {
+      suspect_id: suspectId,
+      reasoning_steps: reasoningSteps
+    })
+    return response.data
+  },
+
+  /** 获取案件真相 */
+  async getCaseReveal(gameId: string): Promise<CaseReveal> {
+    console.info('[gameApi] 获取案件真相', { gameId })
+    const response = await apiClient.get<CaseReveal>(`/api/game/${gameId}/conclusion/reveal`)
     return response.data
   },
 }

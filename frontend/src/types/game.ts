@@ -100,3 +100,68 @@ export interface GameState {
   createdAt: string
   updatedAt: string
 }
+
+// 结案相关类型
+export interface ConclusionReadiness {
+  isReady: boolean
+  reason: string
+  observationsCount: number
+  inferencesCount: number
+  hypothesesCount: number
+  minimumObservations: number
+}
+
+export interface AccusedSuspect {
+  id: string
+  name: string
+  background: string
+}
+
+export interface TrueMurderer {
+  id: string
+  name: string
+}
+
+export interface AccusationResult {
+  isCorrect: boolean
+  accusedSuspect: AccusedSuspect
+  trueMurderer?: TrueMurderer
+  watsonFeedback: string
+  mistakesMade: number
+  maxMistakes: number
+  canContinue: boolean
+}
+
+export interface CaseReveal {
+  victim: {
+    name: string
+    background: string
+    causeOfDeath: string
+    timeOfDeath: string
+    location: string
+  }
+  trueMurderer?: {
+    id: string
+    name: string
+    age: number
+    background: string
+    motive: string
+    secrets: string[]
+  }
+  murderMethod: string
+  caseSummary: string
+  allSuspects: Array<{
+    id: string
+    name: string
+    age: number
+    background: string
+    motive: string
+    isGuilty: boolean
+  }>
+  keyClues: Array<{
+    id: string
+    description: string
+    clueType: string
+    isRedHerring: boolean
+  }>
+}
