@@ -23,3 +23,14 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Import services from their respective modules (game_service, case_generator)
   - Use HTTPException for error handling
 ---
+## 2026/04/12 - US-005
+- Implemented Watson Agent skeleton with all core methods
+- Files changed:
+  - backend/app/agents/__init__.py: updated to export WatsonAgent
+  - backend/app/agents/watson_agent.py: created with observation sharing, reasoning questioning, etc.
+  - scripts/ralph/prd.json: updated US-005 passes to true
+- **Learnings for future iterations:**
+  - The singleton pattern is consistently used for all agents/services
+  - Methods should be async to support future LangChain integrations
+  - Mock implementations help establish the API before full LLM integration
+---
