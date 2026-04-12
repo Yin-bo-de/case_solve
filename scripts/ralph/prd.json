@@ -1,0 +1,83 @@
+{
+  "project": "Sherlock Holmes Detective Game",
+  "branchName": "ralph/sherlock-holmes-detective-game",
+  "description": "AI-driven Sherlock Holmes style detective game set in Victorian London",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "项目基础结构与配置",
+      "description": "As a developer, I want the project skeleton set up with backend and frontend structure.",
+      "acceptanceCriteria": [
+        "Backend FastAPI project structure created",
+        "Frontend React + TypeScript + Vite project created",
+        "Basic configuration files in place",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Completed in initial commit"
+    },
+    {
+      "id": "US-002",
+      "title": "设计案件数据模型",
+      "description": "As a developer, I need Pydantic models for cases, suspects, clues, and deduction chains.",
+      "acceptanceCriteria": [
+        "Case model created with victim, suspects, clues",
+        "Suspect model with background, motive, timeline",
+        "Clue model with type, location, red herring flag",
+        "Observation, Inference, Hypothesis, DeductionChain models created",
+        "GameState model with phase, difficulty, time tracking",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Completed in commit 8686baf"
+    },
+    {
+      "id": "US-003",
+      "title": "实现案件生成Agent基础结构",
+      "description": "As a developer, I want the case generator agent skeleton with LangChain setup.",
+      "acceptanceCriteria": [
+        "Create case_generator_agent.py in agents module",
+        "Set up LangChain with OpenAI integration",
+        "Define prompt templates for Victorian era case generation",
+        "Add basic logging with loguru",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Created case_generator_agent.py with mock case generation, LangChain ChatOpenAI setup, loguru logging, and singleton pattern"
+    },
+    {
+      "id": "US-004",
+      "title": "实现游戏API端点（创建游戏和获取状态）",
+      "description": "As a frontend developer, I need working API endpoints to create games and retrieve state.",
+      "acceptanceCriteria": [
+        "POST /api/game/new creates a new GameState via GameService",
+        "GET /api/game/{game_id} returns the current game state",
+        "POST /api/game/{game_id}/difficulty sets the game difficulty",
+        "Endpoints return proper JSON responses",
+        "Error handling for non-existent game_ids",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "实现华生Agent基础结构",
+      "description": "As a developer, I want the Watson NPC agent skeleton set up.",
+      "acceptanceCriteria": [
+        "Create watson_agent.py in agents module",
+        "Define Watson personality and behavior prompts",
+        "Add methods for observation sharing, reasoning questioning",
+        "Integrate with loguru logging",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
