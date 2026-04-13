@@ -47,7 +47,6 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     sendMessage,
     fetchHistory,
     setDialogOpen,
-    setDialogExpanded,
   } = useWatsonChatStore()
 
   const gameState = useGameStore((state) => state.gameState)
@@ -163,17 +162,6 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
           </span>
         </div>
         <div className="watson-dialog__controls">
-          <button
-            className="watson-dialog__toggle-expand"
-            onClick={(e) => {
-              e.stopPropagation()
-              setDialogExpanded(!isDialogExpanded)
-            }}
-            type="button"
-            title={isDialogExpanded ? '收起' : '展开'}
-          >
-            {isDialogExpanded ? '−' : '□'}
-          </button>
           <button
             className="watson-dialog__toggle"
             onClick={(e) => {

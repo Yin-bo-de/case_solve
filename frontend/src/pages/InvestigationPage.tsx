@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
-import { useGameStore, useCluesStore } from '@/store'
+import { useGameStore, useCluesStore, useWatsonChatStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 // 现场可点击区域定义
@@ -16,6 +16,9 @@ interface InvestigationArea {
   height: number
   examined: boolean
 }
+
+// 空闲检测时长（毫秒）
+const IDLE_TIMEOUT = 30000 // 30秒无操作后触发提示
 
 export default function InvestigationPage() {
   const { gameId } = useParams<{ gameId: string }>()
@@ -36,12 +39,29 @@ export default function InvestigationPage() {
     addObservation
   } = useCluesStore()
 
+  const {
+    addWatsonMessage,
+    requestObservationComment,
+    requestIdleHint
+  } = useWatsonChatStore()
+
   // 本地 UI 状态
   const [selectedArea, setSelectedArea] = useState<InvestigationArea | null>(null)
   const [showObservations, setShowObservations] = useState(false)
   const [areas, setAreas] = useState<InvestigationArea[]>([])
 
+  // 空闲检测相关
+  const lastActivityRef = useRef<number>(Date.now())
+  const idleTimerRef = useRef<number | null>(null)
+  const hasShownIdleHintRef = useRef(false)
+
   console.debug('[InvestigationPage] 渲染勘查页面', { gameId, useStore: true })
+
+  // 记录用户活动
+  const recordActivity = useCallback(() => {
+    lastActivityRef.current = Date.now()
+    hasShownIdleHintRef.current = false
+  }, [])
 
   // 初始化现场区域
   const initializeAreas = () => {
@@ -131,6 +151,14 @@ export default function InvestigationPage() {
         console.info('[InvestigationPage] 游戏状态加载成功', state)
         setGameState(state)
         initializeAreas()
+
+        // 显示华生欢迎消息
+        setTimeout(() => {
+          addWatsonMessage(
+            '老朋友，我们到了。这就是案发现场。仔细看看周围，任何细节都可能是重要的线索。',
+            'guidance'
+          )
+        }, 500)
       } catch (err) {
         console.error('[InvestigationPage] 加载游戏失败', err)
         setError(err instanceof Error ? err.message : '加载游戏失败')
@@ -140,11 +168,40 @@ export default function InvestigationPage() {
     }
 
     loadGame()
-  }, [gameId, gameState, setGameState, setLoading, setError])
+  }, [gameId, gameState, setGameState, setLoading, setError, addWatsonMessage])
+
+  // 空闲检测
+  useEffect(() => {
+    if (isLoading) return
+
+    const checkIdle = () => {
+      const now = Date.now()
+      const idleTime = now - lastActivityRef.current
+
+      if (idleTime >= IDLE_TIMEOUT && !hasShownIdleHintRef.current && gameId) {
+        console.debug('[InvestigationPage] 检测到用户空闲，请求华生提示')
+        requestIdleHint(
+          gameId,
+          observations.length,
+          areas.filter(a => a.examined).length,
+          areas.length
+        )
+      }
+    }
+
+    idleTimerRef.current = window.setInterval(checkIdle, 5000)
+
+    return () => {
+      if (idleTimerRef.current) {
+        window.clearInterval(idleTimerRef.current)
+      }
+    }
+  }, [isLoading, gameId, observations.length, areas, requestIdleHint])
 
   // 处理点击勘查区域
   const handleAreaClick = (area: InvestigationArea) => {
     console.debug('[InvestigationPage] 点击勘查区域', { areaId: area.id, areaName: area.name })
+    recordActivity()
 
     if (!gameState?.case) return
 
@@ -173,11 +230,17 @@ export default function InvestigationPage() {
     addObservation(newObservation)
 
     setSelectedArea({ ...area, examined: true })
+
+    // 请求华生对这个观察的评论（70% 概率）
+    if (Math.random() > 0.3) {
+      requestObservationComment(gameId!, newObservation)
+    }
   }
 
   // 关闭区域详情
   const closeAreaDetail = () => {
     console.debug('[InvestigationPage] 关闭区域详情')
+    recordActivity()
     setSelectedArea(null)
   }
 

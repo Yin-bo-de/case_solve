@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import type { GameState, Suspect } from '@/types/game'
 import {
@@ -8,19 +8,11 @@ import {
   type ContradictionResult,
   type GroupControlAction,
 } from '@/services/api'
-import { useDrag } from '@/hooks/useDrag'
+import { useWatsonChatStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 // 审讯模式
 type InterrogationMode = 'private' | 'group'
-
-// 华生消息类型
-interface WatsonMessage {
-  id: string
-  content: string
-  type: 'question' | 'hint' | 'observation' | 'encouragement'
-  timestamp: Date
-}
 
 // 全体质询消息类型
 interface GroupMessage {
@@ -47,6 +39,8 @@ export default function InterrogationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
+  const { addWatsonMessage } = useWatsonChatStore()
+
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -56,10 +50,6 @@ export default function InterrogationPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([])
   const [lieDetection, setLieDetection] = useState<LieDetectionResult | null>(null)
-
-  // 华生相关状态
-  const [watsonMessages, setWatsonMessages] = useState<WatsonMessage[]>([])
-  const [showWatsonDialog, setShowWatsonDialog] = useState(true)
 
   // 全体质询相关状态
   const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([])
@@ -75,45 +65,6 @@ export default function InterrogationPage() {
   const questionInputRef = useRef<HTMLTextAreaElement>(null)
 
   console.debug('[InterrogationPage] 渲染审讯页面', { gameId, mode })
-
-  // 计算对话框的初始位置（从右下角开始）
-  const initialDragPosition = useMemo(() => {
-    return { x: 0, y: 0 }
-  }, [])
-
-  // 初始化拖拽 Hook
-  const {
-    dragRef,
-    dragStyle,
-    isDragging,
-    dragHandleProps,
-    setPosition
-  } = useDrag({
-    initialPosition: initialDragPosition,
-    boundary: { padding: 20 }
-  })
-
-  // 组件挂载后，根据初始的 bottom/right 计算 transform 位置
-  useEffect(() => {
-    if (dragRef.current) {
-      const rect = dragRef.current.getBoundingClientRect()
-      const initialX = window.innerWidth - rect.width - 32 // 32px = 2rem
-      const initialY = window.innerHeight - rect.height - 32
-      setPosition({ x: initialX, y: initialY })
-    }
-  }, [setPosition])
-
-  // 添加华生消息
-  const addWatsonMessage = useCallback((content: string, type: WatsonMessage['type'] = 'question') => {
-    const message: WatsonMessage = {
-      id: `watson-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      content,
-      type,
-      timestamp: new Date(),
-    }
-    console.info('[InterrogationPage] 华生消息', { content, type })
-    setWatsonMessages(prev => [...prev, message])
-  }, [])
 
   // 切换审讯模式
   const handleModeChange = (newMode: InterrogationMode) => {
@@ -137,7 +88,7 @@ export default function InterrogationPage() {
   // 滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversationHistory, groupMessages, watsonMessages])
+  }, [conversationHistory, groupMessages, addWatsonMessage])
 
   // 加载游戏状态
   useEffect(() => {
@@ -162,7 +113,7 @@ export default function InterrogationPage() {
         setTimeout(() => {
           addWatsonMessage(
             '好的，老朋友。现在我们来和这些嫌疑人谈谈。记住，仔细观察他们的反应——有时候肢体语言比语言更能说明问题。',
-            'encouragement'
+            'guidance'
           )
         }, 500)
       } catch (err) {
@@ -191,7 +142,7 @@ export default function InterrogationPage() {
         `我很好奇${suspect.name}对这起案件有什么看法。`,
       ]
       const randomIndex = Math.floor(Math.random() * questions.length)
-      addWatsonMessage(questions[randomIndex], 'question')
+      addWatsonMessage(questions[randomIndex], "suspect_analysis")
     }
   }
 
@@ -283,7 +234,7 @@ export default function InterrogationPage() {
         setTimeout(() => {
           addWatsonMessage(
             `等等！我发现了一个矛盾！${result.contradictions[0].description}`,
-            'observation'
+            'suspect_analysis'
           )
         }, 500)
       }
@@ -408,7 +359,7 @@ export default function InterrogationPage() {
       setTimeout(() => {
         addWatsonMessage(
           `你注意到了吗？${selectedSuspect.name}${lieDetection.microexpression}。我觉得${lieDetection.notes || '这里有点可疑'}。`,
-          'observation'
+          'suspect_analysis'
         )
       }, 800)
     } else if (Math.random() > 0.5) {
@@ -420,7 +371,7 @@ export default function InterrogationPage() {
           '让我想想...这和我们知道的其他信息一致吗？',
         ]
         const randomIndex = Math.floor(Math.random() * comments.length)
-        addWatsonMessage(comments[randomIndex], 'hint')
+        addWatsonMessage(comments[randomIndex], 'guidance')
       }, 1000)
     }
 
@@ -489,7 +440,7 @@ export default function InterrogationPage() {
           '你觉得这个回答可信吗？',
         ]
         const randomIndex = Math.floor(Math.random() * comments.length)
-        addWatsonMessage(comments[randomIndex], 'hint')
+        addWatsonMessage(comments[randomIndex], 'guidance')
       }, 2000)
     }
 
@@ -868,54 +819,6 @@ export default function InterrogationPage() {
           )}
         </section>
       </main>
-
-      {/* 华生对话框 */}
-      <div
-        ref={dragRef}
-        className={`watson-dialog ${showWatsonDialog ? 'watson-dialog--open' : ''} watson-dialog--draggable ${isDragging ? 'watson-dialog--dragging' : ''}`}
-        style={dragStyle}
-      >
-        <div className="watson-dialog__header" {...dragHandleProps}>
-          <div className="watson-avatar">
-            <span className="watson-avatar__icon">👨‍⚕️</span>
-          </div>
-          <div className="watson-info">
-            <h4 className="watson-name">约翰·华生</h4>
-            <span className="watson-status">在线</span>
-          </div>
-          <button
-            className="watson-dialog__toggle"
-            onClick={(e) => {
-              e.stopPropagation() // 防止触发拖拽
-              setShowWatsonDialog(!showWatsonDialog)
-            }}
-            type="button"
-          >
-            {showWatsonDialog ? '−' : '+'}
-          </button>
-        </div>
-
-        {showWatsonDialog && (
-          <div className="watson-dialog__content">
-            <div className="watson-messages">
-              {watsonMessages.length === 0 ? (
-                <div className="watson-welcome">
-                  <p>华生医生会在这里给你提示和建议。</p>
-                </div>
-              ) : (
-                watsonMessages.map(msg => (
-                  <div key={msg.id} className={`watson-message watson-message--${msg.type}`}>
-                    <div className="watson-message__content">{msg.content}</div>
-                    <div className="watson-message__time">
-                      {msg.timestamp.toLocaleTimeString()}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* 底部导航 */}
       <footer className="interrogation-footer">
@@ -1430,190 +1333,6 @@ export default function InterrogationPage() {
           cursor: not-allowed;
         }
 
-        /* 华生对话框 */
-        .watson-dialog {
-          position: fixed;
-          bottom: 2rem;
-          right: 2rem;
-          width: 360px;
-          background: linear-gradient(180deg, #1a1a2e 0%, #0f0f23 100%);
-          border: 2px solid #d4af37;
-          border-radius: 12px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-          z-index: 100;
-          overflow: hidden;
-          transition: width 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .watson-dialog--draggable {
-          /* 当启用拖拽时，使用 transform 定位而不是 bottom/right */
-          bottom: auto;
-          right: auto;
-          transition: box-shadow 0.2s ease;
-        }
-
-        .watson-dialog--dragging {
-          box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
-          z-index: 1000;
-        }
-
-        .watson-dialog--open {
-          width: 380px;
-        }
-
-        .watson-dialog__header {
-          position: relative;
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-          padding: 1rem 1.25rem;
-          background: rgba(212, 175, 55, 0.1);
-          border-bottom: 1px solid #333;
-          cursor: move;
-          cursor: grab;
-          user-select: none;
-          -webkit-user-select: none;
-        }
-
-        .watson-dialog__header:active {
-          cursor: grabbing;
-        }
-
-        .watson-dialog__header::before {
-          content: '';
-          position: absolute;
-          top: 4px;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 40px;
-          height: 4px;
-          background: rgba(212, 175, 55, 0.3);
-          border-radius: 2px;
-        }
-
-        .watson-dialog__header:hover::before {
-          background: rgba(212, 175, 55, 0.6);
-        }
-
-        .watson-avatar {
-          width: 48px;
-          height: 48px;
-          background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 0 16px rgba(212, 175, 55, 0.3);
-        }
-
-        .watson-avatar__icon {
-          font-size: 1.75rem;
-        }
-
-        .watson-info {
-          flex: 1;
-        }
-
-        .watson-name {
-          color: #d4af37;
-          font-size: 1.1rem;
-          margin-bottom: 0.25rem;
-        }
-
-        .watson-status {
-          color: #666;
-          font-size: 0.85rem;
-        }
-
-        .watson-dialog__toggle {
-          background: rgba(212, 175, 55, 0.1);
-          border: 1px solid #d4af37;
-          color: #d4af37;
-          width: 2rem;
-          height: 2rem;
-          border-radius: 50%;
-          cursor: pointer;
-          font-size: 1.25rem;
-          font-weight: bold;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-family: 'Georgia', serif;
-          transition: all 0.3s ease;
-        }
-
-        .watson-dialog__toggle:hover {
-          background: rgba(212, 175, 55, 0.2);
-        }
-
-        .watson-dialog__content {
-          max-height: 300px;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .watson-messages {
-          flex: 1;
-          overflow-y: auto;
-          padding: 1rem 1.25rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .watson-welcome {
-          text-align: center;
-          color: #666;
-          padding: 1rem 0;
-        }
-
-        .watson-message {
-          background: rgba(212, 175, 55, 0.08);
-          border-left: 3px solid #d4af37;
-          padding: 0.75rem 1rem;
-          border-radius: 0 8px 8px 0;
-          animation: messageSlideIn 0.3s ease;
-        }
-
-        .watson-message--question {
-          background: rgba(33, 150, 243, 0.08);
-          border-left-color: #2196f3;
-        }
-
-        .watson-message--hint {
-          background: rgba(255, 152, 0, 0.08);
-          border-left-color: #ff9800;
-        }
-
-        .watson-message--observation {
-          background: rgba(76, 175, 80, 0.08);
-          border-left-color: #4caf50;
-        }
-
-        .watson-message--encouragement {
-          background: rgba(156, 39, 176, 0.08);
-          border-left-color: #9c27b0;
-        }
-
-        .watson-message__content {
-          color: #e8e8e8;
-          line-height: 1.6;
-          font-size: 0.95rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .watson-message__time {
-          color: #666;
-          font-size: 0.75rem;
-          text-align: right;
-        }
-
-        .watson-typing {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 0.5rem 1rem;
-        }
 
         /* 底部导航 */
         .interrogation-footer {

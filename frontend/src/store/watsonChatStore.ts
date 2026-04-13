@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { WatsonChatMessage } from '@/types/game'
+import type { WatsonChatMessage, WatsonMessageType, Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
 
 console.debug('[watsonChatStore.ts] 加载模块')
@@ -20,6 +20,11 @@ interface WatsonChatStore {
   setError: (error: string | null) => void
   setDialogOpen: (isOpen: boolean) => void
   setDialogExpanded: (isExpanded: boolean) => void
+
+  // 华生主动提示相关
+  addWatsonMessage: (content: string, messageType: WatsonMessageType) => void
+  requestObservationComment: (gameId: string, observation: Observation) => Promise<void>
+  requestIdleHint: (gameId: string, observationsCount: number, areasExamined: number, totalAreas: number) => Promise<void>
 }
 
 export const useWatsonChatStore = create<WatsonChatStore>((set, get) => {
@@ -102,6 +107,73 @@ export const useWatsonChatStore = create<WatsonChatStore>((set, get) => {
     setDialogExpanded: (isExpanded: boolean) => {
       console.info('[watsonChatStore] 设置对话框展开状态', { isExpanded })
       set({ isDialogExpanded: isExpanded })
+    },
+
+    // 添加华生的主动提示（不调用后端 API）
+    addWatsonMessage: (content: string, messageType: WatsonMessageType = 'general') => {
+      console.info('[watsonChatStore] 添加华生主动提示', { content: content.substring(0, 50), messageType })
+      const message: WatsonChatMessage = {
+        id: `watson-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        role: 'watson',
+        content,
+        messageType,
+        timestamp: new Date().toISOString(),
+      }
+      set((state) => ({ messages: [...state.messages, message] }))
+    },
+
+    // 请求华生对观察的评论（调用后端 API）
+    requestObservationComment: async (gameId: string, observation: Observation) => {
+      console.info('[watsonChatStore] 请求华生观察评论', { gameId, observationId: observation.id })
+
+      try {
+        set({ isLoading: true, error: null })
+
+        const response = await gameApi.getWatsonObservationComment(gameId, observation)
+        console.info('[watsonChatStore] 收到华生观察评论')
+
+        // 使用 addWatsonMessage 添加消息
+        get().addWatsonMessage(response.comment, 'clue_discussion')
+      } catch (error) {
+        console.error('[watsonChatStore] 请求华生观察评论失败', error)
+        set({ error: '获取华生评论失败' })
+      } finally {
+        set({ isLoading: false })
+      }
+    },
+
+    // 请求华生空闲提示（调用后端 API）
+    requestIdleHint: async (
+      gameId: string,
+      observationsCount: number,
+      areasExamined: number,
+      totalAreas: number
+    ) => {
+      console.info('[watsonChatStore] 请求华生空闲提示', { gameId, observationsCount, areasExamined })
+
+      try {
+        set({ isLoading: true, error: null })
+
+        const response = await gameApi.getWatsonHint(
+          gameId,
+          'idle',
+          observationsCount,
+          areasExamined,
+          totalAreas
+        )
+
+        if (response.hint) {
+          console.info('[watsonChatStore] 收到华生空闲提示')
+          get().addWatsonMessage(response.hint, 'guidance')
+        } else {
+          console.debug('[watsonChatStore] 华生没有提供空闲提示')
+        }
+      } catch (error) {
+        console.error('[watsonChatStore] 请求华生空闲提示失败', error)
+        set({ error: '获取华生提示失败' })
+      } finally {
+        set({ isLoading: false })
+      }
     },
   }
 })
