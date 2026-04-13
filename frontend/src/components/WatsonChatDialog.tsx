@@ -56,7 +56,7 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
   const [inputMessage, setInputMessage] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  console.debug('[WatsonChatDialog] 渲染组件', { gameId, currentPhase, messageCount: messages.length })
+  console.info('[WatsonChatDialog] 渲染组件', { gameId, currentPhase, messageCount: messages.length })
 
   // 计算对话框的初始位置（从右下角开始）
   const initialDragPosition = useMemo(() => {
@@ -148,7 +148,7 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
   return (
     <div
       ref={dragRef}
-      className={`watson-dialog ${isDialogOpen ? 'watson-dialog--open' : ''} watson-dialog--chat ${isDragging ? 'watson-dialog--dragging' : ''}`}
+      className={`watson-dialog ${isDialogOpen ? 'watson-dialog--open' : ''} watson-dialog--chat watson-dialog--draggable ${isDragging ? 'watson-dialog--dragging' : ''}`}
       style={dragStyle}
     >
       {/* 对话框头部 */}

@@ -1,6 +1,7 @@
 """
 华生NPC Agent - 主动的探案伙伴
 """
+import random
 from typing import List, Optional, Dict, Any, Tuple
 from loguru import logger
 from datetime import datetime
@@ -97,7 +98,6 @@ class WatsonAgent:
             "让我们再仔细看看这些线索，也许漏掉了什么。",
             "我相信你的推断能力，我们继续前进！",
         ]
-        import random
         return random.choice(encouragements)
 
     def _generate_mock_observation_comment(self, observation: Observation) -> str:
@@ -108,7 +108,6 @@ class WatsonAgent:
             f"好发现！{observation.description}可能是个重要的线索。",
             f"你看，{observation.description}。不知道这和案子有什么关系？",
         ]
-        import random
         return random.choice(comments)
 
     def _generate_mock_reasoning_question(self, inference: Inference) -> str:
@@ -119,7 +118,6 @@ class WatsonAgent:
             f"如果这是真的，那会如何影响我们对整个案件的看法？",
             f"我不是质疑你，只是想再确认一下——这个推理的依据是什么？",
         ]
-        import random
         return random.choice(questions)
 
     def _generate_mock_knowledge(self, topic: str) -> Optional[str]:
@@ -319,7 +317,6 @@ class WatsonAgent:
         context: WatsonChatContext
     ) -> str:
         """根据消息类型生成回复"""
-        import random
 
         # TODO: 实际调用LLM生成回复，当前使用mock实现
 
@@ -340,7 +337,6 @@ class WatsonAgent:
 
     def _generate_guidance_response(self, context: WatsonChatContext) -> str:
         """生成阶段指导回复"""
-        import random
 
         phase_guidance = {
             "start": [
@@ -379,7 +375,6 @@ class WatsonAgent:
 
     def _generate_clue_discussion_response(self, context: WatsonChatContext) -> str:
         """生成线索讨论回复"""
-        import random
         responses = [
             "这条线索很有意思。你觉得它和案子有什么关系？",
             "嗯...让我仔细看看。这可能是关键证据，也可能是个红鲱鱼。",
@@ -390,7 +385,6 @@ class WatsonAgent:
 
     def _generate_suspect_analysis_response(self, context: WatsonChatContext) -> str:
         """生成嫌疑人分析回复"""
-        import random
         responses = [
             "这个人的证词有些地方值得怀疑。你觉得呢？",
             "我注意到他说话时有些紧张。可能在隐瞒什么？",
@@ -401,7 +395,6 @@ class WatsonAgent:
 
     def _generate_deduction_review_response(self, context: WatsonChatContext) -> str:
         """生成推理梳理回复"""
-        import random
 
         if context.hypotheses_count == 0:
             return "我们还没有形成任何假设。先试着把一些观察关联起来形成推理吧！"
@@ -422,7 +415,6 @@ class WatsonAgent:
         if knowledge:
             return knowledge
 
-        import random
         responses = [
             "作为一名军医，我见过不少类似的情况。让我想想...",
             "这让我想起在阿富汗时见过的一些事情。根据我的经验...",
@@ -433,7 +425,6 @@ class WatsonAgent:
 
     def _generate_general_response(self, context: WatsonChatContext) -> str:
         """生成通用回复"""
-        import random
         responses = [
             "有意思，你继续说。",
             "我在听，老朋友。",
