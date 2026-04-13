@@ -258,8 +258,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "后端已有完整逻辑（game_service.py 的 make_accusation 和 get_case_reveal），前端 ConclusionPage 已集成完整的结案流程、错误反馈、案件真相展示、再玩一局功能（使用 Zustand stores 重置状态）"
     },
     {
       "id": "US-017",
@@ -309,8 +309,8 @@
         "Typecheck passes"
       ],
       "priority": 19,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Stores 已全部创建完成，已在 InvestigationPage、ConclusionPage 集成使用，页面切换时状态（华生对话、线索、推理）可保持"
     },
     {
       "id": "US-020",

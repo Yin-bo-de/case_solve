@@ -209,3 +209,17 @@ Started: 2026年 4月12日 星期日 14时43分20秒 CST
   - Zustand store 的 actions 应该包含完整的日志记录，便于调试
   - 对话框组件使用 position: fixed 定位，可以在所有页面复用
 ---
+## 2026/04/14 - US-019 & US-016
+- 完成 US-019: 完善前端 Zustand 状态管理 - 修改 InvestigationPage 和 ConclusionPage 使用 stores，实现跨页面状态保持
+- 完成 US-016: 实现系统判断与反馈 - 验证并完善后端结案逻辑和前端 ConclusionPage 集成
+- Files changed:
+  - frontend/src/pages/InvestigationPage.tsx: 集成 useGameStore 和 useCluesStore
+  - frontend/src/pages/ConclusionPage.tsx: 集成 useGameStore, useDeductionStore, useCluesStore，添加 playAgain 重置所有状态
+  - scripts/ralph/prd.json: 标记 US-016 和 US-019 为完成
+- **Learnings for future iterations:**
+  - 逐步迁移复杂页面到 Zustand，避免一次性修改过多导致类型错误
+  - 优先集成核心页面（InvestigationPage、ConclusionPage），其他页面可后续优化
+  - 后端游戏服务（game_service.py）已有完整的结案逻辑（make_accusation、get_case_reveal）
+  - 前端 ConclusionPage 已有完整的三步结案流程：选择凶手、陈述推理、戏剧性揭露
+  - 「再玩一局」功能需要重置所有 stores（gameStore、cluesStore、deductionStore）
+---

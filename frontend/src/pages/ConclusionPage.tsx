@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { gameApi } from '@/services/api'
 import type {
-  GameState,
   ConclusionReadiness,
   AccusationResult,
   CaseReveal,
   DeductionChain
 } from '@/types/game'
+import { useGameStore, useDeductionStore, useCluesStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 console.debug('[ConclusionPage.tsx] 加载模块')
@@ -22,12 +22,33 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
   const navigate = useNavigate()
   console.debug('[ConclusionPage.tsx] 渲染组件', { gameId })
 
-  const [gameState, setGameState] = useState<GameState | null>(null)
+  // 使用 Zustand stores
+  const {
+    gameState,
+    error,
+    setGameState,
+    setLoading,
+    setError,
+    incrementMistakes,
+    resetGame
+  } = useGameStore()
+
+  const {
+    deductionChain,
+    setDeductionChain,
+    setFinalAccusation,
+    resetDeduction
+  } = useDeductionStore()
+
+  const {
+    resetClues
+  } = useCluesStore()
+
+  // 本地状态
   const [readiness, setReadiness] = useState<ConclusionReadiness | null>(null)
   const [accusationResult, setAccusationResult] = useState<AccusationResult | null>(null)
   const [caseReveal, setCaseReveal] = useState<CaseReveal | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [loading, setLocalLoading] = useState(true)
   const [currentStep, setCurrentStep] = useState<ConclusionStep>('select')
   const [selectedSuspectId, setSelectedSuspectId] = useState<string | null>(null)
   const [reasoningSteps, setReasoningSteps] = useState<string[]>([])
@@ -37,7 +58,19 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
   const loadData = useCallback(async () => {
     if (!gameId) return
 
-    console.info('[ConclusionPage.tsx] 加载数据', { gameId })
+    // 如果 store 中已有数据且匹配，直接使用
+    if (gameState && (gameState as any).gameId === gameId && deductionChain) {
+      console.debug('[ConclusionPage.tsx] 使用 store 中已有的数据')
+      const readinessData = await gameApi.checkConclusionReadiness(gameId)
+      setReadiness(readinessData)
+      const autoSteps = buildReasoningSteps(deductionChain)
+      setReasoningSteps(autoSteps)
+      setLocalLoading(false)
+      return
+    }
+
+    console.info('[ConclusionPage.tsx] 从 API 加载数据', { gameId })
+    setLocalLoading(true)
     setLoading(true)
     setError(null)
 
@@ -50,6 +83,7 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
 
       console.debug('[ConclusionPage.tsx] 数据加载完成', { gameStateData, deductionData, readinessData })
       setGameState(gameStateData)
+      setDeductionChain(deductionData)
       setReadiness(readinessData)
 
       // 自动填充推理步骤
@@ -59,9 +93,10 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
       console.error('[ConclusionPage.tsx] 加载数据失败', err)
       setError('加载数据失败，请稍后重试')
     } finally {
+      setLocalLoading(false)
       setLoading(false)
     }
-  }, [gameId])
+  }, [gameId, gameState, deductionChain, setGameState, setDeductionChain, setLoading, setError])
 
   const buildReasoningSteps = (chain: DeductionChain): string[] => {
     const steps: string[] = []
@@ -122,6 +157,7 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
     if (!gameId || !selectedSuspectId) return
 
     console.info('[ConclusionPage.tsx] 指认凶手', { gameId, suspectId: selectedSuspectId, reasoningSteps })
+    setLocalLoading(true)
     setLoading(true)
     setError(null)
 
@@ -130,6 +166,12 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
       console.debug('[ConclusionPage.tsx] 指认结果', result)
       setAccusationResult(result)
       setCurrentStep('reveal')
+
+      // 更新 store 状态
+      setFinalAccusation(selectedSuspectId)
+      if (!result.isCorrect) {
+        incrementMistakes()
+      }
 
       if (result.isCorrect) {
         // 如果正确，获取完整案件真相
@@ -141,6 +183,7 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
       console.error('[ConclusionPage.tsx] 指认失败', err)
       setError('指认失败，请稍后重试')
     } finally {
+      setLocalLoading(false)
       setLoading(false)
     }
   }
@@ -153,7 +196,11 @@ const ConclusionPage: React.FC<ConclusionPageProps> = () => {
   }
 
   const playAgain = () => {
-    console.info('[ConclusionPage.tsx] 再玩一局')
+    console.info('[ConclusionPage.tsx] 再玩一局 - 重置所有状态')
+    // 重置所有 stores
+    resetGame()
+    resetClues()
+    resetDeduction()
     navigate('/')
   }
 

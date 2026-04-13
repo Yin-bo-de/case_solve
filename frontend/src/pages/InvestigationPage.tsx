@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import type { GameState, Observation } from '@/types/game'
+import type { Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
+import { useGameStore, useCluesStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 // 现场可点击区域定义
@@ -20,15 +21,27 @@ export default function InvestigationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
-  const [gameState, setGameState] = useState<GameState | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // 使用 Zustand stores
+  const {
+    gameState,
+    isLoading,
+    error,
+    setGameState,
+    setLoading,
+    setError
+  } = useGameStore()
+
+  const {
+    observations,
+    addObservation
+  } = useCluesStore()
+
+  // 本地 UI 状态
   const [selectedArea, setSelectedArea] = useState<InvestigationArea | null>(null)
-  const [observations, setObservations] = useState<Observation[]>([])
   const [showObservations, setShowObservations] = useState(false)
   const [areas, setAreas] = useState<InvestigationArea[]>([])
 
-  console.debug('[InvestigationPage] 渲染勘查页面', { gameId })
+  console.debug('[InvestigationPage] 渲染勘查页面', { gameId, useStore: true })
 
   // 初始化现场区域
   const initializeAreas = () => {
@@ -101,9 +114,16 @@ export default function InvestigationPage() {
   useEffect(() => {
     if (!gameId) return
 
+    // 如果 store 中已有数据且 gameId 匹配，直接使用
+    if (gameState && (gameState as any).gameId === gameId) {
+      console.debug('[InvestigationPage] 使用 store 中已有的游戏状态')
+      initializeAreas()
+      return
+    }
+
     const loadGame = async () => {
-      console.info('[InvestigationPage] 加载游戏状态', { gameId })
-      setIsLoading(true)
+      console.info('[InvestigationPage] 从 API 加载游戏状态', { gameId })
+      setLoading(true)
       setError(null)
 
       try {
@@ -115,12 +135,12 @@ export default function InvestigationPage() {
         console.error('[InvestigationPage] 加载游戏失败', err)
         setError(err instanceof Error ? err.message : '加载游戏失败')
       } finally {
-        setIsLoading(false)
+        setLoading(false)
       }
     }
 
     loadGame()
-  }, [gameId])
+  }, [gameId, gameState, setGameState, setLoading, setError])
 
   // 处理点击勘查区域
   const handleAreaClick = (area: InvestigationArea) => {
@@ -150,7 +170,7 @@ export default function InvestigationPage() {
     }
 
     console.info('[InvestigationPage] 记录新观察', newObservation)
-    setObservations(prev => [...prev, newObservation])
+    addObservation(newObservation)
 
     setSelectedArea({ ...area, examined: true })
   }
