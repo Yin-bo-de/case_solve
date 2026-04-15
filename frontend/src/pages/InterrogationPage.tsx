@@ -4,63 +4,51 @@ import type { GameState, Suspect } from '@/types/game'
 import {
   gameApi,
   type ConversationMessage,
-  type LieDetectionResult,
-  type ContradictionResult,
   type GroupControlAction,
 } from '@/services/api'
-import { useWatsonChatStore } from '@/store'
+import { useWatsonChatStore, useInterrogationStore, type GroupMessage, type MentionedSuspect, type InterrogationMode } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
-
-// 审讯模式
-type InterrogationMode = 'private' | 'group'
-
-// 全体质询消息类型
-interface GroupMessage {
-  id: string
-  role: 'user' | 'suspect' | 'watson' | 'system' | 'interjection'
-  content: string
-  suspectId?: string
-  suspectName?: string
-  timestamp: string
-}
-
-// 嫌疑人插话计数
-interface InterjectionCount {
-  [suspectId: string]: number
-}
-
-// @提及的嫌疑人
-interface MentionedSuspect {
-  id: string
-  name: string
-}
 
 export default function InterrogationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
   const { addWatsonMessage } = useWatsonChatStore()
+  const {
+    mode,
+    setMode,
+    conversationHistory,
+    addConversationMessage,
+    lieDetection,
+    setLieDetection,
+    clearConversationHistory,
+    setSelectedSuspectId,
+    groupMessages,
+    addGroupMessage,
+    mentionedSuspects,
+    addMentionedSuspect,
+    setMentionedSuspects,
+    contradictions,
+    setContradictions,
+    interjectionCounts,
+    updateInterjectionCount,
+    suspectStatements,
+    addSuspectStatement,
+    setShowContradictionAlert,
+    showContradictionAlert,
+  } = useInterrogationStore()
 
   const [gameState, setGameState] = useState<GameState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [mode, setMode] = useState<InterrogationMode>('private')
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
   const [question, setQuestion] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-  const [conversationHistory, setConversationHistory] = useState<ConversationMessage[]>([])
-  const [lieDetection, setLieDetection] = useState<LieDetectionResult | null>(null)
 
-  // 全体质询相关状态
-  const [groupMessages, setGroupMessages] = useState<GroupMessage[]>([])
-  const [mentionedSuspects, setMentionedSuspects] = useState<MentionedSuspect[]>([])
+  // 全体质询相关状态（UI状态不需要持久化）
   const [showMentionMenu, setShowMentionMenu] = useState(false)
   const [mentionMenuPosition, setMentionMenuPosition] = useState({ x: 0, y: 0 })
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
-  const [contradictions, setContradictions] = useState<ContradictionResult[]>([])
-  const [interjectionCounts, setInterjectionCounts] = useState<InterjectionCount>({})
-  const [suspectStatements, setSuspectStatements] = useState<Record<string, string[]>>({})
-  const [showContradictionAlert, setShowContradictionAlert] = useState(false)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const questionInputRef = useRef<HTMLTextAreaElement>(null)
@@ -71,10 +59,6 @@ export default function InterrogationPage() {
   const handleModeChange = (newMode: InterrogationMode) => {
     console.info('[InterrogationPage] 切换审讯模式', { from: mode, to: newMode })
     setMode(newMode)
-    setConversationHistory([])
-    setGroupMessages([])
-    setLieDetection(null)
-    setContradictions([])
 
     if (newMode === 'group') {
       setTimeout(() => {
@@ -139,7 +123,8 @@ export default function InterrogationPage() {
   const handleSuspectSelect = (suspect: Suspect) => {
     console.debug('[InterrogationPage] 选择嫌疑人', { suspectId: suspect.id, suspectName: suspect.name })
     setSelectedSuspect(suspect)
-    setConversationHistory([])
+    setSelectedSuspectId(suspect.id)
+    clearConversationHistory()
     setLieDetection(null)
 
     // 华生主动提问
@@ -193,16 +178,14 @@ export default function InterrogationPage() {
     setSelectedMentionIndex(0)
 
     // 添加到提及列表（用于发送时）
-    if (!mentionedSuspects.find(s => s.id === suspect.id)) {
-      setMentionedSuspects(prev => [...prev, suspect])
-    }
+    addMentionedSuspect(suspect)
 
     // 聚焦输入框
     setTimeout(() => questionInputRef.current?.focus(), 0)
   }
 
   // 添加全体质询消息
-  const addGroupMessage = (
+  const createAndAddGroupMessage = (
     role: GroupMessage['role'],
     content: string,
     suspectId?: string,
@@ -217,15 +200,12 @@ export default function InterrogationPage() {
       timestamp: new Date().toISOString(),
     }
     console.info('[InterrogationPage] 全体质询消息', { role, content, suspectName })
-    setGroupMessages(prev => [...prev, message])
+    addGroupMessage(message)
   }
 
   // 记录嫌疑人陈述
   const recordSuspectStatement = (suspectId: string, statement: string) => {
-    setSuspectStatements(prev => {
-      const existing = prev[suspectId] || []
-      return { ...prev, [suspectId]: [...existing, statement] }
-    })
+    addSuspectStatement(suspectId, statement)
   }
 
   // 检查矛盾
@@ -278,13 +258,10 @@ export default function InterrogationPage() {
 
       if (result.interjection) {
         const respondingSuspect = gameState?.case?.suspects?.find(s => s.id === respondingSuspectId)
-        addGroupMessage('interjection', result.interjection, respondingSuspectId, respondingSuspect?.name)
+        createAndAddGroupMessage('interjection', result.interjection, respondingSuspectId, respondingSuspect?.name)
 
         // 更新插话计数
-        setInterjectionCounts(prev => ({
-          ...prev,
-          [respondingSuspectId]: (prev[respondingSuspectId] || 0) + 1
-        }))
+        updateInterjectionCount(respondingSuspectId, 1)
       }
     } catch (err) {
       console.error('[InterrogationPage] 获取嫌疑人插话失败', err)
@@ -298,7 +275,7 @@ export default function InterrogationPage() {
     try {
       console.info('[InterrogationPage] 控场操作', { action, targetSuspectId })
       const result = await gameApi.groupControl(gameId, action, targetSuspectId)
-      addGroupMessage('system', result.message)
+      createAndAddGroupMessage('system', result.message)
     } catch (err) {
       console.error('[InterrogationPage] 控场操作失败', err)
     }
@@ -340,7 +317,7 @@ export default function InterrogationPage() {
       content: question,
       timestamp: new Date().toISOString(),
     }
-    setConversationHistory(prev => [...prev, userMessage])
+    addConversationMessage(userMessage)
 
     // 调用API
     const response = await gameApi.askSuspectQuestion(
@@ -358,17 +335,17 @@ export default function InterrogationPage() {
       content: response.response,
       timestamp: new Date().toISOString(),
     }
-    setConversationHistory(prev => [...prev, suspectMessage])
+    addConversationMessage(suspectMessage)
 
     // 设置谎言检测结果（响应拦截器已转换为 camelCase）
-    const lieDetection = response.lieDetection ?? null
-    setLieDetection(lieDetection)
+    const newLieDetection = response.lieDetection ?? null
+    setLieDetection(newLieDetection)
 
     // 华生评论（添加防御性检查）
-    if (lieDetection && lieDetection.lieDetected && lieDetection.microexpression) {
+    if (newLieDetection && newLieDetection.lieDetected && newLieDetection.microexpression) {
       setTimeout(() => {
         addWatsonMessage(
-          `你注意到了吗？${selectedSuspect.name}${lieDetection.microexpression}。我觉得${lieDetection.notes || '这里有点可疑'}。`,
+          `你注意到了吗？${selectedSuspect.name}${newLieDetection.microexpression}。我觉得${newLieDetection.notes || '这里有点可疑'}。`,
           'suspect_analysis'
         )
       }, 800)
@@ -405,7 +382,7 @@ export default function InterrogationPage() {
     }
 
     // 添加用户消息
-    addGroupMessage('user', question)
+    createAndAddGroupMessage('user', question)
 
     // 调用API获取回复
     const otherSuspectIds = gameState.case.suspects
@@ -422,7 +399,7 @@ export default function InterrogationPage() {
     )
 
     // 添加嫌疑人回复
-    addGroupMessage('suspect', response.response, targetSuspect.id, targetSuspect.name)
+    createAndAddGroupMessage('suspect', response.response, targetSuspect.id, targetSuspect.name)
 
     // 记录陈述
     recordSuspectStatement(targetSuspect.id, response.response)

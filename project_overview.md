@@ -177,6 +177,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 - ✅ **修复 deduction 页面 footer**: 添加独立的 `deduction-footer` 样式，位置固定在左下角，背景透明
 - ✅ **修复圆桌对峙输入框宽度自适应问题**: 为 `.question-input--textarea` 添加 `width: 100%` 样式
 - ✅ **实现@提及菜单键盘导航功能**: 支持上下键选择方向，回车键确认选中，添加高亮样式
+- ✅ **修复 InterrogationPage 模式切换状态丢失问题**: 将 conversationHistory、groupMessages、lieDetection、contradictions、mentionedSuspects 等状态从 useState 迁移至 useInterrogationStore，使用 localStorage 持久化确保切换模式时对话历史不丢失
 
 ### 2026-04-14
 - ✅ **完成 US-019: 完善前端 Zustand 状态管理** - 在 InvestigationPage 和 ConclusionPage 集成使用 stores，实现跨页面状态保持
