@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDrag } from '@/hooks/useDrag'
-import { useWatsonChatStore } from '@/store'
-import { useGameStore } from '@/store'
+import { useWatsonChatStore, useUIStore, useGameStore } from '@/store'
 import type { QuickQuestion, GamePhase } from '@/types/game'
 
 console.debug('[WatsonChatDialog.tsx] 加载模块')
@@ -42,47 +41,71 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     messages,
     isLoading,
     error,
-    isDialogOpen,
-    isDialogExpanded,
     sendMessage,
     fetchHistory,
-    setDialogOpen,
+    addWatsonMessage,
   } = useWatsonChatStore()
+
+  const {
+    watsonDialogOpen: isDialogOpen,
+    watsonDialogExpanded: isDialogExpanded,
+    watsonDialogPosition,
+    setWatsonDialogOpen,
+    setWatsonDialogExpanded,
+    setWatsonDialogPosition,
+  } = useUIStore()
 
   const gameState = useGameStore((state) => state.gameState)
   const currentPhase = gameState?.phase || 'start'
 
   const [inputMessage, setInputMessage] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const isInitializedRef = useRef(false)
+  const isDraggingRef = useRef(false)
 
   console.info('[WatsonChatDialog] 渲染组件', { gameId, currentPhase, messageCount: messages.length })
 
-  // 计算对话框的初始位置（从右下角开始）
-  const initialDragPosition = useMemo(() => {
-    return { x: 0, y: 0 }
-  }, [])
-
-  // 初始化拖拽 Hook
+  // 初始化拖拽 Hook，使用持久化位置或默认位置
   const {
     dragRef,
     dragStyle,
     isDragging,
     dragHandleProps,
     setPosition,
+    position: currentPosition,
   } = useDrag({
-    initialPosition: initialDragPosition,
+    initialPosition: watsonDialogPosition,
     boundary: { padding: 20 }
   })
 
-  // 组件挂载后，根据初始的 bottom/right 计算 transform 位置
+  // 组件首次挂载后，计算默认右下角位置
   useEffect(() => {
-    if (dragRef.current) {
+    if (dragRef.current && !isInitializedRef.current) {
       const rect = dragRef.current.getBoundingClientRect()
       const initialX = window.innerWidth - rect.width - 32
       const initialY = window.innerHeight - rect.height - 32
-      setPosition({ x: initialX, y: initialY })
+
+      // 只有当没有持久化位置时才设置默认位置
+      if (watsonDialogPosition.x === 0 && watsonDialogPosition.y === 0) {
+        console.debug('[WatsonChatDialog] 设置默认右下角位置', { x: initialX, y: initialY })
+        setPosition({ x: initialX, y: initialY })
+        setWatsonDialogPosition({ x: initialX, y: initialY })
+      }
+
+      isInitializedRef.current = true
     }
-  }, [setPosition])
+  }, [watsonDialogPosition, setPosition, setWatsonDialogPosition])
+
+  // 监听拖拽状态变化
+  useEffect(() => {
+    isDraggingRef.current = isDragging
+
+    // 拖拽结束时保存位置
+    if (!isDragging) {
+      console.debug('[WatsonChatDialog] 拖拽结束，保存位置', currentPosition)
+      setWatsonDialogPosition(currentPosition)
+    }
+  }, [isDragging, currentPosition, setWatsonDialogPosition])
 
   // 组件挂载时获取对话历史
   useEffect(() => {
@@ -97,7 +120,7 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isLoading])
 
-  // 获取当前阶段的快捷问题
+  // 获取当前阶段的快捷快问
   const currentQuickQuestions = useMemo(() => {
     return QUICK_QUESTIONS.filter(q => q.phase.includes(currentPhase as GamePhase))
   }, [currentPhase])
@@ -113,11 +136,11 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     await sendMessage(gameId, messageToSend)
   }, [inputMessage, gameId, sendMessage])
 
-  // 处理快捷问题点击
+  // 处理快捷快问点击
   const handleQuickQuestion = useCallback(async (question: string) => {
     if (!gameId) return
 
-    console.info('[WatsonChatDialog] 快捷问题', { question })
+    console.info('[WatsonChatDialog] 快捷快问', { question })
     setInputMessage('')
     await sendMessage(gameId, question)
   }, [gameId, sendMessage])
@@ -166,7 +189,7 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
             className="watson-dialog__toggle"
             onClick={(e) => {
               e.stopPropagation()
-              setDialogOpen(!isDialogOpen)
+              setWatsonDialogOpen(!isDialogOpen)
             }}
             type="button"
             title={isDialogOpen ? '最小化' : '打开'}
@@ -228,7 +251,7 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* 快捷问题按钮 */}
+          {/* 快捷快问按钮 */}
           {currentQuickQuestions.length > 0 && (
             <div className="watson-quick-questions">
               <div className="quick-questions-label">快捷问题：</div>

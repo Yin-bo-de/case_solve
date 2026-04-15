@@ -856,7 +856,7 @@ const DeductionBoard: React.FC<DeductionBoardProps> = () => {
         </div>
 
         {/* 底部导航 */}
-        <footer className="investigation-footer">
+        <footer className="deduction-footer">
           <Link
             to={`/investigation/${gameId}`}
             className="footer-button footer-button--secondary"

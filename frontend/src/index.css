@@ -650,6 +650,21 @@ body {
   font-size: 1rem;
 }
 
+/* 推理页面底部导航 - 左下角固定 */
+.deduction-footer {
+  background: transparent;
+  border: none;
+;
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+}
+
 /* 华生对话框样式 */
 .watson-dialog {
   position: fixed;

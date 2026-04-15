@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 import type React from 'react'
 
 console.debug('[uiStore.ts] 加载模块')
@@ -8,12 +9,21 @@ export type ViewMode = 'investigation' | 'interrogation' | 'deduction' | 'conclu
 export type InterrogationMode = 'private' | 'group'
 export type SidebarTab = 'observations' | 'clues' | 'notes'
 
+// 华生对话框位置
+export interface DialogPosition {
+  x: number
+  y: number
+}
+
 interface UIStore {
   // 全局 UI 状态
   viewMode: ViewMode
   isLoading: boolean
-  showWatsonDialog: boolean
-  isWatsonDialogExpanded: boolean
+
+  // 华生对话框（统一管理）
+  watsonDialogOpen: boolean
+  watsonDialogExpanded: boolean
+  watsonDialogPosition: DialogPosition
 
   // 勘查页面 UI
   selectedAreaId: string | null
@@ -37,8 +47,12 @@ interface UIStore {
   // Actions - 全局
   setViewMode: (mode: ViewMode) => void
   setIsLoading: (isLoading: boolean) => void
+
+  // Actions - 华生对话框
+  setWatsonDialogOpen: (isOpen: boolean) => void
   toggleWatsonDialog: () => void
   setWatsonDialogExpanded: (expanded: boolean) => void
+  setWatsonDialogPosition: (position: DialogPosition) => void
 
   // Actions - 勘查页面
   setSelectedAreaId: (areaId: string | null) => void
@@ -63,135 +77,161 @@ interface UIStore {
   resetUI: () => void
 }
 
-export const useUIStore = create<UIStore>((set) => {
-  console.debug('[uiStore] 初始化 store')
-
-  return {
-    // 全局 UI 状态
-    viewMode: 'investigation',
-    isLoading: false,
-    showWatsonDialog: true,
-    isWatsonDialogExpanded: true,
-
-    // 勘查页面 UI
-    selectedAreaId: null,
-    showAreaDetails: false,
-    investigationSidebarTab: 'observations',
-
-    // 审讯页面 UI
-    interrogationMode: 'private',
-    selectedSuspectId: null,
-    showSuspectSelector: true,
-
-    // 推理板 UI
-    showInferenceForm: false,
-    showHypothesisForm: false,
-    showWatsonFeedback: false,
-
-    // 模态框
-    showModal: false,
-    modalContent: null,
-
-    // Actions - 全局
-    setViewMode: (mode: ViewMode) => {
-      console.debug('[uiStore] 设置视图模式', { mode })
-      set({ viewMode: mode })
-    },
-
-    setIsLoading: (isLoading: boolean) => {
-      console.debug('[uiStore] 设置加载状态', { isLoading })
-      set({ isLoading })
-    },
-
-    toggleWatsonDialog: () => {
-      console.debug('[uiStore] 切换华生对话框')
-      set((state) => ({ showWatsonDialog: !state.showWatsonDialog }))
-    },
-
-    setWatsonDialogExpanded: (expanded: boolean) => {
-      console.debug('[uiStore] 设置华生对话框展开状态', { expanded })
-      set({ isWatsonDialogExpanded: expanded })
-    },
-
-    // Actions - 勘查页面
-    setSelectedAreaId: (areaId: string | null) => {
-      console.debug('[uiStore] 设置选中区域', { areaId })
-      set({ selectedAreaId: areaId })
-    },
-
-    setShowAreaDetails: (show: boolean) => {
-      console.debug('[uiStore] 设置显示区域详情', { show })
-      set({ showAreaDetails: show })
-    },
-
-    setInvestigationSidebarTab: (tab: SidebarTab) => {
-      console.debug('[uiStore] 设置勘查侧边栏标签', { tab })
-      set({ investigationSidebarTab: tab })
-    },
-
-    // Actions - 审讯页面
-    setInterrogationMode: (mode: InterrogationMode) => {
-      console.debug('[uiStore] 设置审讯模式', { mode })
-      set({ interrogationMode: mode })
-    },
-
-    setSelectedSuspectId: (suspectId: string | null) => {
-      console.debug('[uiStore] 设置选中嫌疑人', { suspectId })
-      set({ selectedSuspectId: suspectId })
-    },
-
-    setShowSuspectSelector: (show: boolean) => {
-      console.debug('[uiStore] 设置显示嫌疑人选择器', { show })
-      set({ showSuspectSelector: show })
-    },
-
-    // Actions - 推理板
-    setShowInferenceForm: (show: boolean) => {
-      console.debug('[uiStore] 设置显示推理表单', { show })
-      set({ showInferenceForm: show })
-    },
-
-    setShowHypothesisForm: (show: boolean) => {
-      console.debug('[uiStore] 设置显示假设表单', { show })
-      set({ showHypothesisForm: show })
-    },
-
-    setShowWatsonFeedback: (show: boolean) => {
-      console.debug('[uiStore] 设置显示华生反馈', { show })
-      set({ showWatsonFeedback: show })
-    },
-
-    // Actions - 模态框
-    openModal: (content: React.ReactNode) => {
-      console.debug('[uiStore] 打开模态框')
-      set({ showModal: true, modalContent: content })
-    },
-
-    closeModal: () => {
-      console.debug('[uiStore] 关闭模态框')
-      set({ showModal: false, modalContent: null })
-    },
-
-    // Reset
-    resetUI: () => {
-      console.info('[uiStore] 重置UI状态')
-      set({
+export const useUIStore = create<UIStore>()(
+  devtools(
+    persist(
+      (set) => ({
+        // 全局 UI 状态
         viewMode: 'investigation',
         isLoading: false,
-        showWatsonDialog: true,
-        isWatsonDialogExpanded: true,
+
+        // 华生对话框
+        watsonDialogOpen: true,
+        watsonDialogExpanded: true,
+        watsonDialogPosition: { x: 0, y: 0 },
+
+        // 勘查页面 UI
         selectedAreaId: null,
         showAreaDetails: false,
         investigationSidebarTab: 'observations',
+
+        // 审讯页面 UI
         interrogationMode: 'private',
         selectedSuspectId: null,
         showSuspectSelector: true,
+
+        // 推理板 UI
         showInferenceForm: false,
         showHypothesisForm: false,
         showWatsonFeedback: false,
+
+        // 模态框
         showModal: false,
         modalContent: null,
-      })
-    },
-  }
-})
+
+        // Actions - 全局
+        setViewMode: (mode: ViewMode) => {
+          console.debug('[uiStore] 设置视图模式', { mode })
+          set({ viewMode: mode })
+        },
+
+        setIsLoading: (isLoading: boolean) => {
+          console.debug('[uiStore] 设置加载状态', { isLoading })
+          set({ isLoading })
+        },
+
+        // Actions - 华生对话框
+        setWatsonDialogOpen: (isOpen: boolean) => {
+          console.info('[uiStore] 设置华生对话框开关', { isOpen })
+          set({ watsonDialogOpen: isOpen })
+        },
+
+        toggleWatsonDialog: () => {
+          console.debug('[uiStore] 切换华生对话框')
+          set((state) => ({ watsonDialogOpen: !state.watsonDialogOpen }))
+        },
+
+        setWatsonDialogExpanded: (expanded: boolean) => {
+          console.debug('[uiStore] 设置华生对话框展开状态', { expanded })
+          set({ watsonDialogExpanded: expanded })
+        },
+
+        setWatsonDialogPosition: (position: DialogPosition) => {
+          console.debug('[uiStore] 设置华生对话框位置', position)
+          set({ watsonDialogPosition: position })
+        },
+
+        // Actions - 勘查页面
+        setSelectedAreaId: (areaId: string | null) => {
+          console.debug('[uiStore] 设置选中区域', { areaId })
+          set({ selectedAreaId: areaId })
+        },
+
+        setShowAreaDetails: (show: boolean) => {
+          console.debug('[uiStore] 设置显示区域详情', { show })
+          set({ showAreaDetails: show })
+        },
+
+        setInvestigationSidebarTab: (tab: SidebarTab) => {
+          console.debug('[uiStore] 设置勘查侧边栏标签', { tab })
+          set({ investigationSidebarTab: tab })
+        },
+
+        // Actions - 审讯页面
+        setInterrogationMode: (mode: InterrogationMode) => {
+          console.debug('[uiStore] 设置审讯模式', { mode })
+          set({ interrogationMode: mode })
+        },
+
+        setSelectedSuspectId: (suspectId: string | null) => {
+          console.debug('[uiStore] 设置选中嫌疑人', { suspectId })
+          set({ selectedSuspectId: suspectId })
+        },
+
+        setShowSuspectSelector: (show: boolean) => {
+          console.debug('[uiStore] 设置显示嫌疑人选择器', { show })
+          set({ showSuspectSelector: show })
+        },
+
+        // Actions - 推理板
+        setShowInferenceForm: (show: boolean) => {
+          console.debug('[uiStore] 设置显示推理表单', { show })
+          set({ showInferenceForm: show })
+        },
+
+        setShowHypothesisForm: (show: boolean) => {
+          console.debug('[uiStore] 设置显示假设表单', { show })
+          set({ showHypothesisForm: show })
+        },
+
+        setShowWatsonFeedback: (show: boolean) => {
+          console.debug('[uiStore] 设置显示华生反馈', { show })
+          set({ showWatsonFeedback: show })
+        },
+
+        // Actions - 模态框
+        openModal: (content: React.ReactNode) => {
+          console.debug('[uiStore] 打开模态框')
+          set({ showModal: true, modalContent: content })
+        },
+
+        closeModal: () => {
+          console.debug('[uiStore] 关闭模态框')
+          set({ showModal: false, modalContent: null })
+        },
+
+        // Reset
+        resetUI: () => {
+          console.info('[uiStore] 重置UI状态')
+          set({
+            viewMode: 'investigation',
+            isLoading: false,
+            watsonDialogOpen: true,
+            watsonDialogExpanded: true,
+            watsonDialogPosition: { x: 0, y: 0 },
+            selectedAreaId: null,
+            showAreaDetails: false,
+            investigationSidebarTab: 'observations',
+            interrogationMode: 'private',
+            selectedSuspectId: null,
+            showSuspectSelector: true,
+            showInferenceForm: false,
+            showHypothesisForm: false,
+            showWatsonFeedback: false,
+            showModal: false,
+            modalContent: null,
+          })
+        },
+      }),
+      {
+        name: 'ui-store',
+        storage: createJSONStorage(() => localStorage),
+        partialize: (state) => ({
+          viewMode: state.viewMode,
+          watsonDialogPosition: state.watsonDialogPosition,
+        }),
+      }
+    ),
+    { name: 'UIStore' }
+  )
+)

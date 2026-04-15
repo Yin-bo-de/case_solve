@@ -4,3 +4,7 @@ export { useCluesStore } from './cluesStore'
 export { useDeductionStore } from './deductionStore'
 export { useUIStore } from './uiStore'
 export { useWatsonChatStore } from './watsonChatStore'
+
+// 导出状态管理器
+export { StoreManager, useStoreManager } from './storeManager'
+export type { GameSnapshot } from './storeManager'

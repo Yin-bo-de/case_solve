@@ -147,4 +147,5 @@ export function useDrag(options: UseDragOptions = {}) {
     dragStyle,
     dragHandleProps
   }
+
 }
