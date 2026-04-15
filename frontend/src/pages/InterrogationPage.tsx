@@ -56,6 +56,7 @@ export default function InterrogationPage() {
   const [mentionedSuspects, setMentionedSuspects] = useState<MentionedSuspect[]>([])
   const [showMentionMenu, setShowMentionMenu] = useState(false)
   const [mentionMenuPosition, setMentionMenuPosition] = useState({ x: 0, y: 0 })
+  const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
   const [contradictions, setContradictions] = useState<ContradictionResult[]>([])
   const [interjectionCounts, setInterjectionCounts] = useState<InterjectionCount>({})
   const [suspectStatements, setSuspectStatements] = useState<Record<string, string[]>>({})
@@ -89,6 +90,13 @@ export default function InterrogationPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [conversationHistory, groupMessages, addWatsonMessage])
+
+  // 重置选中索引
+  useEffect(() => {
+    if (!showMentionMenu) {
+      setSelectedMentionIndex(0)
+    }
+  }, [showMentionMenu])
 
   // 加载游戏状态
   useEffect(() => {
@@ -162,6 +170,7 @@ export default function InterrogationPage() {
       if (matchingSuspects.length > 0) {
         setMentionedSuspects(matchingSuspects.map(s => ({ id: s.id, name: s.name })))
         setShowMentionMenu(true)
+        setSelectedMentionIndex(0)
         // 计算菜单位置
         if (questionInputRef.current) {
           const rect = questionInputRef.current.getBoundingClientRect()
@@ -181,6 +190,7 @@ export default function InterrogationPage() {
     const newQuestion = question.substring(0, lastAtIndex) + `@${suspect.name} `
     setQuestion(newQuestion)
     setShowMentionMenu(false)
+    setSelectedMentionIndex(0)
 
     // 添加到提及列表（用于发送时）
     if (!mentionedSuspects.find(s => s.id === suspect.id)) {
@@ -768,7 +778,18 @@ export default function InterrogationPage() {
                       value={question}
                       onChange={handleQuestionChange}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
+                        if (showMentionMenu && mentionedSuspects.length > 0) {
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            setSelectedMentionIndex((prev) => (prev + 1) % mentionedSuspects.length)
+                          } else if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            setSelectedMentionIndex((prev) => (prev - 1 + mentionedSuspects.length) % mentionedSuspects.length)
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleMentionSelect(mentionedSuspects[selectedMentionIndex])
+                          }
+                        } else if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault()
                           handleSendQuestion()
                         }
@@ -786,10 +807,10 @@ export default function InterrogationPage() {
                           left: mentionMenuPosition.x,
                         }}
                       >
-                        {mentionedSuspects.map(suspect => (
+                        {mentionedSuspects.map((suspect, index) => (
                           <div
                             key={suspect.id}
-                            className="mention-menu-item"
+                            className={`mention-menu-item ${index === selectedMentionIndex ? 'mention-menu-item--active' : ''}`}
                             onClick={() => handleMentionSelect(suspect)}
                           >
                             👤 {suspect.name}
@@ -1563,6 +1584,7 @@ export default function InterrogationPage() {
         }
 
         .question-input--textarea {
+          width: 100%;
           resize: none;
           min-height: 60px;
           line-height: 1.5;
@@ -1596,6 +1618,11 @@ export default function InterrogationPage() {
 
         .mention-menu-item:hover {
           background: rgba(212, 175, 55, 0.15);
+        }
+
+        .mention-menu-item--active {
+          background: rgba(212, 175, 55, 0.2);
+          border-left: 3px solid #d4af37;
         }
 
         .message--system .message-text {
