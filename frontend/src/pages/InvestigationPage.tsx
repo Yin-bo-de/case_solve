@@ -155,7 +155,7 @@ export default function InvestigationPage() {
         // 显示华生欢迎消息
         setTimeout(() => {
           addWatsonMessage(
-            '老朋友，我们到了。这就是案发现场。仔细看看周围，任何细节都可能是重要的线索。',
+            '老朋友，我们到了。这便是命案现场。细细察看周遭，任何细节皆可能至为关键。',
             'guidance'
           )
         }, 500)
@@ -248,7 +248,7 @@ export default function InvestigationPage() {
     return (
       <div className="investigation-page investigation-page--loading">
         <div className="loading-spinner">
-          <p>正在进入案发现场...</p>
+          <p>正奔赴案发现场...</p>
         </div>
       </div>
     )
@@ -258,8 +258,8 @@ export default function InvestigationPage() {
     return (
       <div className="investigation-page investigation-page--error">
         <div className="error-message">
-          <h2>出错了</h2>
-          <p>{error || '无法加载游戏'}</p>
+          <h2>出了岔子</h2>
+          <p>{error || '无法调取档案'}</p>
           <button onClick={() => navigate('/')} type="button">
             返回贝克街
           </button>
@@ -277,7 +277,7 @@ export default function InvestigationPage() {
           <div className="header-info">
             <span className="case-location">{gameState.case?.location}</span>
             <span className="observation-count">
-              观察记录: {observations.length}
+              勘查记录: {observations.length}
             </span>
           </div>
         </div>
@@ -322,7 +322,7 @@ export default function InvestigationPage() {
         {/* 观察笔记面板 */}
         <aside className={`observation-panel ${showObservations ? 'observation-panel--open' : ''}`}>
           <div className="panel-header">
-            <h3>观察笔记</h3>
+            <h3>勘查笔记</h3>
             <button
               className="panel-toggle"
               onClick={() => setShowObservations(!showObservations)}
@@ -334,7 +334,7 @@ export default function InvestigationPage() {
 
           <div className="panel-content">
             {observations.length === 0 ? (
-              <p className="no-observations">还没有记录任何观察，点击场景中的区域开始勘查吧。</p>
+              <p className="no-observations">阁下尚无勘查记录，点击场景中各处细查吧。</p>
             ) : (
               <ul className="observation-list">
                 {observations.map(obs => (
@@ -368,7 +368,7 @@ export default function InvestigationPage() {
               {/* 显示相关线索 */}
               {gameState.case && (
                 <div className="related-clues">
-                  <h3>发现的线索</h3>
+                  <h3>觅得之线索</h3>
                   {(() => {
                     const clues = gameState.case!.clues.filter(
                       clue =>
@@ -381,7 +381,7 @@ export default function InvestigationPage() {
                       foundClues: clues.map(c => c.id),
                     })
                     if (clues.length === 0) {
-                      return <p className="no-clues">这里暂时没有发现明显的线索。</p>
+                      return <p className="no-clues">此处尚无明显线索可寻。</p>
                     }
                     return (
                       <ul className="clue-list">
@@ -399,7 +399,7 @@ export default function InvestigationPage() {
             </div>
             <div className="modal-footer">
               <button onClick={closeAreaDetail} className="modal-button" type="button">
-                继续勘查
+                继续细查
               </button>
             </div>
           </div>
@@ -431,13 +431,13 @@ export default function InvestigationPage() {
               }
             }}
           >
-            审讯嫌疑人
+            传唤嫌疑人的
           </Link>
           <Link
             to={`/conclusion/${gameId}`}
             className="footer-button footer-button--next"
           >
-            指认凶手
+            指认真凶
           </Link>
         </div>
       </footer>

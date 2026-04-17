@@ -78,10 +78,14 @@ export default function StartPage() {
 
   return (
     <div className="start-page">
+      {/* 壁灯装饰 */}
+      <div className="gaslight-wall-lamp gaslight-wall-lamp--left" />
+      <div className="gaslight-wall-lamp gaslight-wall-lamp--right" />
+
       <div className="start-page__content">
         <h1 className="start-page__title">贝克街221B</h1>
         <p className="start-page__subtitle">
-          伦敦，1895年。迷雾笼罩的城市中，一桩谋杀案 awaits...
+          伦敦，1895年。迷雾笼罩的都市中，一桩离奇命案正待阁下侦破...
         </p>
 
         {error && (
@@ -92,11 +96,11 @@ export default function StartPage() {
 
         {gameState ? (
           <div className="start-page__case-preview">
-            <h2>案件加载中...</h2>
+            <h2>案件档案调取中...</h2>
             {gameState.case && (
               <>
                 <p className="case-preview__location">{gameState.case.location}</p>
-                <p className="case-preview__victim">死者: {gameState.case.victimName}</p>
+                <p className="case-preview__victim">罹难者: {gameState.case.victimName}</p>
                 <p className="case-preview__summary">{gameState.case.summary}</p>
               </>
             )}
@@ -104,7 +108,7 @@ export default function StartPage() {
         ) : (
           <>
             <div className="start-page__difficulty">
-              <h3>选择难度</h3>
+              <h3>选择探案难度</h3>
               <div className="difficulty-options">
                 {(Object.keys(DIFFICULTY_LABELS) as GameDifficulty[]).map((difficulty) => (
                   <button
@@ -140,7 +144,7 @@ export default function StartPage() {
               disabled={isLoading}
               type="button"
             >
-              {isLoading ? '准备中...' : '开始新案件'}
+              {isLoading ? '档案整理中...' : '着手探案'}
             </button>
           </>
         )}

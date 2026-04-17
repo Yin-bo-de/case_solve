@@ -46,7 +46,7 @@ export const useWatsonChatStore = create<WatsonChatStore>()(
 
             try {
               const response = await gameApi.sendWatsonMessage(gameId, message)
-              console.info('[watsonChatStore] 收到华生回复', { messageType: response.message.messageType })
+              console.info('[watsonChatStore] 收到华生回复', { messageType: response.messageType })
 
               // 获取完整历史
               await get().fetchHistory(gameId)

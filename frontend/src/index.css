@@ -1,6 +1,11 @@
 /* 基础样式 - 维多利亚风格 */
 :root {
-  font-family: 'Georgia', 'Times New Roman', serif;
+  /* 字体家族 */
+  --font-title: 'Cinzel', 'Playfair Display', 'Georgia', serif;
+  --font-body: 'IM Fell English', 'Georgia', 'Times New Roman', serif;
+  --font-ui: 'Georgia', 'Times New Roman', serif;
+
+  font-family: var(--font-body);
   line-height: 1.6;
   font-weight: 400;
 
@@ -12,6 +17,49 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  /* 煤灯光晕动画 */
+  animation: gaslight-flicker 8s ease-in-out infinite;
+}
+
+/* 煤灯光晕动画 - 柔和的闪烁 */
+@keyframes gaslight-flicker {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.95; filter: brightness(0.98); }
+  25% { opacity: 0.97; filter: brightness(0.99); }
+  75% { opacity: 0.98; filter: brightness(0.99); }
+}
+
+/* 随机光晕动画 - 用于不同元素的错位闪烁 */
+@keyframes gaslight-flicker-slow {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.92; filter: brightness(0.97); }
+  30% { opacity: 0.96; filter: brightness(0.98); }
+  70% { opacity: 0.94; filter: brightness(0.98); }
+}
+
+/* 按钮光晕动画 */
+@keyframes button-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.3),
+                0 0 40px rgba(212, 175, 55, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(212, 175, 55, 0.4),
+                0 0 50px rgba(212, 175, 55, 0.15);
+  }
+}
+
+/* 标题光晕动画 */
+@keyframes title-glow {
+  0%, 100% {
+    text-shadow: 0 0 20px rgba(212, 175, 55, 0.3),
+                 0 0 40px rgba(212, 175, 55, 0.1);
+  }
+  50% {
+    text-shadow: 0 0 25px rgba(212, 175, 55, 0.4),
+                 0 0 50px rgba(212, 175, 55, 0.15);
+  }
 }
 
 * {
@@ -39,6 +87,51 @@ body {
   justify-content: center;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
   padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 壁灯装饰 */
+.gaslight-wall-lamp {
+  position: absolute;
+  top: 0;
+  width: 60px;
+  height: 100px;
+  z-index: 1;
+}
+
+.gaslight-wall-lamp--left {
+  left: 20px;
+}
+
+.gaslight-wall-lamp--right {
+  right: 20px;
+}
+
+.gaslight-wall-lamp::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 40px;
+  background: radial-gradient(circle, rgba(255, 200, 100, 0.8) 0%, rgba(255, 180, 50, 0.4) 40%, transparent 70%);
+  border-radius: 50%;
+  animation: gaslight-flicker-slow 7s ease-in-out infinite;
+}
+
+.gaslight-wall-lamp::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 50px;
+  background: radial-gradient(circle, rgba(255, 220, 150, 0.3) 0%, transparent 60%);
+  border-radius: 50%;
+  animation: gaslight-flicker-slow 9s ease-in-out infinite reverse;
 }
 
 .start-page__content {
@@ -48,10 +141,11 @@ body {
 }
 
 .start-page__title {
-  font-size: 3rem;
+  font: 600 3rem var(--font-title);
   margin-bottom: 1rem;
   color: #d4af37;
   text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+  animation: title-glow 6s ease-in-out infinite;
 }
 
 .start-page__subtitle {
@@ -110,7 +204,26 @@ body {
 }
 
 .difficulty-option {
-  background: rgba(255, 255, 255, 0.05);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 90, 43, 0.08) 0px,
+      rgba(139, 90, 43, 0.08) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(101, 67, 33, 0.05) 0px,
+      rgba(101, 67, 33, 0.05) 2px,
+      transparent 2px,
+      transparent 20px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(50, 35, 20, 0.85) 0%,
+      rgba(70, 45, 25, 0.9) 100%
+    );
   border: 2px solid #333;
   border-radius: 8px;
   padding: 1.25rem;
@@ -118,6 +231,7 @@ body {
   transition: all 0.3s ease;
   text-align: left;
   color: #e8e8e8;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
 .difficulty-option:hover {
@@ -175,7 +289,8 @@ body {
   transition: all 0.3s ease;
   text-transform: uppercase;
   letter-spacing: 2px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
+  animation: button-glow 4s ease-in-out infinite;
 }
 
 .start-page__start-button:hover:not(:disabled) {
@@ -241,8 +356,10 @@ body {
 }
 
 .header-title {
-  font-size: 1.75rem;
+  font: 600 1.75rem var(--font-title);
   color: #d4af37;
+  text-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+  animation: title-glow 5s ease-in-out infinite;
 }
 
 .header-info {
@@ -361,8 +478,8 @@ body {
 }
 
 .scene-description h2 {
+  font: 600 1.25rem var(--font-title);
   color: #d4af37;
-  font-size: 1.25rem;
   margin-bottom: 0.5rem;
 }
 
@@ -380,6 +497,11 @@ body {
   display: flex;
   flex-direction: column;
   transition: width 0.3s ease;
+}
+
+.observation-panel .wood-texture {
+  flex: 1;
+  border-radius: 8px;
 }
 
 .observation-panel--open {
@@ -435,10 +557,24 @@ body {
 }
 
 .observation-item {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid #2a2a3a;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.9) 0%,
+      rgba(225, 205, 175, 0.93) 100%
+    );
+  border: 1px solid #8b7355;
   border-radius: 6px;
   padding: 0.75rem;
+  color: #3d2e20;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .observation-location {
@@ -495,8 +631,8 @@ body {
 }
 
 .modal-header h2 {
+  font: 600 1.5rem var(--font-title);
   color: #d4af37;
-  font-size: 1.5rem;
 }
 
 .modal-close {
@@ -550,10 +686,31 @@ body {
 }
 
 .clue-item {
-  background: rgba(212, 175, 55, 0.08);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(200, 180, 140, 0.03) 0px,
+      rgba(200, 180, 140, 0.03) 1.5px,
+      transparent 1.5px,
+      transparent 10px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.92) 0%,
+      rgba(225, 205, 175, 0.95) 100%
+    );
   border-left: 3px solid #d4af37;
   padding: 0.75rem 1rem;
   border-radius: 4px;
+  color: #3d2e20;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
 }
 
 .clue-item--red-herring {
@@ -590,6 +747,7 @@ body {
   font-weight: bold;
   cursor: pointer;
   font-family: 'Georgia', serif;
+  animation: button-glow 4.5s ease-in-out infinite;
 }
 
 .modal-button:hover {
@@ -632,6 +790,7 @@ body {
   border: none;
   color: #1a1a2e;
   font-weight: bold;
+  animation: button-glow 5s ease-in-out infinite;
 }
 
 .footer-button--next:hover:not(:disabled) {
@@ -1107,11 +1266,31 @@ body {
 }
 
 .deduction-board__sidebar {
-  background: rgba(40, 35, 30, 0.9);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 90, 43, 0.08) 0px,
+      rgba(139, 90, 43, 0.08) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(101, 67, 33, 0.05) 0px,
+      rgba(101, 67, 33, 0.05) 2px,
+      transparent 2px,
+      transparent 20px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(50, 35, 20, 0.85) 0%,
+      rgba(70, 45, 25, 0.9) 100%
+    );
   border: 2px solid #8b7355;
   border-radius: 8px;
   padding: 20px;
   height: fit-content;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
 }
 
 .deduction-board__main {
@@ -1121,8 +1300,7 @@ body {
 }
 
 .section-title {
-  font-family: 'Georgia', serif;
-  font-size: 20px;
+  font: 600 20px var(--font-title);
   color: #c9a962;
   margin-bottom: 15px;
   padding-bottom: 8px;
@@ -1136,12 +1314,26 @@ body {
 }
 
 .observation-card {
-  background: rgba(60, 55, 50, 0.8);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.88) 0%,
+      rgba(225, 205, 175, 0.91) 100%
+    );
   border: 1px solid #8b7355;
   border-radius: 6px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
+  color: #3d2e20;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .observation-card:hover {
@@ -1168,10 +1360,30 @@ body {
 
 .inferences-section,
 .hypotheses-section {
-  background: rgba(40, 35, 30, 0.9);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 90, 43, 0.08) 0px,
+      rgba(139, 90, 43, 0.08) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(101, 67, 33, 0.05) 0px,
+      rgba(101, 67, 33, 0.05) 2px,
+      transparent 2px,
+      transparent 20px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(50, 35, 20, 0.85) 0%,
+      rgba(70, 45, 25, 0.9) 100%
+    );
   border: 2px solid #8b7355;
   border-radius: 8px;
   padding: 20px;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
 }
 
 .inferences-grid,
@@ -1183,11 +1395,25 @@ body {
 
 .inference-card,
 .hypothesis-card {
-  background: rgba(60, 55, 50, 0.8);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.88) 0%,
+      rgba(225, 205, 175, 0.91) 100%
+    );
   border: 1px solid #8b7355;
   border-radius: 6px;
   padding: 15px;
   position: relative;
+  color: #3d2e20;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .inference-card--selected {
@@ -1620,12 +1846,11 @@ body {
 }
 
 .conclusion-title {
-  font-size: 32px;
+  font: 600 32px var(--font-title);
   color: #c9a962;
   text-align: center;
   margin-bottom: 30px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-  font-family: 'Georgia', 'Times New Roman', serif;
 }
 
 /* 步骤指示器 */
@@ -1679,7 +1904,7 @@ body {
   font-size: 22px;
   color: #c9a962;
   margin-bottom: 10px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
 }
 
 .step-description {
@@ -1697,13 +1922,33 @@ body {
 }
 
 .suspect-card {
-  background: rgba(60, 55, 50, 0.8);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 90, 43, 0.08) 0px,
+      rgba(139, 90, 43, 0.08) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(101, 67, 33, 0.05) 0px,
+      rgba(101, 67, 33, 0.05) 2px,
+      transparent 2px,
+      transparent 20px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(50, 35, 20, 0.85) 0%,
+      rgba(70, 45, 25, 0.9) 100%
+    );
   border: 2px solid #8b7355;
   border-radius: 10px;
   padding: 20px;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.4);
 }
 
 .suspect-card:hover {
@@ -1793,7 +2038,7 @@ body {
   font-size: 18px;
   color: #c9a962;
   margin-bottom: 15px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
 }
 
 .steps-list {
@@ -1897,7 +2142,7 @@ body {
   border-radius: 6px;
   cursor: pointer;
   font-size: 15px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
   transition: all 0.3s ease;
   text-decoration: none;
   display: inline-flex;
@@ -1963,7 +2208,7 @@ body {
   font-size: 28px;
   color: #e8d5b7;
   margin-bottom: 20px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
 }
 
 .watson-feedback {
@@ -2015,15 +2260,29 @@ body {
   color: #c9a962;
   margin-bottom: 25px;
   text-align: center;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
 }
 
 .reveal-section {
-  background: rgba(60, 55, 50, 0.6);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.85) 0%,
+      rgba(225, 205, 175, 0.88) 100%
+    );
   border: 1px solid #6b5335;
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 20px;
+  color: #3d2e20;
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
 }
 
 .reveal-section h4 {
@@ -2047,10 +2306,10 @@ body {
 .reveal-section li {
   font-size: 14px;
   padding: 8px 10px;
-  background: rgba(40, 35, 30, 0.5);
+  background: rgba(185, 165, 135, 0.3);
   border-radius: 4px;
   margin-bottom: 8px;
-  color: #e8d5b7;
+  color: #3d2e20;
   border-left: 3px solid #c9a962;
 }
 
@@ -2082,7 +2341,7 @@ body {
   font-size: 28px;
   color: #c9a962;
   margin-bottom: 15px;
-  font-family: 'Georgia', 'Times New Roman', serif;
+  font-family: var(--font-ui);
 }
 
 .not-ready-message {
@@ -2123,5 +2382,106 @@ body {
   gap: 15px;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/* ========== 纹理背景类 ========== */
+
+/* 木质纹理 - 深褐色 */
+.wood-texture {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 90, 43, 0.08) 0px,
+      rgba(139, 90, 43, 0.08) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(101, 67, 33, 0.05) 0px,
+      rgba(101, 67, 33, 0.05) 2px,
+      transparent 2px,
+      transparent 20px
+    ),
+    repeating-linear-gradient(
+      45deg,
+      rgba(160, 82, 45, 0.03) 0px,
+      rgba(160, 82, 45, 0.03) 3px,
+      transparent 3px,
+      transparent 15px
+    ),
+    linear-gradient(
+      180deg,
+      rgba(50, 35, 20, 0.9) 0%,
+      rgba(70, 45, 25, 0.95) 50%,
+      rgba(50, 35, 20, 0.9) 100%
+    );
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+}
+
+/* 羊皮纸纹理 - 米黄色 */
+.wood-texture .parchment-texture {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(200, 180, 140, 0.03) 0px,
+      rgba(200, 180, 140, 0.03) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(245, 235, 210, 0.15) 0%,
+      rgba(210, 195, 170, 0.1) 60%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.95) 0%,
+      rgba(225, 205, 175, 0.98) 50%,
+      rgba(205, 185, 155, 0.95) 100%
+    );
+  color: #3d2e20;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.15);
+}
+
+/* 羊皮纸纹理 - 独立使用 */
+.parchment-texture {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(139, 119, 101, 0.05) 0px,
+      rgba(139, 119, 101, 0.05) 1px,
+      transparent 1px,
+      transparent 12px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(200, 180, 140, 0.03) 0px,
+      rgba(200, 180, 140, 0.03) 1px,
+      transparent 1px,
+      transparent 8px
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(245, 235, 210, 0.15) 0%,
+      rgba(210, 195, 170, 0.1) 60%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(205, 185, 155, 0.95) 0%,
+      rgba(225, 205, 175, 0.98) 50%,
+      rgba(205, 185, 155, 0.95) 100%
+    );
+  color: #3d2e20;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.15);
 }
 
