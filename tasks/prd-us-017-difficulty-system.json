@@ -1,0 +1,149 @@
+{
+  "project": "福尔摩斯式探案游戏 - 难度系统",
+  "branchName": "ralph/sherlock-holmes-detective-game",
+  "description": "实现难度系统，用户可以选择简单/经典/硬核三种难度，难度会影响线索明显度、华生主动性、提示频率、红鲱鱼数量、时间限制和错误指认次数限制。",
+  "userStories": [
+    {
+      "id": "US-017-001",
+      "title": "在后端 Case 模型中添加难度字段",
+      "description": "作为开发者，我需要在 Case 模型中添加难度字段，以便存储用户选择的难度。",
+      "acceptanceCriteria": [
+        "在 Case 模型中添加 difficulty 字段，类型为 DifficultyLevel（simple/classic/hardcore）",
+        "在 case_generator_agent.py 中支持生成不同难度的案件",
+        "简单难度：线索更明显、红鲱鱼少",
+        "经典难度：平衡的体验",
+        "硬核难度：线索隐蔽、红鲱鱼多",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-002",
+      "title": "实现难度对线索明显度的影响",
+      "description": "作为玩家，我选择简单难度时线索应该更明显，硬核难度时线索更隐蔽。",
+      "acceptanceCriteria": [
+        "简单难度：线索描述中直接指出关键信息",
+        "经典难度：线索描述适中，需要一定推理",
+        "硬核难度：线索描述含蓄，需要仔细分析",
+        "在 case_generator_agent.py 中根据 difficulty 调整 clue_generation_prompt",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-003",
+      "title": "实现难度对红鲱鱼数量的影响",
+      "description": "作为玩家，我选择简单难度时红鲱鱼少，硬核难度时红鲱鱼多。",
+      "acceptanceCriteria": [
+        "简单难度：0-1 个红鲱鱼",
+        "经典难度：2-3 个红鲱鱼",
+        "硬核难度：4-5 个红鲱鱼",
+        "在 case_generator_agent.py 中根据 difficulty 调整 red_herring_count",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-004",
+      "title": "实现难度对华生主动性的影响",
+      "description": "作为玩家，我选择简单难度时华生更主动，硬核难度时华生更被动。",
+      "acceptanceCriteria": [
+        "简单难度：华生频繁主动提示（每 3-5 分钟）",
+        "经典难度：华生适中提示（每 5-10 分钟）",
+        "硬核难度：华生很少主动提示（每 10-15 分钟）",
+        "在 watson_agent.py 中根据 difficulty 调整主动提示频率",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-005",
+      "title": "实现难度对提示频率的影响",
+      "description": "作为玩家，我选择简单难度时可以更多次请求提示，硬核难度时提示次数有限。",
+      "acceptanceCriteria": [
+        "在 game_state 中添加 hints_used 字段",
+        "简单难度：无限制或高限制（10+ 次）",
+        "经典难度：中等限制（5 次）",
+        "硬核难度：严格限制（2 次）",
+        "在 game_service.py 的 get_hint 方法中检查提示次数限制",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-006",
+      "title": "实现难度对时间限制的影响",
+      "description": "作为玩家，我选择简单难度时无时间限制，硬核难度时有时间压力。",
+      "acceptanceCriteria": [
+        "在 game_state 中添加 start_time 和 time_limit 字段",
+        "简单难度：无时间限制（null）",
+        "经典难度：60 分钟时间限制",
+        "硬核难度：30 分钟时间限制",
+        "在前端显示倒计时（如果有时间限制）",
+        "时间到后自动结束游戏",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-007",
+      "title": "实现难度对错误指认次数的影响",
+      "description": "作为玩家，我选择简单难度时可以多次错误指认，硬核难度时错误即失败。",
+      "acceptanceCriteria": [
+        "简单难度：3 次错误机会",
+        "经典难度：2 次错误机会",
+        "硬核难度：1 次错误机会",
+        "在 game_service.py 的 make_accusation 方法中检查错误次数",
+        "错误次数用完后游戏结束（失败）",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-008",
+      "title": "在前端显示当前难度配置",
+      "description": "作为玩家，我能在游戏过程中看到当前难度的设置，了解游戏规则。",
+      "acceptanceCriteria": [
+        "在 InvestigationPage 显示当前难度等级",
+        "显示关键配置：红鲱鱼数量、提示次数限制、时间限制、错误机会",
+        "在 gameStore.ts 中保存难度配置",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017-009",
+      "title": "集成难度系统到游戏流程",
+      "description": "作为玩家，我选择难度后，整个游戏应该按照该难度的规则运行。",
+      "acceptanceCriteria": [
+        "StartPage 的难度选择器正常工作",
+        "难度选择后正确传递到后端",
+        "后端根据难度生成对应案件",
+        "所有难度相关的限制在游戏中生效",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

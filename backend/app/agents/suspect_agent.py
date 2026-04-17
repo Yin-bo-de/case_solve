@@ -8,9 +8,16 @@ import random
 
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage
 
 from app.config import get_settings
 from app.models.case import Suspect, Case
+from app.agents.prompts.suspect_prompts import (
+    suspect_response_prompt,
+    suspect_lie_detection_prompt,
+    suspect_interjection_prompt,
+)
+from app.agents._llm_helpers import invoke_with_retry
 
 
 class SuspectAgent:
@@ -48,13 +55,42 @@ class SuspectAgent:
             other_suspects_present: 在场的其他嫌疑人（仅全体质询时）
 
         Returns:
-            嫌疑人的回复
+            她疑人的回复
         """
         logger.info(f"[SuspectAgent] 生成回复: {suspect.name}, 问题: {user_question[:50]}...")
-        # TODO: 实际调用LLM生成回复
-        return self._generate_mock_response(
-            suspect, case, user_question, is_private
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_response(suspect, case, user_question, is_private)
+
+        # 构建对话历史为 LangChain messages
+        history = []
+        for msg in (conversation_history or []):
+            if msg.get("role") == "user":
+                history.append(HumanMessage(content=msg["content"]))
+            else:
+                history.append(AIMessage(content=msg["content"]))
+
+        chain = suspect_response_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "suspect_name": suspect.name,
+                "background": suspect.background,
+                "motive": suspect.motive,
+                "timeline": suspect.timeline,
+                "personality_traits": "、".join(suspect.personality_traits),
+                "secrets": "；".join(suspect.secrets),
+                "is_guilty": str(suspect.is_guilty),
+                "victim_name": case.victim_name,
+                "victim_background": case.victim_background,
+                "case_summary": case.summary,
+                "interrogation_mode": "私下单独审讯" if is_private else "全体质询，其他嫌疑人在场",
+                "user_question": user_question,
+                "history": history,
+            },
+            fallback_fn=lambda: self._generate_mock_response(suspect, case, user_question, is_private),
         )
+        return result.content if hasattr(result, "content") else str(result)
 
     async def detect_lie(
         self,
@@ -74,7 +110,28 @@ class SuspectAgent:
             包含 lie_detected, confidence, microexpression 等信息的字典
         """
         logger.info(f"[SuspectAgent] 检测谎言: {suspect.name}")
-        # TODO: 实际调用LLM检测谎言
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_lie_detection(suspect, response)
+
+        true_murderer = next((s for s in case.suspects if s.id == case.true_murderer_id), None)
+        chain = suspect_lie_detection_prompt | self.llm
+
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "true_murderer_name": true_murderer.name if true_murderer else "未知",
+                "is_guilty": str(suspect.is_guilty),
+                "murder_method": case.murder_method,
+                "suspect_name": suspect.name,
+                "response": response,
+            },
+            fallback_fn=lambda: self._generate_mock_lie_detection(suspect, response),
+            parse_json=True,
+        )
+        # result 可能是 dict（parse_json=True）或 mock dict
+        if isinstance(result, dict):
+            return result
         return self._generate_mock_lie_detection(suspect, response)
 
     async def generate_interjection(
@@ -89,7 +146,7 @@ class SuspectAgent:
 
         Args:
             responding_suspect: 刚刚说话的嫌疑人
-            other_suspect: 要插话的嫌疑人
+            other_suspect: 要插插的嫌疑人
             case: 案件信息
             context: 对话上下文
 
@@ -97,10 +154,23 @@ class SuspectAgent:
             插话内容，可能为None（不是每次都插话）
         """
         logger.info(f"[SuspectAgent] 生成插话: {other_suspect.name} -> {responding_suspect.name}")
-        # TODO: 实际调用LLM生成插话
-        return self._generate_mock_interjection(
-            responding_suspect, other_suspect, case
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_interjection(responding_suspect, other_suspect, case)
+
+        chain = suspect_interjection_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "other_suspect_name": other_suspect.name,
+                "responding_suspect_name": responding_suspect.name,
+                "other_background": other_suspect.background,
+                "context": context,
+            },
+            fallback_fn=lambda: self._generate_mock_interjection(responding_suspect, other_suspect, case),
         )
+        content = result.content if hasattr(result, "content") else str(result)
+        return None if content.strip().lower() == "null" else content
 
     def _generate_mock_response(
         self,

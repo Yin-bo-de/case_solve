@@ -12,13 +12,33 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.config import get_settings
 from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain
 from app.models.game import WatsonChatContext
+from app.agents.prompts.watson_prompts import (
+    watson_observation_prompt,
+    watson_question_reasoning_prompt,
+    watson_knowledge_prompt,
+    watson_suggest_hypothesis_prompt,
+    watson_chat_prompt,
+)
+from app.agents._llm_helpers import invoke_with_retry
 
 
 class WatsonAgent:
     """华生NPC Agent类"""
 
-    def __init__(self):
-        """初始化华生Agent"""
+    # 各难度对应的主动触发概率
+    _PROACTIVE_RATE_MAP = {
+        "easy": 0.8,
+        "classic": 0.5,
+        "hardcore": 0.2,
+    }
+
+    def __init__(self, proactive_rate: float = 0.5):
+        """
+        初始化华生Agent
+
+        Args:
+            proactive_rate: 主动触发概率 (0.0~1.0)，影响 share_observation/question_reasoning
+        """
         settings = get_settings()
         self.llm = ChatOpenAI(
             model=settings.openai_model,
@@ -26,35 +46,85 @@ class WatsonAgent:
             base_url=settings.openai_base_url,
             temperature=0.7,
         )
-        logger.info("[WatsonAgent] 初始化华生NPC Agent")
+        self.proactive_rate = proactive_rate
+        logger.info(f"[WatsonAgent] 初始化华生NPC Agent (proactive_rate={proactive_rate})")
 
-    async def share_observation(self, observation: Observation) -> str:
+    def _get_case_context(self, case=None) -> dict:
+        """从 case 对象提取 prompt 所需字段，case 为 None 时返回占位符"""
+        if case:
+            return {
+                "victim_name": case.victim_name,
+                "case_location": case.location,
+                "case_summary": case.summary,
+            }
+        return {"victim_name": "受害者", "case_location": "案发现场", "case_summary": "维多利亚时代谋杀案"}
+
+    @classmethod
+    def from_difficulty(cls, difficulty: str) -> "WatsonAgent":
+        """根据游戏难度创建对应主动性的 WatsonAgent 实例"""
+        rate = cls._PROACTIVE_RATE_MAP.get(difficulty, 0.5)
+        return cls(proactive_rate=rate)
+
+    async def share_observation(self, observation: Observation) -> Optional[str]:
         """
-        分享观察到的细节
+        分享观察到的细节（受 proactive_rate 控制，Hardcore 模式下大概率沉默）
 
         Args:
             observation: 用户刚刚发现的观察
 
         Returns:
-            华生的评论
+            华生的评论，或 None（不主动介入时）
         """
-        logger.info(f"[WatsonAgent] 分享观察: {observation.id}")
-        # TODO: 实际调用LLM生成评论
-        return self._generate_mock_observation_comment(observation)
+        logger.info(f"[WatsonAgent] 分享观察: {observation.id} (rate={self.proactive_rate})")
+        if random.random() > self.proactive_rate:
+            logger.debug(f"[WatsonAgent] 本次不主动评论（概率门控）")
+            return None
 
-    async def question_reasoning(self, inference: Inference) -> str:
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_observation_comment(observation)
+
+        chain = watson_observation_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                **self._get_case_context(),
+                "observation_location": observation.location,
+                "observation_description": observation.description,
+            },
+            fallback_fn=lambda: self._generate_mock_observation_comment(observation),
+        )
+        return result.content if hasattr(result, "content") else str(result)
+
+    async def question_reasoning(self, inference: Inference) -> Optional[str]:
         """
-        对推理提出疑问
+        对推理提出疑问（受 proactive_rate 控制）
 
         Args:
             inference: 用户刚刚做出的推理
 
         Returns:
-            华生的疑问或评论
+            华生的疑问或评论，或 None
         """
-        logger.info(f"[WatsonAgent] 质疑推理: {inference.id}")
-        # TODO: 实际调用LLM生成评论
-        return self._generate_mock_reasoning_question(inference)
+        logger.info(f"[WatsonAgent] 质疑推理: {inference.id} (rate={self.proactive_rate})")
+        if random.random() > self.proactive_rate:
+            logger.debug(f"[WatsonAgent] 本次不主动质疑（概率门控）")
+            return None
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_reasoning_question(inference)
+
+        chain = watson_question_reasoning_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                **self._get_case_context(),
+                "inference_content": inference.content,
+            },
+            fallback_fn=lambda: self._generate_mock_reasoning_question(inference),
+        )
+        return result.content if hasattr(result, "content") else str(result)
 
     async def suggest_hypothesis(self, observations: List[Observation]) -> Optional[str]:
         """
@@ -67,8 +137,21 @@ class WatsonAgent:
             华生的假设，可能为None（不是每次都说话）
         """
         logger.info(f"[WatsonAgent] 考虑是否提出假设 (已有 {len(observations)} 个观察)")
-        # TODO: 实际调用LLM生成假设
-        return None
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return None
+
+        if not observations:
+            return None
+
+        obs_summary = "\n".join(f"- {o.description}（{o.location}）" for o in observations[:5])
+        chain = watson_suggest_hypothesis_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={**self._get_case_context(), "observations_summary": obs_summary},
+            fallback_fn=lambda: None,
+        )
+        return result.content if hasattr(result, "content") else str(result)
 
     async def provide_knowledge(self, topic: str) -> Optional[str]:
         """
@@ -81,8 +164,17 @@ class WatsonAgent:
             华生的专业知识
         """
         logger.info(f"[WatsonAgent] 提供关于 '{topic}' 的知识")
-        # TODO: 实际调用LLM生成知识
-        return self._generate_mock_knowledge(topic)
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_knowledge(topic)
+
+        chain = watson_knowledge_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={**self._get_case_context(), "topic": topic},
+            fallback_fn=lambda: self._generate_mock_knowledge(topic),
+        )
+        return result.content if hasattr(result, "content") else str(result)
 
     async def encourage(self) -> str:
         """
@@ -317,9 +409,37 @@ class WatsonAgent:
         context: WatsonChatContext
     ) -> str:
         """根据消息类型生成回复"""
+        settings = get_settings()
+        if not settings.openai_api_key:
+            # 走原有 mock 分支
+            return await self._mock_generate_response(message, message_type, context)
 
-        # TODO: 实际调用LLM生成回复，当前使用mock实现
+        # 统一走 watson_chat_prompt + LLM
+        chain = watson_chat_prompt | self.llm
+        suspects_str = "、".join(context.suspects_interviewed) if context.suspects_interviewed else "无"
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "game_phase": context.game_phase.value if hasattr(context.game_phase, "value") else context.game_phase,
+                "observations_count": context.observations_count,
+                "clues_collected": context.clues_collected,
+                "suspects_interviewed": suspects_str,
+                "inferences_count": context.inferences_count,
+                "hypotheses_count": context.hypotheses_count,
+                "case_summary": "正在进行中的谋杀案调查",
+                "user_message": message,
+            },
+            fallback_fn=lambda: self._generate_general_response(context),
+        )
+        return result.content if hasattr(result, "content") else str(result)
 
+    async def _mock_generate_response(
+        self,
+        message: str,
+        message_type: str,
+        context: WatsonChatContext
+    ) -> str:
+        """根据消息类型生成 mock 回复（原有逻辑）"""
         if message_type == "guidance":
             return self._generate_guidance_response(context)
         elif message_type == "clue_discussion":

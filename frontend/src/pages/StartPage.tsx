@@ -14,7 +14,13 @@ const DIFFICULTY_LABELS: Record<GameDifficulty, string> = {
 const DIFFICULTY_DESCRIPTIONS: Record<GameDifficulty, string> = {
   easy: '线索明显，华生主动提示，适合初次体验',
   classic: '难度适中，平衡挑战与体验',
-  hardcore: '线索隐蔽，华生少言，适合推理高手',
+  hardcore: '线索隐蔽，华生几乎沉默，适合推理高手',
+}
+
+const DIFFICULTY_STATS: Record<GameDifficulty, { clues: string; watson: string; mistakes: string }> = {
+  easy:     { clues: '线索明显度 70%', watson: '华生活跃度 80%', mistakes: '错误机会 3 次' },
+  classic:  { clues: '线索明显度 50%', watson: '华生活跃度 50%', mistakes: '错误机会 2 次' },
+  hardcore: { clues: '线索明显度 30%', watson: '华生活跃度 20%', mistakes: '错误机会 1 次' },
 }
 
 export default function StartPage() {
@@ -117,6 +123,11 @@ export default function StartPage() {
                     </span>
                     <span className="difficulty-option__description">
                       {DIFFICULTY_DESCRIPTIONS[difficulty]}
+                    </span>
+                    <span className="difficulty-option__stats">
+                      {Object.values(DIFFICULTY_STATS[difficulty]).map((stat) => (
+                        <span key={stat} className="difficulty-option__stat-tag">{stat}</span>
+                      ))}
                     </span>
                   </button>
                 ))}

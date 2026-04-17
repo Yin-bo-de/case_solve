@@ -189,7 +189,7 @@ export default function InvestigationPage() {
       }
     }
 
-    idleTimerRef.current = window.setInterval(checkIdle, 5000)
+    idleTimerRef.current = window.setInterval(checkIdle, 60000)
 
     return () => {
       if (idleTimerRef.current) {

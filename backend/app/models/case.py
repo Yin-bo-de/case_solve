@@ -29,6 +29,7 @@ class Clue(BaseModel):
     is_red_herring: bool = False
     discovered: bool = False
     discovery_notes: Optional[str] = None
+    obviousness: float = Field(default=0.5, ge=0.0, le=1.0)  # 0.0=隐蔽, 1.0=明显
 
 
 class Case(BaseModel):

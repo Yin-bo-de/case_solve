@@ -21,9 +21,9 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 当前进度
 
-### 总体进度: ~90% 完成
+### 总体进度: ~95% 完成
 
-### 已完成的用户故事 (17/21) + 额外修复
+### 已完成的用户故事 (17/21) + 额外修复 + 技术债务清理
 
 | ID | 标题 | 状态 | 完成日期 |
 |----|------|------|----------|
@@ -54,13 +54,14 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 | - | 修复圆桌对峙输入框宽度自适应问题 | ✅ | 2026-04-15 |
 | - | 实现@提及菜单键盘导航功能 | ✅ | 2026-04-15 |
 
-### 待完成的用户故事 (4/21)
+### 待完成的用户故事 (3/21)
 
 | ID | 标题 | 优先级 | 备注 |
 |----|------|--------|------|
-| US-017 | 实现难度系统 | 17 | 需要影响线索明显度、华生主动性等 |
+| US-017 | 实现难度系统 | 17 | ✅ T1.1~T1.4 已完成（2026-04-17） |
 | US-018 | UI风格改造为维多利亚哥特风 | 18 | 部分已有基础样式 |
 | US-020 | 集成所有模块并端到端测试 | 20 | 完整流程测试 |
+| - | T2 LLM真实调用集成 | 技术债 | ✅ T2.1~T2.5 已完成（2026-04-17） |
 
 ---
 
@@ -73,7 +74,13 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   ├── agents/                   # LangChain Agents
 │   │   │   ├── case_generator_agent.py   # 案件生成
 │   │   │   ├── suspect_agent.py          # 嫌疑人对话
-│   │   │   └── watson_agent.py           # 华生NPC
+│   │   │   ├── watson_agent.py           # 华生NPC
+│   │   │   ├── _llm_helpers.py           # LLM调用通用封装
+│   │   │   └── prompts/                 # Prompt模板集中管理
+│   │   │       ├── __init__.py
+│   │   │       ├── case_prompts.py       # 案件生成Prompt
+│   │   │       ├── suspect_prompts.py    # 嫌疑人Prompt
+│   │   │       └── watson_prompts.py     # 华生Prompt
 │   │   ├── models/                   # Pydantic 数据模型
 │   │   │   ├── case.py                   # 案件、推理相关模型
 │   │   │   └── game.py                   # 游戏状态模型
@@ -152,12 +159,14 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ### 关键设计模式
 1. **Singleton Pattern**: 所有 Agent 和 Service 使用单例模式
 2. **Async/Await**: 所有 Agent 方法为 async 以支持 LangChain 集成
-3. **Mock 实现**: 当前所有 LLM 调用使用 mock 数据，便于开发
-4. **类型安全**: 前后端都使用类型注解 (Pydantic / TypeScript)
-5. **日志规范**: 后端使用 loguru，前端使用 console 分级日志
-6. **字段自动转换**: API 层自动转换 snake_case ↔ camelCase
-7. **Zustand 中间件**: 集成 DevTools（调试）和 Persist（持久化）中间件
-8. **全局状态管理**: 使用 StoreManager 统一管理所有 Store（重置、快照、恢复）
+3. **LLM 集成**: 真实 LLM 调用 + mock 降级双路径，API key 缺失时自动降级
+4. **重试/超时封装**: 统一的 `invoke_with_retry` 封装，支持重试、超时、JSON 解析、降级
+5. **Prompt 工程化**: Prompt 模板集中管理在 `agents/prompts/` 目录
+6. **类型安全**: 前后端都使用类型注解 (Pydantic / TypeScript)
+7. **日志规范**: 后端使用 loguru，前端使用 console 分级日志
+8. **字段自动转换**: API 层自动转换 snake_case ↔ camelCase
+9. **Zustand 中间件**: 集成 DevTools（调试）和 Persist（持久化）中间件
+10. **全局状态管理**: 使用 StoreManager 统一管理所有 Store（重置、快照、恢复）
 
 ### 命名规范
 - **后端**: snake_case (Python 惯例)
@@ -167,6 +176,19 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-17
+- ✅ **完成 T2 LLM真实调用集成**:
+  - **T2.1**: 创建 `backend/app/agents/prompts/` 目录和三个 prompt 模板文件（`case`、`suspect`、`watson`）
+  - **T2.5**: 创建 `backend/app/agents/_llm_helpers.py`，统一封装重试/超时/日志/降级逻辑
+  - **T2.2**: CaseGeneratorAgent 接入真实 LLM 调用，保留 mock 降级路径
+  - **T2.3**: SuspectAgent 接入真实 LLM 调用（对话、谎言检测、插话）
+  - **T2.4**: WatsonAgent 接入真实 LLM 调用（观察评论、推理质疑、知识提供、假设建议）
+  - **语法验证**: 所有 8 个 Python 文件通过 py_compile 验证
+- ✅ **完成 US-017 T1.1**: 案件生成端按难度调整红鲱鱼数量（Easy=1/Classic=2/Hardcore=3）和线索 `obviousness` 范围，新增 `Clue.obviousness` 字段
+- ✅ **完成 US-017 T1.2**: WatsonAgent 新增 `proactive_rate` 参数和 `from_difficulty()` 工厂方法（Easy=0.8/Classic=0.5/Hardcore=0.2），`share_observation`/`question_reasoning` 加入概率门控；路由层按 game.difficulty 创建对应实例
+- ✅ **完成 US-017 T1.3**: StartPage 三个难度卡片补充量化标签（线索明显度/华生活跃度/错误机会），新增 `.difficulty-option__stats` 样式
+- ✅ **完成 US-017 T1.4**: 新建 `backend/tests/test_difficulty.py`，13 个 pytest 用例全绿（clue 分布、max_mistakes、watson proactive_rate）
 
 ### 2026-04-15
 - ✅ **完成 US-019: 完善 Zustand 状态管理** - 为所有 Store 添加 DevTools 和 Persist 中间件，实现状态持久化和调试支持
@@ -211,13 +233,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 3. **US-020**: 集成所有模块并端到端测试（最后验证）
 
 ### 待解决的问题
-- LLM 调用目前都是 mock 实现，需要接入真实的 LangChain
-- 难度系统尚未实现，目前只有基础框架
-- 维多利亚哥特风 UI 需要进一步完善
-- 缺少端到端测试
-- 难度系统尚未实现，目前只有基础框架
-- 维多利亚哥特风 UI 需要进一步完善
-- 缺少端到端测试
+- 无（核心功能已完成，待端到端测试）
 
 ---
 

@@ -1,0 +1,203 @@
+{
+  "project": "福尔摩斯式探案游戏 - 端到端集成测试",
+  "branchName": "ralph/sherlock-holmes-detective-game",
+  "description": "集成所有模块并进行端到端测试，确保从开始新案件到结案的完整流程可用，所有页面导航正常，API 调用全部正常，前后端日志完整。",
+  "userStories": [
+    {
+      "id": "US-020-001",
+      "title": "验证 StartPage 完整功能",
+      "description": "作为测试者，我需要验证起始页面的所有功能正常工作。",
+      "acceptanceCriteria": [
+        "页面加载正常，显示贝克街221B标题",
+        "难度选择器（简单/经典/硬核）可选择",
+        "「开始新案件」按钮点击后正确请求后端 API",
+        "案件加载成功后显示案件基本信息",
+        "华生对话框正常显示并可拖拽",
+        "前端日志记录所有关键操作",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-002",
+      "title": "验证 InvestigationPage 完整功能",
+      "description": "作为测试者，我需要验证勘查页面的所有功能正常工作。",
+      "acceptanceCriteria": [
+        "从 StartPage 正确导航到 InvestigationPage",
+        "案发现场场景正常显示",
+        "点击可勘查区域显示详细描述",
+        "观察记录正常收集和显示",
+        "华生提示和主动对话功能正常",
+        "华生对话框在页面切换时保持对话历史",
+        "前端日志记录线索收集过程",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-003",
+      "title": "验证 InterrogationPage 完整功能",
+      "description": "作为测试者，我需要验证质询页面的所有功能正常工作。",
+      "acceptanceCriteria": [
+        "从 InvestigationPage 正确导航到 InterrogationPage",
+        "单独审讯模式：可选择嫌疑人、输入问题、获得回复",
+        "全体质询模式：可选择所有嫌疑人、使用 @ 提问",
+        "谎言检测功能正常显示",
+        "嫌疑人插话功能正常（最多2次）",
+        "华生观察和提示功能正常",
+        "华生对话框在审讯时正常工作",
+        "前端日志记录审讯过程",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-004",
+      "title": "验证 DeductionBoard 完整功能",
+      "description": "作为测试者，我需要验证推理板的所有功能正常工作。",
+      "acceptanceCriteria": [
+        "从 InvestigationPage 或 InterrogationPage 正确导航到 DeductionBoard",
+        "显示所有已收集的线索/观察",
+        "可以创建推理节点（关联多个线索）",
+        "可以创建假设（列出支持/反对证据）",
+        "可以验证假设并显示结果",
+        "华生对推理的反馈功能正常",
+        "前端日志记录推理过程",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-005",
+      "title": "验证 ConclusionPage 完整功能",
+      "description": "作为测试者，我需要验证结案页面的所有功能正常工作。",
+      "acceptanceCriteria": [
+        "从 InvestigationPage 或 DeductionBoard 正确导航到 ConclusionPage",
+        "结案准备状态检查正常",
+        "可以正确选择嫌疑人作为凶手",
+        "可以陈述推理过程（一步步展示）",
+        "正确指认后显示正面反馈和案件真相",
+        "错误指认后华生给出反馈和引导",
+        "「再玩一局」功能正常，重置游戏状态",
+        "前端日志记录结案过程",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-006",
+      "title": "验证页面间导航和状态保持",
+      "description": "作为测试者，我需要验证在所有页面之间导航时状态正确保持。",
+      "acceptanceCriteria": [
+        "在 StartPage、InvestigationPage、InterrogationPage、DeductionBoard、ConclusionPage 之间随意切换",
+        "游戏状态（案件信息、当前阶段）正确保持",
+        "线索状态在页面切换时正确保持",
+        "推理链条和假设在页面切换时正确保持",
+        "华生对话历史在页面切换时正确保持",
+        "所有 Zustand stores 正常工作",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-007",
+      "title": "验证后端 API 全部正常",
+      "description": "作为测试者，我需要验证所有后端 API 端点正常响应。",
+      "acceptanceCriteria": [
+        "POST /api/game/new - 创建新案件正常",
+        "GET /api/game/{gameId} - 获取游戏状态正常",
+        "POST /api/game/{gameId}/difficulty - 设置难度正常",
+        "POST /api/game/{gameId}/watson/observation - 华生观察评论正常",
+        "POST /api/game/{gameId}/watson/hint - 华生提示正常",
+        "POST /api/game/{gameId}/interrogation/question - 向嫌疑人提问正常",
+        "POST /api/game/{gameId}/interrogation/contriction-check - 矛盾检测正常",
+        "GET /api/game/{gameId}/deduction - 获取推理链条正常",
+        "POST /api/game/{gameId}/deduction/inference - 创建推理正常",
+        "POST /api/game/{gameId}/deduction/hypothesis - 创建假设正常",
+        "POST /api/game/{gameId}/deduction/hypothesis/{id}/verify - 验证假设正常",
+        "GET /api/game/{gameId}/conclusion/readiness - 结案准备检查正常",
+        "POST /api/game/{gameId}/conclusion/accuse - 指认凶手正常",
+        "GET /api/game/{gameId}/conclusion/reveal - 获取案件真相正常",
+        "所有 API 返回正确的状态码和数据格式",
+        "后端日志记录所有 API 调用",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-008",
+      "title": "验证前后端数据同步",
+      "description": "作为测试者，我需要验证前端和后端的数据正确同步。",
+      "acceptanceCriteria": [
+        "创建新案件后，前端正确显示后端返回的案件信息",
+        "收集线索后，前端和后端的线索状态一致",
+        "创建推理和假设后，前端和后端的推理数据一致",
+        "审讯记录和证词在前后端一致",
+        "结案判断和结果在前后端一致",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+          ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-009",
+      "title": "验证错误处理和异常情况",
+      "description": "作为测试者，我需要验证错误处理和异常情况下的系统行为。",
+      "acceptanceCriteria": [
+        "后端 API 错误时前端显示友好的错误提示",
+        "网络错误时有重试或提示机制",
+        "无效输入时有正确的验证和提示",
+        "游戏状态异常时系统能够恢复",
+        "前端日志记录所有错误",
+        "后端日志记录所有异常",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020-010",
+      "title": "验证完整的游戏流程",
+      "description": "作为测试者，我需要验证从开始到结案的完整游戏流程可以顺利完成。",
+      "acceptanceCriteria": [
+        "1. 在 StartPage 选择难度并开始新案件",
+        "2. 在 InvestigationPage 勘查现场并收集线索",
+        "3. 在 InterrogationPage 审讯嫌疑人并发现矛盾",
+        "4. 在 DeductionBoard 构建推理链条并验证假设",
+        "5. 在 ConclusionPage 指认凶手并获得反馈",
+        "6. 使用「再玩一局」重新开始",
+        "完整流程没有崩溃或阻断性问题",
+        "前后端日志完整记录整个流程",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

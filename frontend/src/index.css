@@ -142,6 +142,24 @@ body {
   display: block;
   color: #a0a0a0;
   font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+}
+
+.difficulty-option__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.difficulty-option__stat-tag {
+  font-size: 0.72rem;
+  color: #888;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
 }
 
 .start-page__start-button {

@@ -14,7 +14,7 @@ from app.models.game import (
 from app.models.case import Observation, Inference, Hypothesis, DeductionChain
 from app.services.game_service import get_game_service
 from app.agents.case_generator_agent import get_case_generator
-from app.agents.watson_agent import get_watson_agent
+from app.agents.watson_agent import get_watson_agent, WatsonAgent
 from app.agents.suspect_agent import get_suspect_agent
 
 router = APIRouter()
@@ -180,10 +180,10 @@ async def get_watson_observation_comment(game_id: str, request: WatsonObservatio
     if not game:
         raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
 
-    watson = get_watson_agent()
+    watson = WatsonAgent.from_difficulty(game.difficulty.value)
     comment = await watson.share_observation(request.observation)
 
-    logger.info(f"[API] 华生观察评论生成成功: {game_id}")
+    logger.info(f"[API] 华生观察评论生成成功: {game_id}, 难度: {game.difficulty.value}")
     return {"comment": comment}
 
 
