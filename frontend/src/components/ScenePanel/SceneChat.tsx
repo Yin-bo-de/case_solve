@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { gameApi } from '@/services/api'
-import { useCluesStore } from '@/store'
+import { useCluesStore, useSceneChatStore } from '@/store'
+import type { SceneChatMessage } from '@/store'
 import type { SceneSearchResponse } from '@/types/game'
 import AddClueModal from './AddClueModal'
-
-interface ChatMessage {
-  role: 'user' | 'npc'
-  content: string
-  candidates?: SceneSearchResponse['clueCandidates']
-}
+import Toast from '@/components/Toast'
+import { SelectableMessage } from '@/components/SelectableMessage'
+import ExtractClueModal from '@/components/ExtractClueModal'
 
 interface PendingClue {
   suggestedClueId?: string
@@ -22,10 +20,13 @@ interface Props {
 }
 
 export default function SceneChat({ gameId, sceneId }: Props) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const { addMessage, getMessages } = useSceneChatStore()
+  const messages = getMessages(sceneId)
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [pendingClue, setPendingClue] = useState<PendingClue | null>(null)
+  const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
+  const [showToast, setShowToast] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { addClueFromBackend } = useCluesStore()
 
@@ -40,8 +41,8 @@ export default function SceneChat({ gameId, sceneId }: Props) {
     if (!query || isLoading) return
 
     console.info('[SceneChat] 发送搜查请求', { sceneId, query })
-    const userMsg: ChatMessage = { role: 'user', content: query }
-    setMessages((prev) => [...prev, userMsg])
+    const userMsg: SceneChatMessage = { role: 'user', content: query }
+    addMessage(sceneId, userMsg)
     setInput('')
     setIsLoading(true)
 
@@ -53,20 +54,37 @@ export default function SceneChat({ gameId, sceneId }: Props) {
       const result = await gameApi.sceneSearch(gameId, sceneId, query, history)
       console.info('[SceneChat] 收到场景回应', { candidates: result.clueCandidates.length })
 
-      const npcMsg: ChatMessage = {
+      const npcMsg: SceneChatMessage = {
         role: 'npc',
         content: result.narrative,
         candidates: result.clueCandidates.length > 0 ? result.clueCandidates : undefined,
       }
-      setMessages((prev) => [...prev, npcMsg])
+      addMessage(sceneId, npcMsg)
     } catch (err) {
       console.error('[SceneChat] 场景搜查失败', err)
-      setMessages((prev) => [
-        ...prev,
-        { role: 'npc', content: '（场景陷入寂静，没有回应……）' },
-      ])
+      addMessage(sceneId, { role: 'npc', content: '（场景陷入寂静，没有回应……）' })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleExtractConfirm = async (userLabel: string) => {
+    if (!pendingExtractText) return
+    console.info('[SceneChat] 从聊天记录提取线索', { userLabel, sceneId })
+    try {
+      const clue = await gameApi.addClue(gameId, {
+        userLabel,
+        description: pendingExtractText,
+        sourceType: 'scene',
+        sourceRef: sceneId,
+      })
+      addClueFromBackend(clue)
+      setShowToast(true)
+      console.info('[SceneChat] 线索提取成功', { clueId: clue.id })
+    } catch (err) {
+      console.error('[SceneChat] 提取线索失败', err)
+    } finally {
+      setPendingExtractText(null)
     }
   }
 
@@ -91,6 +109,7 @@ export default function SceneChat({ gameId, sceneId }: Props) {
         baseClueId: pendingClue.suggestedClueId,
       })
       addClueFromBackend(clue)
+      setShowToast(true)
       console.info('[SceneChat] 线索添加成功', { clueId: clue.id })
     } catch (err) {
       console.error('[SceneChat] 添加线索失败', err)
@@ -107,7 +126,14 @@ export default function SceneChat({ gameId, sceneId }: Props) {
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`scene-chat__message scene-chat__message--${msg.role}`}>
-            <p>{msg.content}</p>
+            {msg.role === 'npc' ? (
+              <SelectableMessage
+                text={msg.content}
+                onExtract={(text) => setPendingExtractText(text)}
+              />
+            ) : (
+              <p>{msg.content}</p>
+            )}
             {msg.candidates && msg.candidates.length > 0 && (
               <div className="scene-chat__candidates">
                 {msg.candidates.map((c, ci) => (
@@ -162,6 +188,16 @@ export default function SceneChat({ gameId, sceneId }: Props) {
           onConfirm={handleConfirmAddClue}
           onClose={() => setPendingClue(null)}
         />
+      )}
+      {pendingExtractText && (
+        <ExtractClueModal
+          quotedText={pendingExtractText}
+          onConfirm={handleExtractConfirm}
+          onClose={() => setPendingExtractText(null)}
+        />
+      )}
+      {showToast && (
+        <Toast message="线索已成功添加！" onDismiss={() => setShowToast(false)} />
       )}
     </div>
   )

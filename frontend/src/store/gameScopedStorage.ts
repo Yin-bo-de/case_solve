@@ -24,6 +24,7 @@ export function createGameScopedStorage(storeName: string): StateStorage {
         console.debug(`[gameScopedStorage:${storeName}] getItem 跳过：无 activeGameId`)
         return null
       }
+      console.debug(`[gameScopedStorage:${storeName}] getItem from ${full}`)
       return localStorage.getItem(full)
     },
     setItem: (_key: string, value: string) => {
@@ -32,11 +33,13 @@ export function createGameScopedStorage(storeName: string): StateStorage {
         console.warn(`[gameScopedStorage:${storeName}] setItem 跳过：无 activeGameId`)
         return
       }
+      console.debug(`[gameScopedStorage:${storeName}] setItem to ${full}`)
       localStorage.setItem(full, value)
     },
     removeItem: (_key: string) => {
       const full = buildKey()
       if (!full) return
+      console.debug(`[gameScopedStorage:${storeName}] removeItem ${full}`)
       localStorage.removeItem(full)
     },
   }

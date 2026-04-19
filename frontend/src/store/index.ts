@@ -5,6 +5,7 @@ export { useDeductionStore } from './deductionStore'
 export { useUIStore } from './uiStore'
 export { useWatsonChatStore } from './watsonChatStore'
 export { useInterrogationStore } from './interrogationStore'
+export { useSceneChatStore } from './sceneChatStore'
 
 // 导出类型
 export type {
@@ -12,6 +13,7 @@ export type {
   GroupMessage,
   MentionedSuspect,
 } from './interrogationStore'
+export type { SceneChatMessage } from './sceneChatStore'
 
 // 导出状态管理器
 export { StoreManager, useStoreManager } from './storeManager'

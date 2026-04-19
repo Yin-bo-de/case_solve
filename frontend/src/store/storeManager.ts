@@ -1,4 +1,4 @@
-import { useGameStore, useCluesStore, useDeductionStore, useWatsonChatStore, useUIStore, useInterrogationStore } from './index'
+import { useGameStore, useCluesStore, useDeductionStore, useWatsonChatStore, useUIStore, useInterrogationStore, useSceneChatStore } from './index'
 import { GAME_SCOPED_STORAGE_PREFIX } from './gameScopedStorage'
 
 console.debug('[storeManager.ts] 加载模块')
@@ -45,6 +45,9 @@ export class StoreManager {
 
     // 重置审讯状态
     useInterrogationStore.getState().resetAll()
+
+    // 重置场景聊天
+    useSceneChatStore.getState().resetAll()
 
     // 重置华生聊天
     if (!keepWatsonChat) {
@@ -219,6 +222,7 @@ export class StoreManager {
     useDeductionStore.getState().resetDeduction()
     useInterrogationStore.getState().resetAll()
     useWatsonChatStore.getState().clearMessages()
+    useSceneChatStore.getState().resetAll()
   }
 
   /**
@@ -235,6 +239,8 @@ export class StoreManager {
       (useInterrogationStore as any).persist?.rehydrate?.(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (useWatsonChatStore as any).persist?.rehydrate?.(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (useSceneChatStore as any).persist?.rehydrate?.(),
     ])
   }
 

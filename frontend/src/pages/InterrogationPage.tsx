@@ -12,6 +12,7 @@ import WatsonChatDialog from '@/components/WatsonChatDialog'
 import { SelectableMessage } from '@/components/SelectableMessage'
 import ExtractClueModal from '@/components/ExtractClueModal'
 import WatsonTipsPanel from '@/components/WatsonTipsPanel'
+import Toast from '@/components/Toast'
 
 export default function InterrogationPage() {
   const { gameId } = useParams<{ gameId: string }>()
@@ -53,6 +54,7 @@ export default function InterrogationPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   // 待提取线索的引用文本
   const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
+  const [showToast, setShowToast] = useState(false)
 
   // 全体质询相关状态（UI状态不需要持久化）
   const [showMentionMenu, setShowMentionMenu] = useState(false)
@@ -365,6 +367,7 @@ export default function InterrogationPage() {
         userLabel,
       })
       addClueFromBackend(clue)
+      setShowToast(true)
     } catch (err) {
       console.error('[InterrogationPage] 提取线索失败', err)
     } finally {
@@ -1641,6 +1644,10 @@ export default function InterrogationPage() {
 
       {/* 华生对话框 */}
       <WatsonChatDialog gameId={gameId!} />
+
+      {showToast && (
+        <Toast message="线索已成功提取！" onDismiss={() => setShowToast(false)} />
+      )}
     </div>
   )
 }

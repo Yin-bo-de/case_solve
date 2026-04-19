@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-19（状态机重构 Phase E 完成）
+**更新日期**: 2026-04-19（场景搜查对话会话级持久化）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -125,6 +125,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   │   └── AddClueModal.tsx      # 添加线索Modal
 │   │   │   ├── SelectableMessage.tsx     # 可选中文本消息（审讯提取线索）
 │   │   │   ├── ExtractClueModal.tsx      # 审讯提取线索Modal
+│   │   │   ├── Toast.tsx                 # 全局轻量 Toast 提示组件
 │   │   │   ├── WatsonTipsPanel.tsx       # 华生审讯实时提示面板
 │   │   │   ├── ReasoningRecordCard.tsx   # 推理记录卡片（带verdict徽章）
 │   │   │   ├── CombineReasoningModal.tsx # 组合推理Modal
@@ -189,6 +190,31 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-19（场景搜查对话会话级持久化）
+- ✅ **新增 sceneChatStore 状态管理** (`frontend/src/store/sceneChatStore.ts`):
+  - 新增 `SceneChatMessage` 接口（`role`/`content`/`candidates`）
+  - 新增 `messagesByScene` 状态（按 sceneId 存储聊天记录）
+  - 新增 `addMessage`/`getMessages`/`clearScene`/`resetAll` 方法
+  - 集成 `devtools` 和 `persist` 中间件
+  - 使用 `createGameScopedStorage` 实现 gameId 维度的持久化
+- ✅ **更新 SceneChat.tsx 使用 store**:
+  - 替换 `useState<ChatMessage[]>` 为 `useSceneChatStore`
+  - 使用 `getMessages(sceneId)` 获取当前场景消息
+  - 使用 `addMessage(sceneId, message)` 添加消息
+  - 移除本地 `ChatMessage` 接口定义
+- ✅ **注册到状态管理系统**:
+  - `frontend/src/store/index.ts` 导出 `useSceneChatStore` 和 `SceneChatMessage`
+  - `frontend/src/store/storeManager.ts` 在 `resetAll()` 中调用 `useSceneChatStore.getState().resetAll()`
+  - 在 `rehydrateGameScopedStores()` 中调用 `(useSceneChatStore as any).persist?.rehydrate?.()`
+- ✅ **验收**: `npm run typecheck` ✅ 全绿（0 错误）
+
+### 2026-04-19（添加线索成功提示）
+- ✅ **新增 Toast 提示组件** (`frontend/src/components/Toast.tsx`):
+  - 可复用轻量级 Toast，带淡入淡出动画，2.5 秒自动消失
+  - 维多利亚哥特风格（深色背景 + 金色边框）
+  - 修改 `SceneChat.tsx`：场景添加线索成功后显示"线索已成功添加！"
+  - 修改 `InterrogationPage.tsx`：从审讯提取线索成功后显示"线索已成功提取！"
 
 ### 2026-04-19（状态机重构）
 
