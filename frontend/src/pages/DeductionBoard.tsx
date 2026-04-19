@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { gameApi } from '@/services/api'
 import { useDeductionStore, useCluesStore, useGameStore } from '@/store'
-import type { GameState } from '@/types/game'
 import ReasoningRecordCard from '@/components/ReasoningRecordCard'
+import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 import CombineReasoningModal from '@/components/CombineReasoningModal'
 import AccusationModal from '@/components/AccusationModal'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
@@ -27,37 +26,14 @@ export default function DeductionBoard() {
   } = useDeductionStore()
 
   const { clues } = useCluesStore()
-  const { gameState, setGameState } = useGameStore()
+  const { gameState, isLoading, error } = useGameStore()
 
-  const [localGameState, setLocalGameState] = useState<GameState | null>(gameState)
-  const [isLoading, setIsLoading] = useState(!gameState)
-  const [error, setError] = useState<string | null>(null)
   const [showCombineModal, setShowCombineModal] = useState(false)
   const [showAccuseModal, setShowAccuseModal] = useState(false)
 
   console.debug('[DeductionBoard.tsx] 渲染', { gameId, clueCount: clues.length, recordCount: reasoningRecords.length })
 
-  useEffect(() => {
-    if (!gameId) return
-    if (gameState && (gameState as any).gameId === gameId) {
-      setLocalGameState(gameState)
-      return
-    }
-    const load = async () => {
-      setIsLoading(true)
-      try {
-        const state = await gameApi.getGameState(gameId)
-        setGameState(state)
-        setLocalGameState(state)
-      } catch (err) {
-        console.error('[DeductionBoard] 加载游戏状态失败', err)
-        setError('加载失败，请稍后重试')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    load()
-  }, [gameId, gameState, setGameState])
+  useGameSessionSync(gameId)
 
   const filteredRecords = useMemo(() => {
     if (filter === 'all') return reasoningRecords
@@ -229,9 +205,9 @@ export default function DeductionBoard() {
         />
       )}
 
-      {showAccuseModal && localGameState?.case && (
+      {showAccuseModal && gameState?.case && (
         <AccusationModal
-          suspects={localGameState.case.suspects}
+          suspects={gameState.case.suspects}
           records={correctRecords}
           onSubmit={handleAccuse}
           onClose={() => setShowAccuseModal(false)}

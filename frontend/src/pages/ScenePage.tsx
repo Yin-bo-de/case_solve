@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { gameApi } from '@/services/api'
 import { useGameStore, useCluesStore } from '@/store'
 import type { Scene } from '@/types/game'
+import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 import SceneObjectCard from '@/components/ScenePanel/SceneObjectCard'
 import SceneChat from '@/components/ScenePanel/SceneChat'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
@@ -12,45 +12,19 @@ const PLACEHOLDER_IMG = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000
 export default function ScenePage() {
   const { gameId, sceneId } = useParams<{ gameId: string; sceneId: string }>()
   const navigate = useNavigate()
-  const { gameState, setGameState, setLoading, setError, isLoading, error } = useGameStore()
+  const { gameState, isLoading, error } = useGameStore()
   const { clues } = useCluesStore()
 
-  const [scene, setScene] = useState<Scene | null>(null)
   const [activeObjectId, setActiveObjectId] = useState<string | null>(null)
 
   console.debug('[ScenePage] 渲染', { gameId, sceneId })
 
-  useEffect(() => {
-    if (!gameId || !sceneId) return
+  useGameSessionSync(gameId)
 
-    const loadData = async () => {
-      // 如果 store 里已有 gameState，直接从中找场景
-      if (gameState && (gameState as any).gameId === gameId) {
-        const found = gameState.case?.scenes?.find((s) => s.id === sceneId)
-        if (found) {
-          setScene(found)
-          return
-        }
-      }
-
-      console.info('[ScenePage] 从 API 加载游戏状态', { gameId })
-      setLoading(true)
-      setError(null)
-      try {
-        const state = await gameApi.getGameState(gameId)
-        setGameState(state)
-        const found = state.case?.scenes?.find((s) => s.id === sceneId)
-        setScene(found || null)
-      } catch (err) {
-        console.error('[ScenePage] 加载失败', err)
-        setError(err instanceof Error ? err.message : '加载失败')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadData()
-  }, [gameId, sceneId])
+  const scene = useMemo<Scene | null>(
+    () => gameState?.case?.scenes?.find((s) => s.id === sceneId) ?? null,
+    [gameState?.case?.scenes, sceneId]
+  )
 
   if (isLoading) {
     return (

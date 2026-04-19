@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
-import type { GameState, Case, GameDifficulty, GamePhase } from '@/types/game'
+import type { GameState, GameStateDto, Case, GameDifficulty, GamePhase } from '@/types/game'
+import { useCluesStore } from './cluesStore'
 
 console.debug('[gameStore.ts] 加载模块')
 
@@ -11,7 +12,7 @@ interface GameStore {
   error: string | null
 
   // Actions
-  setGameState: (gameState: GameState) => void
+  setGameState: (dto: GameStateDto) => void
   setCase: (caseData: Case) => void
   setDifficulty: (difficulty: GameDifficulty) => void
   setPhase: (phase: GamePhase) => void
@@ -30,9 +31,20 @@ export const useGameStore = create<GameStore>()(
         isLoading: false,
         error: null,
 
-        setGameState: (gameState: GameState) => {
-          console.info('[gameStore] 设置游戏状态', { gameId: gameState.gameId })
-          set({ gameState })
+        setGameState: (dto: GameStateDto) => {
+          console.info('[gameStore] 设置游戏状态', { gameId: dto.gameId })
+          const incomingClues = dto.case?.clues ?? []
+          if (incomingClues.length > 0) {
+            useCluesStore.getState().mergeClues(incomingClues)
+          }
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { clues: _drop, ...caseRest } = (dto.case ?? {}) as any
+          set({
+            gameState: {
+              ...dto,
+              case: caseRest as Case,
+            },
+          })
         },
 
         setCase: (caseData: Case) => {

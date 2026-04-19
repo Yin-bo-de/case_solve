@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-19（章节 7 完成）
+**更新日期**: 2026-04-19（状态机重构 Phase E 完成）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -190,7 +190,42 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
-### 2026-04-19
+### 2026-04-19（状态机重构）
+
+- ✅ **完成线索同步架构重构 Phase E（Task 15）**：
+  - **Task 15**: `frontend/src/pages/StartPage.tsx` `handleStartGame` 完整替换为新游戏五步序列：`clearAllGameSessions()` 清历史 localStorage → `resetAll()` 清所有内存态 → `createNewGame(API)` 后端创建 → `setGameState()` 写入新 gameId + 分离 clues → `navigate()` 跳转；移除旧的 `setTimeout` 延迟跳转逻辑；新增 `StoreManager` 导入
+  - **验收**: `npm run typecheck` ✅ 全绿（0 错误）
+  - **效果**: 新游戏启动时彻底清除所有历史 `game:*` localStorage 条目，消除跨局数据污染问题
+
+- ✅ **完成线索同步架构重构 Phase D（Task 11-14）**：
+  - **Task 11**: `frontend/src/pages/InvestigationPage.tsx` 删除自定义 useEffect 加载逻辑，改用 `useGameSessionSync(gameId)`；移除 `gameApi`、`setGameState/setLoading/setError`、`useWatsonChatStore` 等仅在该 effect 内使用的导入
+  - **Task 12**: `frontend/src/pages/DeductionBoard.tsx` 同模板改造；同时移除 `localGameState` 本地 state，改为直接读取 `gameStore.gameState`；`isLoading/error` 改为从 store 读取
+  - **Task 13**: `frontend/src/pages/InterrogationPage.tsx` 删除"加载游戏状态"useEffect；本地 `gameState/isLoading/error` 替换为 `useGameStore()` 读取；新增 useEffect 监听 `gameState.case.suspects` 变化、首次就绪时初始化 `selectedSuspect`
+  - **Task 14**: `frontend/src/pages/ScenePage.tsx` 同模板改造；`scene` 本地 state 改为 `useMemo` 派生于 `gameState.case.scenes`，消除了 `setScene` 和加载 useEffect
+  - **验收**: `npm run typecheck` ✅ 全绿（0 错误）
+  - **效果**: 四个页面数据加载逻辑统一收敛到 `useGameSessionSync` Hook，消除各页面独立 useEffect 拉取的不一致性
+
+- ✅ **完成线索同步架构重构 Phase A（Task 1-3）**：
+  - **Task 1**: 新建 `frontend/src/store/gameScopedStorage.ts`，实现 `createGameScopedStorage(storeName)` Zustand StateStorage 适配器，localStorage key 格式为 `game:${activeGameId}:${storeName}`；无 activeGameId 时读写 no-op，避免产生无主数据；导出 `GAME_SCOPED_STORAGE_PREFIX` 常量供 StoreManager 使用
+  - **Task 2**: 扩展 `frontend/src/store/storeManager.ts`，新增三个静态方法：`clearAllGameSessions(exceptGameId?)` 批量删除 `game:*` 前缀 localStorage 条目、`clearInMemoryGameScopedStores()` 清空 game-scoped store 内存态、`rehydrateGameScopedStores()` 从新命名空间重新 hydrate；`resetAll` 补齐 `interrogationStore` 重置调用；`useStoreManager` hook 导出新方法
+  - **Task 3**: 新建 `frontend/src/hooks/useGameSessionSync.ts`，页面级数据同步 Hook：gameId 变更时执行"清内存 → 后端拉取 → setGameState → rehydrate 新命名空间"全量同步；gameId 一致时后台 revalidate；同组件同 gameId 二次渲染不重复拉取（useRef 守卫）
+  - **验收**: `npm run typecheck` ✅ 全绿
+
+- ✅ **完成线索同步架构重构 Phase C（Task 7-10）**：
+  - **Task 7**: `frontend/src/store/cluesStore.ts` persist storage 从 `createJSONStorage(() => localStorage)` 改为 `createJSONStorage(() => createGameScopedStorage('clues-store'))`；导入 `createGameScopedStorage`
+  - **Task 8**: `frontend/src/store/deductionStore.ts` 同模板改造，storage 改为 `createGameScopedStorage('deduction-store')`
+  - **Task 9**: `frontend/src/store/interrogationStore.ts` 同模板改造，storage 改为 `createGameScopedStorage('interrogation-store')`
+  - **Task 10**: `frontend/src/store/watsonChatStore.ts` 同模板改造，storage 改为 `createGameScopedStorage('watson-chat-store')`
+  - **验收**: `npm run typecheck` ✅ 全绿（0 错误）
+  - **效果**: 4 个 store 的持久化数据改为按 `game:<gameId>:<storeName>` 命名空间隔离，新游戏时旧游戏数据不再污染；无 activeGameId 时读写 no-op
+
+- ✅ **完成线索同步架构重构 Phase B（Task 4-6）**：
+  - **Task 4**: `frontend/src/types/game.ts` 拆分类型：`Case` 移除 `clues` 字段，新增 `CaseDto`（继承 Case + `clues: Clue[]`）和 `GameStateDto`（`case?: CaseDto`）；`frontend/src/services/api.ts` `createNewGame`/`getGameState` 返回类型从 `GameState` 改为 `GameStateDto`
+  - **Task 5**: `frontend/src/store/cluesStore.ts` 新增 `mergeClues(incoming: Clue[]): void` action（已有 id 保留本地，新 id 追加）；`frontend/src/store/gameStore.ts` `setGameState` 参数类型改为 `GameStateDto`，自动剥离 `case.clues` → `cluesStore.mergeClues`，存入 `gameState` 时 `case` 不含 `clues`
+  - **Task 6**: grep 确认所有组件已使用 `useCluesStore()` 读取线索，无直接 `case.clues` 访问，TypeScript 零错误验收（`npm run typecheck` ✅）
+  - **验收**: `npm run typecheck` 全绿（0 错误）
+
+### 2026-04-19（产品体验优化）
 - ✅ **完成产品体验优化方案 章节 8：测试与验证**:
   - **8.1**: `backend/tests/test_oracle_agent.py` 已存在（4 个测试用例全绿）
   - **8.2**: `backend/tests/test_scene_search.py` 已存在（4 个测试用例全绿）

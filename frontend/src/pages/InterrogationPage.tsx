@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import type { GameState, Suspect } from '@/types/game'
+import type { Suspect } from '@/types/game'
 import {
   gameApi,
   type ConversationMessage,
   type GroupControlAction,
 } from '@/services/api'
-import { useWatsonChatStore, useInterrogationStore, useCluesStore, type GroupMessage, type MentionedSuspect, type InterrogationMode } from '@/store'
+import { useWatsonChatStore, useInterrogationStore, useCluesStore, useGameStore, type GroupMessage, type MentionedSuspect, type InterrogationMode } from '@/store'
+import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 import { SelectableMessage } from '@/components/SelectableMessage'
 import ExtractClueModal from '@/components/ExtractClueModal'
@@ -16,6 +17,7 @@ export default function InterrogationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
+  const { gameState, isLoading, error, setError } = useGameStore()
   const { addWatsonMessage } = useWatsonChatStore()
   const { addClueFromBackend } = useCluesStore()
   const {
@@ -46,9 +48,6 @@ export default function InterrogationPage() {
     extractClue,
   } = useInterrogationStore()
 
-  const [gameState, setGameState] = useState<GameState | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
   const [question, setQuestion] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
@@ -92,42 +91,14 @@ export default function InterrogationPage() {
     }
   }, [showMentionMenu])
 
-  // 加载游戏状态
+  useGameSessionSync(gameId)
+
+  // 当 gameState 首次就绪时初始化默认选中的嫌疑人
   useEffect(() => {
-    if (!gameId) return
-
-    const loadGame = async () => {
-      console.info('[InterrogationPage] 加载游戏状态', { gameId })
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        const state = await gameApi.getGameState(gameId)
-        console.info('[InterrogationPage] 游戏状态加载成功', state)
-        setGameState(state)
-
-        // 默认选择第一个嫌疑人
-        if (state.case?.suspects && state.case.suspects.length > 0) {
-          setSelectedSuspect(state.case.suspects[0])
-        }
-
-        // 显示华生欢迎消息
-        setTimeout(() => {
-          addWatsonMessage(
-            '好的，老朋友。现在我们来和这些嫌疑人谈谈。记住，仔细观察他们的反应——有时候肢体语言比语言更能说明问题。',
-            'guidance'
-          )
-        }, 500)
-      } catch (err) {
-        console.error('[InterrogationPage] 加载游戏失败', err)
-        setError(err instanceof Error ? err.message : '加载游戏失败')
-      } finally {
-        setIsLoading(false)
-      }
+    if (gameState?.case?.suspects && gameState.case.suspects.length > 0 && !selectedSuspect) {
+      setSelectedSuspect(gameState.case.suspects[0])
     }
-
-    loadGame()
-  }, [gameId, addWatsonMessage])
+  }, [gameState?.case?.suspects, selectedSuspect])
 
   // 切换嫌疑人
   const handleSuspectSelect = (suspect: Suspect) => {

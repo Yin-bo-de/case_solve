@@ -1,7 +1,7 @@
 // API 服务
 import axios from 'axios'
 import type {
-  GameState, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain,
+  GameStateDto, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain,
   ConclusionReadiness, AccusationResult, CaseReveal,
   WatsonChatMessage, WatsonMessageType,
   Clue, SceneSearchResponse, ReasoningRecord, WatsonTip,
@@ -22,6 +22,11 @@ const snakeToCamel = (str: string): string => {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
 }
 
+// 将 camelCase 转换为 snake_case
+const camelToSnake = (str: string): string => {
+  return str.replace(/([A-Z])/g, '_$1').toLowerCase()
+}
+
 // 递归转换对象的键从 snake_case 到 camelCase
 const convertKeysToCamel = (obj: any): any => {
   if (Array.isArray(obj)) {
@@ -36,6 +41,20 @@ const convertKeysToCamel = (obj: any): any => {
   return obj
 }
 
+// 递归转换对象的键从 camelCase 到 snake_case
+const convertKeysToSnake = (obj: any): any => {
+  if (Array.isArray(obj)) {
+    return obj.map(convertKeysToSnake)
+  } else if (obj !== null && typeof obj === 'object') {
+    return Object.keys(obj).reduce((result: any, key) => {
+      const snakeKey = camelToSnake(key)
+      result[snakeKey] = convertKeysToSnake(obj[key])
+      return result
+    }, {})
+  }
+  return obj
+}
+
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
   headers: {
@@ -43,9 +62,13 @@ const apiClient = axios.create({
   },
 })
 
-// 请求拦截器 - 记录所有 API 请求
+// 请求拦截器 - 记录所有 API 请求并转换字段名
 apiClient.interceptors.request.use(
   (config) => {
+    // 转换请求数据的键从 camelCase 到 snake_case
+    if (config.data) {
+      config.data = convertKeysToSnake(config.data)
+    }
     console.debug(`[API] 请求: ${config.method?.toUpperCase()} ${config.url}`, config.data || '')
     return config
   },
@@ -110,20 +133,20 @@ export type GroupControlAction = 'quiet' | 'let_speak' | 'continue'
 
 export const gameApi = {
   /** 创建新游戏 */
-  async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<GameState> {
+  async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<GameStateDto> {
     console.info('[gameApi] 创建新游戏', { difficulty })
-    const response = await apiClient.post<GameState>('/api/game/new', { difficulty })
+    const response = await apiClient.post<GameStateDto>('/api/game/new', { difficulty })
     return response.data
   },
 
   /** 获取游戏状态 */
-  async getGameState(gameId: string): Promise<GameState> {
+  async getGameState(gameId: string): Promise<GameStateDto> {
     if (!gameId || gameId === 'undefined') {
       console.error('[gameApi] 尝试获取游戏状态但 gameId 无效', { gameId })
       throw new Error('gameId 不能为空')
     }
     console.info('[gameApi] 获取游戏状态', { gameId })
-    const response = await apiClient.get<GameState>(`/api/game/${gameId}`)
+    const response = await apiClient.get<GameStateDto>(`/api/game/${gameId}`)
     return response.data
   },
 

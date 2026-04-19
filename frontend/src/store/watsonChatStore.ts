@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
+import { createGameScopedStorage } from './gameScopedStorage'
 import type { WatsonChatMessage, WatsonMessageType, Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
 
@@ -168,7 +169,7 @@ export const useWatsonChatStore = create<WatsonChatStore>()(
       },
       {
         name: 'watson-chat-store',
-        storage: createJSONStorage(() => localStorage),
+        storage: createJSONStorage(() => createGameScopedStorage('watson-chat-store')),
         partialize: (state) => ({
           messages: state.messages,
         }),

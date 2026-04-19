@@ -110,12 +110,21 @@ export interface Case {
   location: string
   date: string
   suspects: Suspect[]
-  clues: Clue[]
   summary: string
   murderMethod: string
   trueMurdererId?: string
   investigationLocations: string[]
   scenes: Scene[]
+}
+
+/** 后端 DTO：仅用于 API 层和 setGameState 入口，含后端返回的初始 clues */
+export interface CaseDto extends Case {
+  clues: Clue[]
+}
+
+/** 后端 GameState DTO：case 字段含 clues，组件层不直接使用 */
+export interface GameStateDto extends Omit<GameState, 'case'> {
+  case?: CaseDto
 }
 
 export interface Observation {

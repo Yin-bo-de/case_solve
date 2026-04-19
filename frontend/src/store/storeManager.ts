@@ -1,4 +1,5 @@
-import { useGameStore, useCluesStore, useDeductionStore, useWatsonChatStore, useUIStore } from './index'
+import { useGameStore, useCluesStore, useDeductionStore, useWatsonChatStore, useUIStore, useInterrogationStore } from './index'
+import { GAME_SCOPED_STORAGE_PREFIX } from './gameScopedStorage'
 
 console.debug('[storeManager.ts] 加载模块')
 
@@ -41,6 +42,9 @@ export class StoreManager {
 
     // 重置推理状态
     useDeductionStore.getState().resetDeduction()
+
+    // 重置审讯状态
+    useInterrogationStore.getState().resetAll()
 
     // 重置华生聊天
     if (!keepWatsonChat) {
@@ -188,6 +192,53 @@ export class StoreManager {
   }
 
   /**
+   * 删除所有 game:* 前缀的 localStorage 条目
+   * @param exceptGameId 可选，保留该 gameId 的所有 key
+   */
+  static clearAllGameSessions(exceptGameId?: string): void {
+    const toDelete: string[] = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (!key?.startsWith(GAME_SCOPED_STORAGE_PREFIX)) continue
+      if (exceptGameId && key.startsWith(`${GAME_SCOPED_STORAGE_PREFIX}${exceptGameId}:`)) continue
+      toDelete.push(key)
+    }
+    toDelete.forEach((k) => localStorage.removeItem(k))
+    console.info('[StoreManager] clearAllGameSessions', {
+      removed: toDelete.length,
+      except: exceptGameId,
+    })
+  }
+
+  /**
+   * 清空所有接入 gameScopedStorage 的内存态
+   */
+  static clearInMemoryGameScopedStores(): void {
+    console.info('[StoreManager] clearInMemoryGameScopedStores')
+    useCluesStore.getState().resetClues()
+    useDeductionStore.getState().resetDeduction()
+    useInterrogationStore.getState().resetAll()
+    useWatsonChatStore.getState().clearMessages()
+  }
+
+  /**
+   * 触发所有接入 gameScopedStorage 的 store 从当前 activeGameId 命名空间重新 hydrate
+   */
+  static async rehydrateGameScopedStores(): Promise<void> {
+    console.info('[StoreManager] rehydrateGameScopedStores')
+    await Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (useCluesStore as any).persist?.rehydrate?.(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (useDeductionStore as any).persist?.rehydrate?.(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (useInterrogationStore as any).persist?.rehydrate?.(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (useWatsonChatStore as any).persist?.rehydrate?.(),
+    ])
+  }
+
+  /**
    * 调试：打印当前所有状态
    */
   static debugPrintAll() {
@@ -214,5 +265,8 @@ export function useStoreManager() {
     deleteSnapshotFromStorage: StoreManager.deleteSnapshotFromStorage,
     listSnapshots: StoreManager.listSnapshots,
     debugPrintAll: StoreManager.debugPrintAll,
+    clearAllGameSessions: StoreManager.clearAllGameSessions,
+    clearInMemoryGameScopedStores: StoreManager.clearInMemoryGameScopedStores,
+    rehydrateGameScopedStores: StoreManager.rehydrateGameScopedStores,
   }
 }

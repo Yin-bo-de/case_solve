@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
+import { createGameScopedStorage } from './gameScopedStorage'
 import type { DeductionChain, Inference, Hypothesis, ReasoningRecord } from '@/types/game'
 import { gameApi } from '@/services/api'
 
@@ -279,7 +280,7 @@ export const useDeductionStore = create<DeductionStore>()(
       }),
       {
         name: 'deduction-store',
-        storage: createJSONStorage(() => localStorage),
+        storage: createJSONStorage(() => createGameScopedStorage('deduction-store')),
         partialize: (state) => ({
           deductionChain: state.deductionChain,
           reasoningRecords: state.reasoningRecords,

@@ -1,9 +1,8 @@
-import { useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { gameApi } from '@/services/api'
-import { useGameStore, useCluesStore, useWatsonChatStore } from '@/store'
+import { useGameStore, useCluesStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 import type { Scene } from '@/types/game'
+import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 
 console.debug('[InvestigationPage.tsx] 加载模块')
 
@@ -11,45 +10,12 @@ export default function InvestigationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
-  const { gameState, isLoading, error, setGameState, setLoading, setError } = useGameStore()
+  const { gameState, isLoading, error } = useGameStore()
   const { clues } = useCluesStore()
-  const { addWatsonMessage } = useWatsonChatStore()
 
   console.debug('[InvestigationPage] 渲染', { gameId })
 
-  useEffect(() => {
-    if (!gameId) return
-
-    if (gameState && (gameState as any).gameId === gameId) {
-      console.debug('[InvestigationPage] 使用 store 中已有的游戏状态')
-      return
-    }
-
-    const loadGame = async () => {
-      console.info('[InvestigationPage] 从 API 加载游戏状态', { gameId })
-      setLoading(true)
-      setError(null)
-      try {
-        const state = await gameApi.getGameState(gameId)
-        console.info('[InvestigationPage] 游戏状态加载成功', state)
-        setGameState(state)
-
-        setTimeout(() => {
-          addWatsonMessage(
-            '老朋友，我们到了。这便是命案现场。细细察看周遭，任何细节皆可能至为关键。',
-            'guidance'
-          )
-        }, 500)
-      } catch (err) {
-        console.error('[InvestigationPage] 加载游戏失败', err)
-        setError(err instanceof Error ? err.message : '加载游戏失败')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadGame()
-  }, [gameId, gameState, setGameState, setLoading, setError, addWatsonMessage])
+  useGameSessionSync(gameId)
 
   if (isLoading) {
     return (

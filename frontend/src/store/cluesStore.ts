@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 import type { Clue, Observation } from '@/types/game'
+import { createGameScopedStorage } from './gameScopedStorage'
 
 console.debug('[cluesStore.ts] 加载模块')
 
@@ -20,6 +21,8 @@ interface CluesStore {
   markClueDiscovered: (clueId: string, notes?: string) => void
   /** 从后端返回的线索数据添加或更新（用于场景发现、审讯提取） */
   addClueFromBackend: (clue: Clue) => void
+  /** 合并后端返回的线索列表：已有 id 保留本地版本，新 id 追加 */
+  mergeClues: (incoming: Clue[]) => void
   resetClues: () => void
 }
 
@@ -97,6 +100,17 @@ export const useCluesStore = create<CluesStore>()(
           })
         },
 
+        mergeClues: (incoming: Clue[]) => {
+          if (!incoming || incoming.length === 0) return
+          set((state) => {
+            const existingIds = new Set(state.clues.map((c) => c.id))
+            const toAdd = incoming.filter((c) => !existingIds.has(c.id))
+            if (toAdd.length === 0) return state
+            console.info('[cluesStore] 合并后端线索', { incoming: incoming.length, added: toAdd.length })
+            return { clues: [...state.clues, ...toAdd] }
+          })
+        },
+
         resetClues: () => {
           console.info('[cluesStore] 重置线索')
           set({
@@ -108,7 +122,7 @@ export const useCluesStore = create<CluesStore>()(
       }),
       {
         name: 'clues-store',
-        storage: createJSONStorage(() => localStorage),
+        storage: createJSONStorage(() => createGameScopedStorage('clues-store')),
         partialize: (state) => ({
           clues: state.clues,
           observations: state.observations,

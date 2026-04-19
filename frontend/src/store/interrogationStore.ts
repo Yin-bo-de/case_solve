@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
+import { createGameScopedStorage } from './gameScopedStorage'
 import type { ConversationMessage, LieDetectionResult, ContradictionResult } from '@/services/api'
 import type { WatsonTip, Clue } from '@/types/game'
 import { gameApi } from '@/services/api'
@@ -289,7 +290,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
       },
       {
         name: 'interrogation-store',
-        storage: createJSONStorage(() => localStorage),
+        storage: createJSONStorage(() => createGameScopedStorage('interrogation-store')),
         partialize: (state) => ({
           mode: state.mode,
           conversationHistory: state.conversationHistory,

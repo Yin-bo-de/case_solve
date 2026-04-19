@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { GameDifficulty } from '@/types/game'
 import { gameApi } from '@/services/api'
 import { useGameStore } from '@/store'
+import { StoreManager } from '@/store/storeManager'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 
 const DIFFICULTY_LABELS: Record<GameDifficulty, string> = {
@@ -46,30 +47,20 @@ export default function StartPage() {
 
   const handleStartGame = async () => {
     console.info('[StartPage] 开始新游戏', { difficulty: selectedDifficulty })
-    setLoading(true)
-    setError(null)
-
     try {
-      // 创建新游戏
-      const state = await gameApi.createNewGame(selectedDifficulty)
-      console.info('[StartPage] 游戏创建成功', state)
-
-      // 保存到全局 store
-      setGameState(state)
-
-      // 获取有效的 gameId（支持两种命名格式）
-      const gameId = (state as any).gameId || (state as any).game_id
+      StoreManager.clearAllGameSessions()                       // 1. 清历史 localStorage
+      StoreManager.resetAll()                                   // 2. 清所有内存态（含 isLoading reset）
+      setLoading(true)                                          // 3. reset 之后再设置 loading，避免被覆盖
+      const state = await gameApi.createNewGame(selectedDifficulty)  // 4. 后端创建
+      setGameState(state)                                       // 4. 写入新 gameId + 分离 clues
+      const gameId = state.gameId
       if (!gameId) {
         throw new Error('游戏创建成功但 ID 缺失')
       }
-
-      // 短暂显示案件信息后跳转到勘查页面
-      setTimeout(() => {
-        console.info('[StartPage] 跳转到勘查页面', { gameId })
-        navigate(`/investigation/${gameId}`)
-      }, 3000)
+      console.info('[StartPage] 新游戏创建成功', { gameId })
+      navigate(`/investigation/${gameId}`)                      // 5. 跳转
     } catch (err) {
-      console.error('[StartPage] 创建游戏失败', err)
+      console.error('[StartPage] 新游戏失败', err)
       setError(err instanceof Error ? err.message : '创建游戏失败，请稍后重试')
     } finally {
       setLoading(false)
