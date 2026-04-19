@@ -1141,6 +1141,8 @@ export default function InterrogationPage() {
           border: 1px solid #333;
           border-radius: 8px;
           overflow: hidden;
+          max-height: calc(100vh - 400px);
+          min-height: 400px;
         }
 
         .conversation-messages {
