@@ -63,6 +63,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 cd backend
 
 # 安装依赖
+source venv/bin/activate
 pip3 install -r requirements.txt
 
 # 复制环境变量

@@ -3,7 +3,8 @@ import axios from 'axios'
 import type {
   GameState, GameDifficulty, Observation, Inference, Hypothesis, DeductionChain,
   ConclusionReadiness, AccusationResult, CaseReveal,
-  WatsonChatMessage, WatsonMessageType
+  WatsonChatMessage, WatsonMessageType,
+  Clue, SceneSearchResponse, ReasoningRecord, WatsonTip,
 } from '@/types/game'
 
 console.info('[api.ts] 初始化 API 服务')
@@ -333,18 +334,108 @@ export const gameApi = {
     return response.data
   },
 
-  /** 指认凶手 */
+  /** 指认凶手（新版，传 reasoning_record_ids） */
   async makeAccusation(
     gameId: string,
     suspectId: string,
-    reasoningSteps: string[] = []
+    reasoningRecordIds: string[] = []
   ): Promise<AccusationResult> {
     validateGameId(gameId, 'makeAccusation')
-    console.info('[gameApi] 指认凶手', { gameId, suspectId })
+    console.info('[gameApi] 指认凶手', { gameId, suspectId, reasoningRecordIds })
     const response = await apiClient.post<AccusationResult>(`/api/game/${gameId}/conclusion/accuse`, {
       suspect_id: suspectId,
-      reasoning_steps: reasoningSteps
+      reasoning_record_ids: reasoningRecordIds,
     })
+    return response.data
+  },
+
+  /** 场景搜索：向场景 NPC 提问 */
+  async sceneSearch(
+    gameId: string,
+    sceneId: string,
+    query: string,
+    history: Array<{ role: string; content: string }> = []
+  ): Promise<SceneSearchResponse> {
+    validateGameId(gameId, 'sceneSearch')
+    console.info('[gameApi] 场景搜索', { gameId, sceneId, query: query.substring(0, 50) })
+    const response = await apiClient.post<SceneSearchResponse>(
+      `/api/game/${gameId}/scene/${sceneId}/search`,
+      { query, history }
+    )
+    return response.data
+  },
+
+  /** 添加/标记线索 */
+  async addClue(
+    gameId: string,
+    payload: {
+      userLabel: string
+      description: string
+      sourceType: 'scene' | 'interrogation'
+      sourceRef?: string
+      baseClueId?: string
+      quotedText?: string
+    }
+  ): Promise<Clue> {
+    validateGameId(gameId, 'addClue')
+    console.info('[gameApi] 添加线索', { gameId, userLabel: payload.userLabel })
+    const response = await apiClient.post<Clue>(`/api/game/${gameId}/clues`, payload)
+    return response.data
+  },
+
+  /** 提交组合推理，经 OracleAgent 验证 */
+  async submitReasoning(
+    gameId: string,
+    clueIds: string[],
+    conclusion: string
+  ): Promise<{
+    inference: ReasoningRecord
+    verificationResult: 'correct' | 'wrong' | 'partial'
+    score: number
+    explanation: string
+    missingLinks: string[]
+    misusedClues: string[]
+  }> {
+    validateGameId(gameId, 'submitReasoning')
+    console.info('[gameApi] 提交推理', { gameId, clueIds, conclusion: conclusion.substring(0, 50) })
+    const response = await apiClient.post(`/api/game/${gameId}/deduction/reasoning`, {
+      clue_ids: clueIds,
+      conclusion,
+    })
+    return response.data
+  },
+
+  /** 从审讯片段生成线索 */
+  async extractClueFromInterrogation(
+    gameId: string,
+    payload: {
+      suspectId: string
+      quotedText: string
+      contextMessages: Array<{ role: string; content: string }>
+      userLabel: string
+    }
+  ): Promise<Clue> {
+    validateGameId(gameId, 'extractClueFromInterrogation')
+    console.info('[gameApi] 从审讯提取线索', { gameId, suspectId: payload.suspectId })
+    const response = await apiClient.post<Clue>(
+      `/api/game/${gameId}/interrogation/extract-clue`,
+      payload
+    )
+    return response.data
+  },
+
+  /** 获取华生审讯实时提示 */
+  async getInterrogationTips(
+    gameId: string,
+    suspectId: string,
+    history: Array<{ role: string; content: string }> = []
+  ): Promise<{ tips: WatsonTip[] }> {
+    validateGameId(gameId, 'getInterrogationTips')
+    console.info('[gameApi] 获取审讯华生提示', { gameId, suspectId })
+    const response = await apiClient.post<{ tips: WatsonTip[] }>(
+      `/api/game/${gameId}/interrogation/watson-tips`,
+      { suspect_id: suspectId, conversation_history: history }
+    )
     return response.data
   },
 

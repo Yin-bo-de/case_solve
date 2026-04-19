@@ -6,14 +6,18 @@ import {
   type ConversationMessage,
   type GroupControlAction,
 } from '@/services/api'
-import { useWatsonChatStore, useInterrogationStore, type GroupMessage, type MentionedSuspect, type InterrogationMode } from '@/store'
+import { useWatsonChatStore, useInterrogationStore, useCluesStore, type GroupMessage, type MentionedSuspect, type InterrogationMode } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
+import { SelectableMessage } from '@/components/SelectableMessage'
+import ExtractClueModal from '@/components/ExtractClueModal'
+import WatsonTipsPanel from '@/components/WatsonTipsPanel'
 
 export default function InterrogationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
   const { addWatsonMessage } = useWatsonChatStore()
+  const { addClueFromBackend } = useCluesStore()
   const {
     mode,
     setMode,
@@ -36,6 +40,10 @@ export default function InterrogationPage() {
     addSuspectStatement,
     setShowContradictionAlert,
     showContradictionAlert,
+    watsonTips,
+    watsonTipsLoading,
+    fetchTips,
+    extractClue,
   } = useInterrogationStore()
 
   const [gameState, setGameState] = useState<GameState | null>(null)
@@ -44,6 +52,8 @@ export default function InterrogationPage() {
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
   const [question, setQuestion] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  // 待提取线索的引用文本
+  const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
 
   // 全体质询相关状态（UI状态不需要持久化）
   const [showMentionMenu, setShowMentionMenu] = useState(false)
@@ -364,6 +374,31 @@ export default function InterrogationPage() {
 
     // 清空输入
     setQuestion('')
+
+    // 每轮问答后请求华生提示（异步，不阻塞 UI）
+    if (gameId && selectedSuspect) {
+      fetchTips(gameId, selectedSuspect.id, [...conversationHistory, {
+        role: 'user', content: question,
+      }, { role: 'suspect', content: response.response }])
+    }
+  }
+
+  // 处理从嫌疑人消息中提取线索
+  const handleExtractConfirm = async (userLabel: string) => {
+    if (!gameId || !selectedSuspect || !pendingExtractText) return
+    try {
+      const clue = await extractClue(gameId, {
+        suspectId: selectedSuspect.id,
+        quotedText: pendingExtractText,
+        contextMessages: conversationHistory,
+        userLabel,
+      })
+      addClueFromBackend(clue)
+    } catch (err) {
+      console.error('[InterrogationPage] 提取线索失败', err)
+    } finally {
+      setPendingExtractText(null)
+    }
   }
 
   // 发送全体质询问题
@@ -540,8 +575,8 @@ export default function InterrogationPage() {
                 </div>
               </div>
 
-              {/* 对话历史 */}
-              <div className="conversation-area">
+              {/* 对话历史 + 华生提示并排 */}
+              <div className="conversation-area conversation-area--with-tips">
                 <div className="conversation-messages">
                   {conversationHistory.length === 0 ? (
                     <div className="no-messages">
@@ -554,10 +589,18 @@ export default function InterrogationPage() {
                           {msg.role === 'user' ? '🔍' : selectedSuspect.isGuilty ? '🔪' : '👤'}
                         </div>
                         <div className="message-content">
-                          <div className="message-sender">
-                            {msg.role === 'user' ? '你' : selectedSuspect.name}
-                          </div>
-                          <div className="message-text">{msg.content}</div>
+                          {msg.role === 'suspect' ? (
+                            <SelectableMessage
+                              text={msg.content}
+                              senderName={selectedSuspect.name}
+                              onExtract={(text) => setPendingExtractText(text)}
+                            />
+                          ) : (
+                            <>
+                              <div className="message-sender">你</div>
+                              <div className="message-text">{msg.content}</div>
+                            </>
+                          )}
                           {msg.timestamp && (
                             <div className="message-time">
                               {new Date(msg.timestamp).toLocaleTimeString()}
@@ -631,6 +674,9 @@ export default function InterrogationPage() {
                   </button>
                 </div>
               </div>
+
+              {/* 华生实时提示面板 */}
+              <WatsonTipsPanel tips={watsonTips} isLoading={watsonTipsLoading} />
             </>
           )}
 
@@ -846,6 +892,15 @@ export default function InterrogationPage() {
           </button>
         </div>
       </footer>
+
+      {/* 从审讯提取线索 Modal */}
+      {pendingExtractText && (
+        <ExtractClueModal
+          quotedText={pendingExtractText}
+          onConfirm={handleExtractConfirm}
+          onClose={() => setPendingExtractText(null)}
+        />
+      )}
 
       {/* 审讯页面样式 */}
       <style>{`

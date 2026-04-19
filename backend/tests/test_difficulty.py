@@ -140,3 +140,48 @@ class TestWatsonProactiveRate:
         obs = Observation(id="obs-1", description="测试", location="书房", timestamp=datetime.utcnow())
         result = await agent.share_observation(obs)
         assert result is not None
+
+
+# ─── 章节 8.4 Scene 生成测试 ────────────────────────────────────
+
+class TestSceneGeneration:
+    """验证案件生成包含有效的 scenes，满足章节 4 的结构约束"""
+
+    def test_mock_case_has_at_least_3_scenes(self):
+        for difficulty in ["easy", "classic", "hardcore"]:
+            case = _make_mock_case(difficulty)
+            assert len(case.scenes) >= 3, (
+                f"{difficulty}: 期望至少 3 个 scene，实际 {len(case.scenes)}"
+            )
+
+    def test_each_scene_has_3_to_6_objects(self):
+        for difficulty in ["easy", "classic", "hardcore"]:
+            case = _make_mock_case(difficulty)
+            for scene in case.scenes:
+                assert 3 <= len(scene.objects) <= 6, (
+                    f"{difficulty}: scene '{scene.name}' 对象数 {len(scene.objects)} 不在 3-6 范围内"
+                )
+
+    def test_non_red_herring_clues_covered_by_objects(self):
+        """每个非红鲱鱼线索必须至少出现在某个 object.hidden_clue_ids 中"""
+        for difficulty in ["easy", "classic", "hardcore"]:
+            case = _make_mock_case(difficulty)
+            all_hidden_ids: set = set()
+            for scene in case.scenes:
+                for obj in scene.objects:
+                    all_hidden_ids.update(obj.hidden_clue_ids)
+            real_clues = [c for c in case.clues if not c.is_red_herring]
+            for clue in real_clues:
+                assert clue.id in all_hidden_ids, (
+                    f"{difficulty}: 真实线索 '{clue.id}' 未被任何 object 引用"
+                )
+
+    def test_investigation_locations_mirrors_scene_names(self):
+        """investigation_locations 应是 scene 名称的镜像"""
+        for difficulty in ["easy", "classic", "hardcore"]:
+            case = _make_mock_case(difficulty)
+            expected = [s.name for s in case.scenes]
+            assert case.investigation_locations == expected, (
+                f"{difficulty}: investigation_locations={case.investigation_locations} "
+                f"与 scene 名称 {expected} 不一致"
+            )

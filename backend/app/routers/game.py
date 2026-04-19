@@ -81,10 +81,47 @@ class GroupControlRequest(BaseModel):
     target_suspect_id: Optional[str] = None
 
 
+class SceneSearchRequest(BaseModel):
+    """场景搜查请求"""
+    query: str
+    history: List[Dict[str, str]] = []
+
+
+class AddClueRequest(BaseModel):
+    """添加自定义线索请求"""
+    user_label: str
+    description: str
+    source_type: str  # scene | interrogation
+    source_ref: Optional[str] = None
+    base_clue_id: Optional[str] = None  # 若是已有 case.clues 的"被发现"
+    quoted_text: Optional[str] = None
+
+
+class SubmitReasoningRequest(BaseModel):
+    """提交组合推理请求"""
+    clue_ids: List[str]
+    conclusion: str
+
+
+class ExtractClueFromInterrogationRequest(BaseModel):
+    """从审讯片段提取线索请求"""
+    suspect_id: str
+    quoted_text: str
+    context_messages: List[Dict[str, str]] = []
+    user_label: str
+
+
+class WatsonInterrogationTipsRequest(BaseModel):
+    """华生审讯提示请求"""
+    suspect_id: str
+    conversation_history: List[Dict[str, str]] = []
+
+
 class MakeAccusationRequest(BaseModel):
     """指认凶手请求"""
     suspect_id: str
-    reasoning_steps: List[str] = []
+    reasoning_record_ids: List[str]   # 必填，1-3 条
+    reasoning_steps: List[str] = []   # 兼容旧字段
 
 
 class WatsonChatRequest(BaseModel):
@@ -316,7 +353,7 @@ async def get_suspect_interjection(
 
 @router.post("/{game_id}/interrogation/contradiction-check")
 async def check_contradictions(game_id: str, request: ContradictionCheckRequest):
-    """检测证词中的矛盾点"""
+    """检测证词中的矛盾点（LLM 驱动，由 WatsonAgent.detect_contradictions 实现）"""
     logger.info(f"[API] 检测矛盾: {game_id}")
 
     game_service = get_game_service()
@@ -328,69 +365,14 @@ async def check_contradictions(game_id: str, request: ContradictionCheckRequest)
     if not game.case:
         raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
 
-    # 简单的矛盾检测逻辑（Mock实现）
-    contradictions = []
+    watson = WatsonAgent.from_difficulty(game.difficulty.value)
+    contradictions = await watson.detect_contradictions(
+        case=game.case,
+        conversation_history=request.conversation_history,
+        suspect_statements=request.suspect_statements,
+    )
 
-    # 检查不同嫌疑人关于同一时间点的陈述
-    statements_by_topic = {}
-
-    for suspect_id, statements in request.suspect_statements.items():
-        suspect = next((s for s in game.case.suspects if s.id == suspect_id), None)
-        if not suspect:
-            continue
-
-        for stmt in statements:
-            # 提取关键词（简单实现）
-            keywords = ["昨晚", "10点", "11点", "厨房", "客厅", "书房", "睡觉", "读书", " alone"]
-            for keyword in keywords:
-                if keyword in stmt:
-                    if keyword not in statements_by_topic:
-                        statements_by_topic[keyword] = []
-                    statements_by_topic[keyword].append({
-                        "suspect_id": suspect_id,
-                        "suspect_name": suspect.name,
-                        "statement": stmt
-                    })
-
-    # 查找同一话题下的矛盾陈述
-    for topic, topic_statements in statements_by_topic.items():
-        if len(topic_statements) >= 2:
-            # 简单检查：如果两个嫌疑人在同一话题下的陈述看起来不同
-            for i in range(len(topic_statements)):
-                for j in range(i + 1, len(topic_statements)):
-                    stmt1 = topic_statements[i]
-                    stmt2 = topic_statements[j]
-
-                    # 简单的矛盾检测启发式
-                    if ("在厨房" in stmt1["statement"] and "在客厅" in stmt2["statement"]) or \
-                       ("在睡觉" in stmt1["statement"] and "在读书" in stmt2["statement"]) or \
-                       ("独自一人" in stmt1["statement"] and "和某人在一起" in stmt2["statement"]):
-
-                        contradictions.append({
-                            "type": "timeline_conflict",
-                            "topic": topic,
-                            "suspect_1": stmt1,
-                            "suspect_2": stmt2,
-                            "description": f"{stmt1['suspect_name']}和{stmt2['suspect_name']}关于{topic}的陈述存在矛盾",
-                            "confidence": 0.7
-                        })
-
-    # 如果对话历史中提到时间，也可以检查
-    if len(contradictions) == 0 and len(request.conversation_history) > 3:
-        # 随机生成一个模拟的矛盾点（演示用）
-        if game.case.suspects and len(game.case.suspects) >= 2:
-            s1 = game.case.suspects[0]
-            s2 = game.case.suspects[1]
-            contradictions.append({
-                "type": "location_conflict",
-                "topic": "昨晚的行踪",
-                "suspect_1": {"suspect_id": s1.id, "suspect_name": s1.name, "statement": "我昨晚一直在自己房间"},
-                "suspect_2": {"suspect_id": s2.id, "suspect_name": s2.name, "statement": "我昨晚看到有人从书房出来"},
-                "description": f"{s1.name}的房间窗户正对{s2.name}的房间，如果{s1.name}在睡觉，{s2.name}应该能听到动静",
-                "confidence": 0.6
-            })
-
-    logger.info(f"[API] 矛盾检测完成: {game_id}, 发现 {len(contradictions)} 个矛盾")
+    logger.info(f"[API] 矛盾检测完成: {game_id} count={len(contradictions)}")
     return {"contradictions": contradictions, "count": len(contradictions)}
 
 
@@ -418,6 +400,149 @@ async def group_control(game_id: str, request: GroupControlRequest):
 
     logger.info(f"[API] 控场操作完成: {game_id}")
     return {"success": True, "message": response_message}
+
+
+@router.post("/{game_id}/scene/{scene_id}/search")
+async def scene_search(game_id: str, scene_id: str, request: SceneSearchRequest):
+    """场景 NPC 搜查：自然语言探索场景对象"""
+    logger.info(f"[API] 场景搜查: {game_id} scene_id={scene_id} query_len={len(request.query)}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    scene = next((s for s in game.case.scenes if s.id == scene_id), None)
+    if not scene:
+        raise HTTPException(status_code=404, detail=f"scene 不存在: {scene_id}")
+
+    from app.agents.scene_agent import get_scene_agent
+    result = await get_scene_agent().search(
+        scene=scene, case=game.case, query=request.query, history=request.history
+    )
+    logger.info(f"[API] 场景搜查完成: {game_id} scene_id={scene_id}")
+    return result
+
+
+@router.post("/{game_id}/clues")
+async def add_clue(game_id: str, request: AddClueRequest):
+    """添加用户自定义命名线索"""
+    logger.info(f"[API] 添加线索: {game_id} source_type={request.source_type}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    clue = game_service.add_user_clue(
+        game_id=game_id,
+        user_label=request.user_label,
+        description=request.description,
+        source_type=request.source_type,
+        source_ref=request.source_ref,
+        base_clue_id=request.base_clue_id,
+        quoted_text=request.quoted_text,
+    )
+    logger.info(f"[API] 线索添加成功: {game_id} clue_id={clue.id}")
+    return clue
+
+
+@router.post("/{game_id}/deduction/reasoning")
+async def submit_reasoning(game_id: str, request: SubmitReasoningRequest):
+    """组合推理（核心）：选取线索 + 结论 → Oracle 验证 → 持久化为 Inference"""
+    logger.info(f"[API] 提交推理: {game_id} clue_count={len(request.clue_ids)}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    if not request.clue_ids:
+        raise HTTPException(status_code=400, detail="至少选择 1 条线索")
+
+    selected = [c for c in game.case.clues if c.id in request.clue_ids]
+    if len(selected) != len(request.clue_ids):
+        raise HTTPException(status_code=400, detail="存在无效的线索 id")
+
+    from app.agents.oracle_agent import get_oracle_agent
+    oracle_result = await get_oracle_agent().verify_inference(
+        case=game.case, clues=selected, conclusion=request.conclusion
+    )
+
+    inference = game_service.create_inference(
+        game_id=game_id,
+        content=request.conclusion,
+        observation_ids=[],
+        parent_inference_ids=[],
+    )
+    inference.clue_ids = request.clue_ids
+    inference.verification_result = oracle_result["verdict"]
+    inference.oracle_explanation = oracle_result["explanation"]
+    inference.confidence = float(oracle_result.get("score", 0.5))
+    game_service.update_inference(game_id, inference)
+
+    logger.info(
+        f"[API] 推理验证完成: {game_id} inference_id={inference.id} verdict={oracle_result['verdict']}"
+    )
+    return {
+        "inference": inference,
+        "verification_result": oracle_result["verdict"],
+        "score": oracle_result.get("score", 0.5),
+        "explanation": oracle_result["explanation"],
+        "missing_links": oracle_result.get("missing_links", []),
+        "misused_clues": oracle_result.get("misused_clues", []),
+    }
+
+
+@router.post("/{game_id}/interrogation/extract-clue")
+async def extract_clue_from_interrogation(
+    game_id: str, request: ExtractClueFromInterrogationRequest
+):
+    """从审讯对话片段生成线索"""
+    logger.info(f"[API] 从审讯提取线索: {game_id} suspect_id={request.suspect_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    clue = game_service.add_user_clue(
+        game_id=game_id,
+        user_label=request.user_label,
+        description=request.quoted_text,
+        source_type="interrogation",
+        source_ref=request.suspect_id,
+        quoted_text=request.quoted_text,
+    )
+    logger.info(f"[API] 审讯线索提取成功: {game_id} clue_id={clue.id}")
+    return clue
+
+
+@router.post("/{game_id}/interrogation/watson-tips")
+async def watson_interrogation_tips(
+    game_id: str, request: WatsonInterrogationTipsRequest
+):
+    """华生审讯实时提示：基于已知线索和对话给出审问建议"""
+    logger.info(f"[API] 获取华生审讯提示: {game_id} suspect_id={request.suspect_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    suspect = next((s for s in game.case.suspects if s.id == request.suspect_id), None)
+    if not suspect:
+        raise HTTPException(status_code=404, detail="嫌疑人不存在")
+
+    watson = WatsonAgent.from_difficulty(game.difficulty.value)
+    tips = await watson.offer_interrogation_tips(
+        case=game.case,
+        suspect=suspect,
+        conversation_history=request.conversation_history,
+        clues=[c for c in game.case.clues if c.discovered or c.user_generated],
+    )
+    logger.info(f"[API] 华生审讯提示生成成功: {game_id} tips_count={len(tips)}")
+    return {"tips": tips}
 
 
 @router.get("/{game_id}/deduction", response_model=DeductionChain)
@@ -578,8 +703,8 @@ async def check_conclusion_readiness(game_id: str):
 
 @router.post("/{game_id}/conclusion/accuse")
 async def make_accusation(game_id: str, request: MakeAccusationRequest):
-    """指认凶手"""
-    logger.info(f"[API] 指认凶手: {game_id}, 嫌疑人: {request.suspect_id}")
+    """指认凶手：必须附带 1-3 条推理记录，经 Oracle 裁决后记录结果"""
+    logger.info(f"[API] 指认凶手: {game_id} suspect_id={request.suspect_id}")
 
     game_service = get_game_service()
     game = game_service.get_game(game_id)
@@ -590,18 +715,35 @@ async def make_accusation(game_id: str, request: MakeAccusationRequest):
     if not game.case:
         raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
 
-    result = game_service.make_accusation(
-        game_id,
-        request.suspect_id,
-        request.reasoning_steps
+    if not request.reasoning_record_ids or len(request.reasoning_record_ids) > 3:
+        raise HTTPException(status_code=400, detail="需提供 1-3 条推理记录作为指控依据")
+
+    chain = game_service.get_or_create_deduction_chain(game_id)
+    records = [i for i in chain.inferences if i.id in request.reasoning_record_ids]
+    if len(records) != len(request.reasoning_record_ids):
+        raise HTTPException(status_code=400, detail="存在无效的推理记录 id")
+    if any(r.verification_result == "wrong" for r in records):
+        raise HTTPException(status_code=400, detail="不可使用已被裁决官标记为错误的推理记录")
+
+    from app.agents.oracle_agent import get_oracle_agent
+    oracle_result = await get_oracle_agent().verify_accusation(
+        case=game.case,
+        suspect_id=request.suspect_id,
+        reasoning_records=records,
     )
 
-    # 更新游戏阶段
+    game_service.record_accusation(
+        game_id=game_id,
+        suspect_id=request.suspect_id,
+        is_correct=oracle_result["is_correct"],
+        explanation=oracle_result["verdict_explanation"],
+        reasoning_record_ids=request.reasoning_record_ids,
+    )
     game.phase = GamePhase.CONCLUSION
     game.updated_at = datetime.utcnow()
 
-    logger.info(f"[API] 指认结果: {game_id}, 正确: {result['is_correct']}")
-    return result
+    logger.info(f"[API] 指认结果: {game_id} is_correct={oracle_result['is_correct']}")
+    return oracle_result
 
 
 @router.get("/{game_id}/conclusion/reveal")

@@ -18,6 +18,8 @@ interface CluesStore {
   toggleClueSelection: (clueId: string) => void
   clearClueSelection: () => void
   markClueDiscovered: (clueId: string, notes?: string) => void
+  /** 从后端返回的线索数据添加或更新（用于场景发现、审讯提取） */
+  addClueFromBackend: (clue: Clue) => void
   resetClues: () => void
 }
 
@@ -79,6 +81,20 @@ export const useCluesStore = create<CluesStore>()(
                 : clue
             ),
           }))
+        },
+
+        addClueFromBackend: (clue: Clue) => {
+          console.info('[cluesStore] 从后端添加线索', { clueId: clue.id, userLabel: clue.userLabel })
+          set((state) => {
+            const existing = state.clues.find((c) => c.id === clue.id)
+            if (existing) {
+              // 已有线索则更新（标记 discovered、补充 userLabel）
+              return {
+                clues: state.clues.map((c) => (c.id === clue.id ? { ...c, ...clue } : c)),
+              }
+            }
+            return { clues: [...state.clues, clue] }
+          })
         },
 
         resetClues: () => {

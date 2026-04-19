@@ -41,6 +41,50 @@ export interface Suspect {
   secrets: string[]
 }
 
+export interface SceneObject {
+  id: string
+  name: string
+  description: string
+  hiddenClueIds: string[]
+  searchHints: string[]
+}
+
+export interface Scene {
+  id: string
+  name: string
+  description: string
+  atmosphereImage?: string
+  npcPersona: string
+  objects: SceneObject[]
+}
+
+export interface SceneSearchResponse {
+  narrative: string
+  matchedObjectIds: string[]
+  clueCandidates: Array<{
+    objectId: string
+    suggestedClueId?: string
+    hint: string
+  }>
+}
+
+export interface ReasoningRecord {
+  id: string
+  content: string
+  clueIds: string[]
+  verificationResult?: 'correct' | 'wrong' | 'partial'
+  oracleExplanation?: string
+  confidence: number
+  createdAt: string
+  userMarkedImportant: boolean
+}
+
+export interface WatsonTip {
+  type: 'suggestion' | 'contradiction' | 'question_template'
+  text: string
+  relatedClueIds: string[]
+}
+
 export interface Clue {
   id: string
   description: string
@@ -50,6 +94,11 @@ export interface Clue {
   isRedHerring: boolean
   discovered: boolean
   discoveryNotes?: string
+  userLabel?: string
+  sourceType?: 'initial' | 'scene' | 'interrogation'
+  sourceRef?: string
+  quotedText?: string
+  userGenerated?: boolean
 }
 
 export interface Case {
@@ -66,6 +115,7 @@ export interface Case {
   murderMethod: string
   trueMurdererId?: string
   investigationLocations: string[]
+  scenes: Scene[]
 }
 
 export interface Observation {
@@ -86,6 +136,10 @@ export interface Inference {
   createdAt: string
   supportingEvidence: string[]
   contradictingEvidence: string[]
+  clueIds?: string[]
+  verificationResult?: 'correct' | 'wrong' | 'partial'
+  oracleExplanation?: string
+  userMarkedImportant?: boolean
 }
 
 export interface Hypothesis {

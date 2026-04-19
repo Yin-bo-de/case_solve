@@ -11,7 +11,7 @@ from app.models.game import (
     WatsonChatMessage, WatsonChatContext
 )
 from app.models.case import (
-    Case, Observation, Inference, Hypothesis, DeductionChain
+    Case, Clue, Observation, Inference, Hypothesis, DeductionChain
 )
 
 
@@ -436,6 +436,81 @@ class GameService:
                 if not c.is_red_herring
             ]
         }
+
+    def add_user_clue(
+        self,
+        game_id: str,
+        user_label: str,
+        description: str,
+        source_type: str,
+        source_ref: Optional[str] = None,
+        base_clue_id: Optional[str] = None,
+        quoted_text: Optional[str] = None,
+    ) -> Clue:
+        """添加或标记用户线索。若 base_clue_id 命中已有 clue 则标记发现；否则新建用户自定义线索。"""
+        game = self.get_game(game_id)
+        if not game or not game.case:
+            raise ValueError("游戏或案件不存在")
+
+        if base_clue_id:
+            existing = next((c for c in game.case.clues if c.id == base_clue_id), None)
+            if existing:
+                existing.discovered = True
+                existing.user_label = user_label
+                if quoted_text:
+                    existing.quoted_text = quoted_text
+                logger.info(f"[GameService] 标记线索已发现: {game_id} base_clue_id={base_clue_id}")
+                return existing
+
+        clue = Clue(
+            id="user_" + uuid.uuid4().hex[:8],
+            description=description,
+            clue_type=source_type,
+            user_label=user_label,
+            source_type=source_type,
+            source_ref=source_ref,
+            quoted_text=quoted_text,
+            user_generated=True,
+            discovered=True,
+        )
+        game.case.clues.append(clue)
+        logger.info(f"[GameService] 新增用户线索: {game_id} clue_id={clue.id}")
+        return clue
+
+    def update_inference(self, game_id: str, inference: Inference) -> bool:
+        """写回 Oracle 验证结果等字段到已有推理记录"""
+        chain = self.get_or_create_deduction_chain(game_id)
+        for i, existing in enumerate(chain.inferences):
+            if existing.id == inference.id:
+                chain.inferences[i] = inference
+                chain.updated_at = datetime.utcnow()
+                logger.info(f"[GameService] 更新推理: {game_id} inference_id={inference.id}")
+                return True
+        logger.warning(f"[GameService] 推理不存在，更新失败: {game_id} inference_id={inference.id}")
+        return False
+
+    def record_accusation(
+        self,
+        game_id: str,
+        suspect_id: str,
+        is_correct: bool,
+        explanation: str,
+        reasoning_record_ids: List[str],
+    ) -> None:
+        """记录指控结果，更新错误次数和推理链条结论"""
+        game = self.get_game(game_id)
+        chain = self.get_or_create_deduction_chain(game_id)
+
+        if game and not is_correct:
+            game.mistakes_made += 1
+            game.updated_at = datetime.utcnow()
+
+        chain.final_accusation = suspect_id
+        chain.conclusion = explanation
+        chain.updated_at = datetime.utcnow()
+        logger.info(
+            f"[GameService] 记录指控: {game_id} suspect_id={suspect_id} is_correct={is_correct}"
+        )
 
     def add_watson_chat_message(
         self,

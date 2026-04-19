@@ -43,15 +43,16 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     error,
     sendMessage,
     fetchHistory,
-    addWatsonMessage,
+    addWatsonMessage: _addWatsonMessage,
   } = useWatsonChatStore()
+  void _addWatsonMessage
 
   const {
     watsonDialogOpen: isDialogOpen,
     watsonDialogExpanded: isDialogExpanded,
     watsonDialogPosition,
     setWatsonDialogOpen,
-    setWatsonDialogExpanded,
+    setWatsonDialogExpanded: _setExpanded,
     setWatsonDialogPosition,
   } = useUIStore()
 

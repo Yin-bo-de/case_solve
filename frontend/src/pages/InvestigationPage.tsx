@@ -1,143 +1,27 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import type { Observation } from '@/types/game'
 import { gameApi } from '@/services/api'
 import { useGameStore, useCluesStore, useWatsonChatStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
+import type { Scene } from '@/types/game'
 
-// 现场可点击区域定义
-interface InvestigationArea {
-  id: string
-  name: string
-  description: string
-  x: number // 位置百分比
-  y: number
-  width: number
-  height: number
-  examined: boolean
-}
-
-// 空闲检测时长（毫秒）
-const IDLE_TIMEOUT = 30000 // 30秒无操作后触发提示
+console.debug('[InvestigationPage.tsx] 加载模块')
 
 export default function InvestigationPage() {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
 
-  // 使用 Zustand stores
-  const {
-    gameState,
-    isLoading,
-    error,
-    setGameState,
-    setLoading,
-    setError
-  } = useGameStore()
+  const { gameState, isLoading, error, setGameState, setLoading, setError } = useGameStore()
+  const { clues } = useCluesStore()
+  const { addWatsonMessage } = useWatsonChatStore()
 
-  const {
-    observations,
-    addObservation
-  } = useCluesStore()
+  console.debug('[InvestigationPage] 渲染', { gameId })
 
-  const {
-    addWatsonMessage,
-    requestObservationComment,
-    requestIdleHint
-  } = useWatsonChatStore()
-
-  // 本地 UI 状态
-  const [selectedArea, setSelectedArea] = useState<InvestigationArea | null>(null)
-  const [showObservations, setShowObservations] = useState(false)
-  const [areas, setAreas] = useState<InvestigationArea[]>([])
-
-  // 空闲检测相关
-  const lastActivityRef = useRef<number>(Date.now())
-  const idleTimerRef = useRef<number | null>(null)
-  const hasShownIdleHintRef = useRef(false)
-
-  console.debug('[InvestigationPage] 渲染勘查页面', { gameId, useStore: true })
-
-  // 记录用户活动
-  const recordActivity = useCallback(() => {
-    lastActivityRef.current = Date.now()
-    hasShownIdleHintRef.current = false
-  }, [])
-
-  // 初始化现场区域
-  const initializeAreas = () => {
-    const newAreas: InvestigationArea[] = [
-      {
-        id: 'area-desk',
-        name: '书桌',
-        description: '一张老旧的橡木书桌，上面散落着文件和物品。',
-        x: 60,
-        y: 55,
-        width: 25,
-        height: 20,
-        examined: false,
-      },
-      {
-        id: 'area-fireplace',
-        name: '壁炉',
-        description: '大理石壁炉，里面有未烧尽的灰烬。',
-        x: 10,
-        y: 40,
-        width: 20,
-        height: 25,
-        examined: false,
-      },
-      {
-        id: 'area-body',
-        name: '尸体位置',
-        description: '地毯上用白粉笔勾勒出的尸体轮廓。',
-        x: 35,
-        y: 60,
-        width: 20,
-        height: 15,
-        examined: false,
-      },
-      {
-        id: 'area-window',
-        name: '窗户',
-        description: '一扇朝向街道的落地窗，窗帘半拉着。',
-        x: 75,
-        y: 20,
-        width: 20,
-        height: 30,
-        examined: false,
-      },
-      {
-        id: 'area-carpet',
-        name: '地毯',
-        description: '厚重的波斯地毯，有些地方看起来被移动过。',
-        x: 25,
-        y: 70,
-        width: 40,
-        height: 20,
-        examined: false,
-      },
-      {
-        id: 'area-corner',
-        name: '角落',
-        description: '房间阴暗的角落，有什么东西在闪闪发光。',
-        x: 5,
-        y: 75,
-        width: 15,
-        height: 15,
-        examined: false,
-      },
-    ]
-    setAreas(newAreas)
-  }
-
-  // 加载游戏状态
   useEffect(() => {
     if (!gameId) return
 
-    // 如果 store 中已有数据且 gameId 匹配，直接使用
     if (gameState && (gameState as any).gameId === gameId) {
       console.debug('[InvestigationPage] 使用 store 中已有的游戏状态')
-      initializeAreas()
       return
     }
 
@@ -145,14 +29,11 @@ export default function InvestigationPage() {
       console.info('[InvestigationPage] 从 API 加载游戏状态', { gameId })
       setLoading(true)
       setError(null)
-
       try {
         const state = await gameApi.getGameState(gameId)
         console.info('[InvestigationPage] 游戏状态加载成功', state)
         setGameState(state)
-        initializeAreas()
 
-        // 显示华生欢迎消息
         setTimeout(() => {
           addWatsonMessage(
             '老朋友，我们到了。这便是命案现场。细细察看周遭，任何细节皆可能至为关键。',
@@ -169,80 +50,6 @@ export default function InvestigationPage() {
 
     loadGame()
   }, [gameId, gameState, setGameState, setLoading, setError, addWatsonMessage])
-
-  // 空闲检测
-  useEffect(() => {
-    if (isLoading) return
-
-    const checkIdle = () => {
-      const now = Date.now()
-      const idleTime = now - lastActivityRef.current
-
-      if (idleTime >= IDLE_TIMEOUT && !hasShownIdleHintRef.current && gameId) {
-        console.debug('[InvestigationPage] 检测到用户空闲，请求华生提示')
-        requestIdleHint(
-          gameId,
-          observations.length,
-          areas.filter(a => a.examined).length,
-          areas.length
-        )
-      }
-    }
-
-    idleTimerRef.current = window.setInterval(checkIdle, 60000)
-
-    return () => {
-      if (idleTimerRef.current) {
-        window.clearInterval(idleTimerRef.current)
-      }
-    }
-  }, [isLoading, gameId, observations.length, areas, requestIdleHint])
-
-  // 处理点击勘查区域
-  const handleAreaClick = (area: InvestigationArea) => {
-    console.debug('[InvestigationPage] 点击勘查区域', { areaId: area.id, areaName: area.name })
-    recordActivity()
-
-    if (!gameState?.case) return
-
-    // 标记区域为已勘查
-    const updatedAreas = areas.map(a =>
-      a.id === area.id ? { ...a, examined: true } : a
-    )
-    setAreas(updatedAreas)
-
-    // 查找该区域相关的线索
-    const relatedClues = gameState.case.clues.filter(
-      clue => clue.location?.includes(area.name) || clue.location?.includes(area.id)
-    )
-
-    // 创建观察记录
-    const newObservation: Observation = {
-      id: `obs-${Date.now()}-${area.id}`,
-      description: `在${area.name}发现：${area.description}`,
-      location: area.name,
-      timestamp: new Date().toISOString(),
-      relatedClueIds: relatedClues.map(c => c.id),
-      notes: relatedClues.length > 0 ? `发现 ${relatedClues.length} 个相关线索` : undefined,
-    }
-
-    console.info('[InvestigationPage] 记录新观察', newObservation)
-    addObservation(newObservation)
-
-    setSelectedArea({ ...area, examined: true })
-
-    // 请求华生对这个观察的评论（70% 概率）
-    if (Math.random() > 0.3) {
-      requestObservationComment(gameId!, newObservation)
-    }
-  }
-
-  // 关闭区域详情
-  const closeAreaDetail = () => {
-    console.debug('[InvestigationPage] 关闭区域详情')
-    recordActivity()
-    setSelectedArea(null)
-  }
 
   if (isLoading) {
     return (
@@ -268,6 +75,12 @@ export default function InvestigationPage() {
     )
   }
 
+  const scenes: Scene[] = gameState.case?.scenes ?? []
+
+  // 统计每个场景已添加的线索数
+  const clueCountByScene = (sceneId: string) =>
+    clues.filter((c) => c.sourceType === 'scene' && c.sourceRef === sceneId).length
+
   return (
     <div className="investigation-page">
       {/* 顶部导航栏 */}
@@ -276,173 +89,89 @@ export default function InvestigationPage() {
           <h1 className="header-title">现场勘查</h1>
           <div className="header-info">
             <span className="case-location">{gameState.case?.location}</span>
-            <span className="observation-count">
-              勘查记录: {observations.length}
-            </span>
+            <span className="observation-count">已添加线索: {clues.length}</span>
           </div>
         </div>
       </header>
 
-      {/* 主内容区 */}
       <main className="investigation-main">
-        {/* 案发现场场景 */}
-        <div className="crime-scene">
-          <div className="crime-scene__background">
-            {/* 场景背景 */}
-            <div className="scene-wall scene-wall--back" />
-            <div className="scene-floor" />
-
-            {/* 可点击区域 */}
-            {areas.map(area => (
-              <button
-                key={area.id}
-                className={`investigation-area ${area.examined ? 'investigation-area--examined' : ''}`}
-                style={{
-                  left: `${area.x}%`,
-                  top: `${area.y}%`,
-                  width: `${area.width}%`,
-                  height: `${area.height}%`,
-                }}
-                onClick={() => handleAreaClick(area)}
-                type="button"
-              >
-                <span className="area-label">{area.name}</span>
-                {area.examined && <span className="area-checkmark">✓</span>}
-              </button>
-            ))}
-          </div>
-
-          {/* 场景说明 */}
-          <div className="scene-description">
-            <h2>{gameState.case?.location}</h2>
-            <p>{gameState.case?.summary}</p>
-          </div>
+        {/* 案件简述 */}
+        <div className="case-summary-banner">
+          <p>{gameState.case?.summary}</p>
         </div>
 
-        {/* 观察笔记面板 */}
-        <aside className={`observation-panel ${showObservations ? 'observation-panel--open' : ''}`}>
-          <div className="panel-header">
-            <h3>勘查笔记</h3>
-            <button
-              className="panel-toggle"
-              onClick={() => setShowObservations(!showObservations)}
-              type="button"
-            >
-              {showObservations ? '收起' : '展开'}
-            </button>
-          </div>
-
-          <div className="panel-content">
-            {observations.length === 0 ? (
-              <p className="no-observations">阁下尚无勘查记录，点击场景中各处细查吧。</p>
-            ) : (
-              <ul className="observation-list">
-                {observations.map(obs => (
-                  <li key={obs.id} className="observation-item">
-                    <div className="observation-location">{obs.location}</div>
-                    <div className="observation-description">{obs.description}</div>
-                    <div className="observation-time">
-                      {new Date(obs.timestamp).toLocaleTimeString()}
+        {/* 场景列表 */}
+        <section className="scene-list-section">
+          <h2 className="scene-list-section__title">可勘查场景</h2>
+          {scenes.length === 0 ? (
+            <p className="scene-list-section__empty">
+              案件场景尚未生成，请稍候或刷新页面。
+            </p>
+          ) : (
+            <div className="scene-list">
+              {scenes.map((scene) => {
+                const sceneClueCount = clueCountByScene(scene.id)
+                return (
+                  <button
+                    key={scene.id}
+                    className="scene-card"
+                    onClick={() => navigate(`/investigation/${gameId}/scene/${scene.id}`)}
+                    type="button"
+                  >
+                    <div className="scene-card__header">
+                      <h3 className="scene-card__name">{scene.name}</h3>
+                      {sceneClueCount > 0 && (
+                        <span className="scene-card__badge">{sceneClueCount} 条线索</span>
+                      )}
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </aside>
+                    <p className="scene-card__description">{scene.description}</p>
+                    <div className="scene-card__footer">
+                      <span className="scene-card__npc">NPC：{scene.npcPersona || '未知'}</span>
+                      <span className="scene-card__objects">{scene.objects.length} 处可查看</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* 已发现线索面板 */}
+        {clues.length > 0 && (
+          <section className="discovered-clues-panel">
+            <h2>已添加线索 ({clues.length})</h2>
+            <ul className="clue-list">
+              {clues.map((clue) => (
+                <li key={clue.id} className={`clue-item ${clue.isRedHerring ? 'clue-item--red-herring' : ''}`}>
+                  <span className="clue-item__label">{clue.userLabel || clue.description.substring(0, 30)}</span>
+                  <span className="clue-item__source">
+                    {clue.sourceType === 'scene' ? '📍 现场' : clue.sourceType === 'interrogation' ? '🗣 审讯' : '📋 初始'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </main>
-
-      {/* 区域详情弹窗 */}
-      {selectedArea && (
-        <div className="area-modal-overlay" onClick={closeAreaDetail}>
-          <div className="area-modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{selectedArea.name}</h2>
-              <button className="modal-close" onClick={closeAreaDetail} type="button">
-                ×
-              </button>
-            </div>
-            <div className="modal-content">
-              <p className="area-description">{selectedArea.description}</p>
-
-              {/* 显示相关线索 */}
-              {gameState.case && (
-                <div className="related-clues">
-                  <h3>觅得之线索</h3>
-                  {(() => {
-                    const clues = gameState.case!.clues.filter(
-                      clue =>
-                        clue.location?.includes(selectedArea.name) ||
-                        clue.location?.includes(selectedArea.id)
-                    )
-                    console.debug('[InvestigationPage] 查找相关线索', {
-                      area: selectedArea.name,
-                      allClues: gameState.case!.clues.map(c => ({ id: c.id, location: c.location })),
-                      foundClues: clues.map(c => c.id),
-                    })
-                    if (clues.length === 0) {
-                      return <p className="no-clues">此处尚无明显线索可寻。</p>
-                    }
-                    return (
-                      <ul className="clue-list">
-                        {clues.map(clue => (
-                          <li key={clue.id} className={`clue-item ${clue.isRedHerring ? 'clue-item--red-herring' : ''}`}>
-                            <span className="clue-type">[{clue.clueType}]</span>
-                            <span className="clue-description">{clue.description}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )
-                  })()}
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button onClick={closeAreaDetail} className="modal-button" type="button">
-                继续细查
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 底部导航 */}
       <footer className="investigation-footer">
         <button className="footer-button footer-button--back" onClick={() => navigate('/')} type="button">
           返回贝克街
         </button>
-        <div className="footer-progress">
-          <span>勘查进度: {areas.filter(a => a.examined).length} / {areas.length}</span>
-        </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Link
-            to={`/deduction/${gameId}`}
-            className="footer-button footer-button--secondary"
-          >
+          <Link to={`/deduction/${gameId}`} className="footer-button footer-button--secondary">
             推理板
           </Link>
-          <Link
-            to={`/interrogation/${gameId}`}
-            className={`footer-button footer-button--secondary ${observations.length === 0 ? 'disabled-link' : ''}`}
-            aria-disabled={observations.length === 0}
-            onClick={(e) => {
-              if (observations.length === 0) {
-                e.preventDefault()
-              }
-            }}
-          >
-            传唤嫌疑人的
+          <Link to={`/interrogation/${gameId}`} className="footer-button footer-button--secondary">
+            传唤嫌疑人
           </Link>
-          <Link
-            to={`/conclusion/${gameId}`}
-            className="footer-button footer-button--next"
-          >
+          <Link to={`/conclusion/${gameId}`} className="footer-button footer-button--next">
             指认真凶
           </Link>
         </div>
       </footer>
 
-      {/* 华生全程对话框 */}
       <WatsonChatDialog gameId={gameId!} />
     </div>
   )

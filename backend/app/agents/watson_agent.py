@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import get_settings
-from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain
+from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain, Case, Suspect
 from app.models.game import WatsonChatContext
 from app.agents.prompts.watson_prompts import (
     watson_observation_prompt,
@@ -18,6 +18,10 @@ from app.agents.prompts.watson_prompts import (
     watson_knowledge_prompt,
     watson_suggest_hypothesis_prompt,
     watson_chat_prompt,
+    watson_scene_hint_prompt,
+    watson_interrogation_tips_prompt,
+    watson_deduction_hint_prompt,
+    watson_contradiction_prompt,
 )
 from app.agents._llm_helpers import invoke_with_retry
 
@@ -553,6 +557,176 @@ class WatsonAgent:
             "你有什么想法？我很想听听。"
         ]
         return random.choice(responses)
+
+    # ──────────────────────────────────────────────
+    # 章节 6：新增方法
+    # ──────────────────────────────────────────────
+
+    async def offer_scene_hint(self, scene_name: str, recent_actions: List[str]) -> str:
+        """
+        给出当前场景的下一步勘查建议（一句话，维多利亚口吻）。
+
+        Args:
+            scene_name: 当前场景名称
+            recent_actions: 玩家最近的搜查动作列表
+        Returns:
+            华生的一句话建议
+        """
+        logger.info(f"[WatsonAgent] offer_scene_hint scene={scene_name} actions={len(recent_actions)}")
+        actions_str = "、".join(recent_actions[-3:]) if recent_actions else "（尚未开始搜查）"
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            hints = [
+                f"老朋友，我觉得{scene_name}的角落里可能藏着什么不寻常的东西。",
+                f"既然您已经{actions_str}，不妨再仔细检查一下那些不起眼的细节。",
+                f"在{scene_name}中，有时候最显眼的地方反而藏着关键线索。",
+            ]
+            return random.choice(hints)
+
+        chain = watson_scene_hint_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={"scene_name": scene_name, "recent_actions": actions_str},
+            fallback_fn=lambda: type("R", (), {"content": f"老朋友，不妨再仔细检查一下{scene_name}中的每一个角落。"})(),
+        )
+        return result.content if hasattr(result, "content") else str(result)
+
+    async def offer_interrogation_tips(
+        self,
+        case: Case,
+        suspect: Suspect,
+        conversation_history: List[Dict[str, str]],
+        clues: List[Clue],
+    ) -> List[Dict[str, Any]]:
+        """
+        在审讯过程中实时给出话术建议和矛盾提示（JSON 模式）。
+
+        Args:
+            case: 当前案件
+            suspect: 被审讯的嫌疑人
+            conversation_history: 审讯对话历史
+            clues: 已发现的线索列表
+        Returns:
+            tips 数组，每项含 type / text / related_clue_ids
+        """
+        logger.info(f"[WatsonAgent] offer_interrogation_tips suspect={suspect.id} clues={len(clues)}")
+
+        fallback_tips = [
+            {"type": "suggestion", "text": "不妨直接询问嫌疑人案发当晚的行踪。", "related_clue_ids": []},
+        ]
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return fallback_tips
+
+        clues_block = "\n".join([f"  - id={c.id} {c.user_label or c.description[:40]}" for c in clues]) or "（尚无线索）"
+        recent_history = conversation_history[-8:]
+        conversation_block = "\n".join([f"{m['role']}: {m['content']}" for m in recent_history]) or "（尚未开始）"
+
+        from langchain_core.output_parsers import StrOutputParser
+        chain = watson_interrogation_tips_prompt | self.llm | StrOutputParser()
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "clues_block": clues_block,
+                "suspect_name": suspect.name,
+                "suspect_id": suspect.id,
+                "conversation_block": conversation_block,
+            },
+            fallback_fn=lambda: f'{{"tips": {fallback_tips}}}',
+            parse_json=True,
+        )
+        if isinstance(result, dict) and "tips" in result:
+            logger.info(f"[WatsonAgent] offer_interrogation_tips 完成 tips={len(result['tips'])}")
+            return result["tips"]
+        return fallback_tips
+
+    async def offer_deduction_hint(
+        self,
+        clues: List[Clue],
+        inferences: List[Inference],
+    ) -> str:
+        """
+        在推理板给出一句关联提示，指出可能被忽略的关联。
+
+        Args:
+            clues: 已发现线索列表
+            inferences: 现有推理记录列表
+        Returns:
+            一句话提示
+        """
+        logger.info(f"[WatsonAgent] offer_deduction_hint clues={len(clues)} inferences={len(inferences)}")
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return "老朋友，也许那几条线索之间有某种时间上的关联值得深究。"
+
+        clues_block = "\n".join([f"  - id={c.id} {c.user_label or c.description[:40]}" for c in clues]) or "（无）"
+        inferences_block = "\n".join([f"  - {inf.content[:60]}" for inf in inferences]) or "（无）"
+
+        chain = watson_deduction_hint_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={"clues_block": clues_block, "inferences_block": inferences_block},
+            fallback_fn=lambda: type("R", (), {"content": "老朋友，也许有几条线索之间的关联还未被发现。"})(),
+        )
+        return result.content if hasattr(result, "content") else str(result)
+
+    async def detect_contradictions(
+        self,
+        case: Case,
+        conversation_history: List[Dict[str, str]],
+        suspect_statements: Dict[str, List[str]],
+    ) -> List[Dict[str, Any]]:
+        """
+        基于 LLM 检测嫌疑人陈述中的矛盾（替代旧关键词启发式）。
+
+        Args:
+            case: 当前案件（用于获取线索列表）
+            conversation_history: 整体对话历史（备用上下文）
+            suspect_statements: {suspect_id: [statement1, statement2, ...]}
+        Returns:
+            contradictions 数组，每项含 type / topic / suspect_1 / suspect_2 / description / confidence
+        """
+        logger.info(f"[WatsonAgent] detect_contradictions suspects={len(suspect_statements)}")
+
+        if not suspect_statements or len(suspect_statements) < 2:
+            logger.debug("[WatsonAgent] detect_contradictions 嫌疑人不足 2 人，跳过")
+            return []
+
+        fallback: List[Dict[str, Any]] = []
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return fallback
+
+        clues_block = "\n".join(
+            [f"  - {c.description[:50]}" for c in case.clues if not c.is_red_herring]
+        ) or "（无）"
+
+        # 构建嫌疑人陈述 block，附上 name 便于 LLM 引用
+        suspect_name_map = {s.id: s.name for s in case.suspects}
+        statements_lines = []
+        for sid, stmts in suspect_statements.items():
+            name = suspect_name_map.get(sid, sid)
+            for stmt in stmts[:3]:  # 每人最多 3 条，避免 token 过多
+                statements_lines.append(f"  [{sid}] {name}: {stmt[:80]}")
+        statements_block = "\n".join(statements_lines) or "（无）"
+
+        from langchain_core.output_parsers import StrOutputParser
+        chain = watson_contradiction_prompt | self.llm | StrOutputParser()
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={"clues_block": clues_block, "statements_block": statements_block},
+            fallback_fn=lambda: '{"contradictions": []}',
+            parse_json=True,
+        )
+        if isinstance(result, dict) and "contradictions" in result:
+            contras = result["contradictions"]
+            logger.info(f"[WatsonAgent] detect_contradictions 完成 count={len(contras)}")
+            return contras
+        return fallback
 
 
 # 全局华生Agent实例

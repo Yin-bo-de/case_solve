@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 import type { ConversationMessage, LieDetectionResult, ContradictionResult } from '@/services/api'
+import type { WatsonTip, Clue } from '@/types/game'
+import { gameApi } from '@/services/api'
 
 console.debug('[interrogationStore.ts] 加载模块')
 
@@ -68,6 +70,20 @@ interface InterrogationStore {
   setContradictions: (contradictions: ContradictionResult[]) => void
   clearGroupInterrogation: () => void
 
+  // 华生实时提示（单独审讯）
+  watsonTips: WatsonTip[]
+  watsonTipsLoading: boolean
+  /** 审讯中提取的线索（本地缓存，真实数据存 cluesStore） */
+  extractedClues: Clue[]
+
+  // Actions - 华生提示
+  fetchTips: (gameId: string, suspectId: string, history: ConversationMessage[]) => Promise<void>
+  extractClue: (
+    gameId: string,
+    payload: { suspectId: string; quotedText: string; contextMessages: ConversationMessage[]; userLabel: string }
+  ) => Promise<Clue>
+  clearWatsonTips: () => void
+
   // Actions - 通用
   resetAll: () => void
 }
@@ -90,6 +106,9 @@ export const useInterrogationStore = create<InterrogationStore>()(
           showContradictionAlert: false,
           contradictions: [],
           lieDetection: null,
+          watsonTips: [],
+          watsonTipsLoading: false,
+          extractedClues: [],
 
           // Actions - 模式
           setMode: (mode) => {
@@ -220,6 +239,33 @@ export const useInterrogationStore = create<InterrogationStore>()(
             console.info('[interrogationStore] 清空全体质询状态')
           },
 
+          // Actions - 华生提示
+          fetchTips: async (gameId, suspectId, history) => {
+            console.info('[interrogationStore] 获取华生审讯提示', { gameId, suspectId })
+            set({ watsonTipsLoading: true })
+            try {
+              const apiHistory = history.map((m) => ({ role: m.role, content: m.content }))
+              const result = await gameApi.getInterrogationTips(gameId, suspectId, apiHistory)
+              set({ watsonTips: result.tips, watsonTipsLoading: false })
+              console.info('[interrogationStore] 华生提示已更新', { count: result.tips.length })
+            } catch (err) {
+              console.error('[interrogationStore] 获取华生提示失败', err)
+              set({ watsonTipsLoading: false })
+            }
+          },
+
+          extractClue: async (gameId, payload) => {
+            console.info('[interrogationStore] 提取审讯线索', { gameId, suspectId: payload.suspectId })
+            const clue = await gameApi.extractClueFromInterrogation(gameId, payload)
+            set((state) => ({ extractedClues: [...state.extractedClues, clue] }))
+            console.info('[interrogationStore] 审讯线索已提取', { clueId: clue.id })
+            return clue
+          },
+
+          clearWatsonTips: () => {
+            set({ watsonTips: [], watsonTipsLoading: false })
+          },
+
           // Actions - 通用
           resetAll: () => {
             set({
@@ -233,6 +279,9 @@ export const useInterrogationStore = create<InterrogationStore>()(
               showContradictionAlert: false,
               contradictions: [],
               lieDetection: null,
+              watsonTips: [],
+              watsonTipsLoading: false,
+              extractedClues: [],
             })
             console.info('[interrogationStore] 重置所有状态')
           },

@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 
 from app.config import get_settings
-from app.models.case import Case, Suspect, Clue
+from app.models.case import Case, Suspect, Clue, Scene, SceneObject
 from app.agents.prompts.case_prompts import case_generation_prompt
 from app.agents._llm_helpers import invoke_with_retry
 
@@ -189,6 +189,98 @@ class CaseGeneratorAgent:
             f"obviousness范围(真实)={real_lo}~{real_hi}"
         )
 
+        # 构造 3 个 scenes，将所有线索挂到对应 objects 上
+        # 书房承载大部分物证，客厅和厨房提供人物背景线索
+        scenes = [
+            Scene(
+                id="scene-study",
+                name="书房",
+                description="宽敞阴暗的书房，高大的红木书架沿墙而立，壁炉里炭火已灭，厚重的羊毛地毯上隐约有污迹",
+                npc_persona="沉默的管家，举止谨慎，对死者忠诚但内心藏有秘密",
+                objects=[
+                    SceneObject(
+                        id="obj-fireplace",
+                        name="壁炉",
+                        description="大理石壁炉，炉膛内有未完全燃尽的灰烬",
+                        hidden_clue_ids=["clue-1"],
+                        search_hints=["仔细检查灰烬", "寻找未烧尽的纸片"],
+                    ),
+                    SceneObject(
+                        id="obj-desk",
+                        name="书桌",
+                        description="胡桃木书桌，一个抽屉被强行撬开，文件散落一地",
+                        hidden_clue_ids=["clue-2"],
+                        search_hints=["检查被撬的抽屉", "翻看散落的文件"],
+                    ),
+                    SceneObject(
+                        id="obj-carpet",
+                        name="地毯",
+                        description="厚重的波斯地毯，有明显的拖拽痕迹",
+                        hidden_clue_ids=["clue-4"],
+                        search_hints=["观察地毯纹路", "追踪拖拽痕迹的方向"],
+                    ),
+                ],
+            ),
+            Scene(
+                id="scene-living-room",
+                name="客厅",
+                description="维多利亚式客厅，墙上挂着几幅油画，靠窗有一张阅读椅，窗台上摆着枯萎的鲜花",
+                npc_persona="焦虑的女仆，经常在此打扫，昨晚在场",
+                objects=[
+                    SceneObject(
+                        id="obj-window",
+                        name="窗户",
+                        description="朝向街道的落地窗，窗台上有新鲜的泥渍",
+                        hidden_clue_ids=["clue-3"],
+                        search_hints=["检查窗台的泥渍", "查看窗户是否有被撬开的痕迹"],
+                    ),
+                    SceneObject(
+                        id="obj-corner",
+                        name="角落烛台架",
+                        description="铸铁烛台架，上面那只精致的铜烛台不见了",
+                        hidden_clue_ids=["clue-5"],
+                        search_hints=["注意烛台架上的空位", "检查周围地面"],
+                    ),
+                    SceneObject(
+                        id="obj-armchair",
+                        name="扶手椅",
+                        description="靠近壁炉的皮质扶手椅，座垫上有轻微的凹陷",
+                        hidden_clue_ids=[],
+                        search_hints=["检查椅垫下方", "观察靠背是否有异常"],
+                    ),
+                ],
+            ),
+            Scene(
+                id="scene-kitchen",
+                name="厨房",
+                description="昏暗的厨房，铜质锅具挂在墙上，案板上还留有昨晚准备茶具的痕迹",
+                npc_persona="沉默的厨娘，不苟言笑，对宅内发生的事一清二楚",
+                objects=[
+                    SceneObject(
+                        id="obj-tea-cabinet",
+                        name="茶具柜",
+                        description="放置茶具的木质橱柜，昨晚管家在这里准备茶水",
+                        hidden_clue_ids=[],
+                        search_hints=["检查茶具是否齐全", "查看柜内有无异常"],
+                    ),
+                    SceneObject(
+                        id="obj-back-door",
+                        name="后门",
+                        description="通向后院的铁门，门锁有轻微磨损",
+                        hidden_clue_ids=[],
+                        search_hints=["检查门锁状态", "查看门外的脚印"],
+                    ),
+                    SceneObject(
+                        id="obj-counter",
+                        name="操作台",
+                        description="石质操作台，台面干净，但抹布被随意丢在一旁",
+                        hidden_clue_ids=[],
+                        search_hints=["检查抹布上是否有污迹", "查看台面边缘"],
+                    ),
+                ],
+            ),
+        ]
+
         return Case(
             id=case_id,
             victim_name="埃德蒙·布莱克伍德",
@@ -202,7 +294,8 @@ class CaseGeneratorAgent:
             summary="一位富有的古董商人被发现死在自己的书房中，现场一片狼藉...",
             murder_method="用烛台敲击头部致死，然后试图伪造入室抢劫",
             true_murderer_id=true_murderer_id,
-            investigation_locations=["书房", "客厅", "厨房", "嫌疑人房间"],
+            scenes=scenes,
+            investigation_locations=[s.name for s in scenes],
         )
 
     def _build_case_from_llm_output(self, case_id: str, difficulty: str, data: dict) -> Case:
@@ -243,6 +336,9 @@ class CaseGeneratorAgent:
                 obviousness=round(random.uniform(lo, hi), 2),
             ))
 
+        # 解析 scenes（若 LLM 未返回则生成简单的占位 scenes）
+        scenes = self._parse_scenes_from_data(data, clues)
+
         return Case(
             id=case_id,
             victim_name=data["victim_name"],
@@ -256,8 +352,102 @@ class CaseGeneratorAgent:
             summary=data["summary"],
             murder_method=data["murder_method"],
             true_murderer_id=true_murderer_id,
-            investigation_locations=data.get("investigation_locations", []),
+            scenes=scenes,
+            # investigation_locations 作为 scenes.name 的镜像
+            investigation_locations=[s.name for s in scenes],
         )
+
+    def _parse_scenes_from_data(self, data: dict, clues: list) -> list:
+        """
+        将 LLM 返回的 scenes JSON 转换为 Scene 对象列表。
+        若 LLM 未返回 scenes 或解析失败，则生成 fallback scenes。
+        """
+        raw_scenes = data.get("scenes", [])
+        if not raw_scenes:
+            logger.warning("[CaseGeneratorAgent] LLM 未返回 scenes，使用 fallback 构造")
+            return self._build_fallback_scenes(clues)
+
+        try:
+            scenes = []
+            for i, s in enumerate(raw_scenes):
+                objects = []
+                for j, o in enumerate(s.get("objects", [])):
+                    objects.append(SceneObject(
+                        id=o.get("id") or f"obj-{i+1}-{j+1}",
+                        name=o["name"],
+                        description=o.get("description", ""),
+                        hidden_clue_ids=o.get("hidden_clue_ids", []),
+                        search_hints=o.get("search_hints", []),
+                    ))
+                scenes.append(Scene(
+                    id=s.get("id") or f"scene-{i+1}",
+                    name=s["name"],
+                    description=s.get("description", ""),
+                    atmosphere_image=s.get("atmosphere_image"),
+                    npc_persona=s.get("npc_persona", ""),
+                    objects=objects,
+                ))
+            logger.info(f"[CaseGeneratorAgent] 解析 scenes 成功 count={len(scenes)}")
+            return scenes
+        except Exception as e:
+            logger.warning(f"[CaseGeneratorAgent] scenes 解析异常，使用 fallback: {e}")
+            return self._build_fallback_scenes(clues)
+
+    def _build_fallback_scenes(self, clues: list) -> list:
+        """
+        当 LLM 不返回 scenes 时，将所有线索平均分配到 2 个 fallback scenes 中。
+        保证非红鲱鱼线索至少在一个 object 的 hidden_clue_ids 中出现。
+        """
+        mid = max(1, len(clues) // 2)
+        first_half = [c.id for c in clues[:mid]]
+        second_half = [c.id for c in clues[mid:]]
+        return [
+            Scene(
+                id="scene-study",
+                name="书房",
+                description="案发现场的书房，线索散落各处",
+                npc_persona="沉默的看守，目睹过一些异常",
+                objects=[
+                    SceneObject(
+                        id="obj-study-1",
+                        name="书桌",
+                        description="宽大的书桌，物品凌乱",
+                        hidden_clue_ids=first_half,
+                        search_hints=["仔细翻查抽屉", "检查桌面文件"],
+                    ),
+                    SceneObject(id="obj-study-2", name="书架", description="满是书籍的书架", hidden_clue_ids=[], search_hints=[]),
+                    SceneObject(id="obj-study-3", name="壁炉", description="冷却的壁炉", hidden_clue_ids=[], search_hints=[]),
+                ],
+            ),
+            Scene(
+                id="scene-living-room",
+                name="客厅",
+                description="宽敞的维多利亚式客厅，光线昏暗",
+                npc_persona="不安的女仆，似乎知道些什么",
+                objects=[
+                    SceneObject(
+                        id="obj-living-1",
+                        name="角落",
+                        description="客厅角落，有些杂物",
+                        hidden_clue_ids=second_half,
+                        search_hints=["检查角落的物品", "注意地板痕迹"],
+                    ),
+                    SceneObject(id="obj-living-2", name="窗户", description="临街的窗户", hidden_clue_ids=[], search_hints=[]),
+                    SceneObject(id="obj-living-3", name="扶手椅", description="皮质扶手椅", hidden_clue_ids=[], search_hints=[]),
+                ],
+            ),
+            Scene(
+                id="scene-kitchen",
+                name="厨房",
+                description="案发当晚有人在此活动的厨房",
+                npc_persona="沉默的厨娘，知晓宅内动向",
+                objects=[
+                    SceneObject(id="obj-kitchen-1", name="操作台", description="石质操作台", hidden_clue_ids=[], search_hints=[]),
+                    SceneObject(id="obj-kitchen-2", name="后门", description="通向后院的铁门", hidden_clue_ids=[], search_hints=[]),
+                    SceneObject(id="obj-kitchen-3", name="茶具柜", description="存放茶具的橱柜", hidden_clue_ids=[], search_hints=[]),
+                ],
+            ),
+        ]
 
 
 # 全局案件生成器实例

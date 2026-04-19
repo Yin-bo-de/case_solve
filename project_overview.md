@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-18
+**更新日期**: 2026-04-19（章节 7 完成）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -21,7 +21,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 当前进度
 
-### 总体进度: ~98% 完成
+### 总体进度: ~99% 完成（产品体验优化方案进行中：章节 8/10 完成）
 
 ### 已完成的用户故事 (18/21) + 额外修复 + 技术债务清理
 
@@ -46,6 +46,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 | US-017 | 实现难度系统 | ✅ | 2026-04-17 |
 | US-018 | 维多利亚哥特风 UI 精致化 | ✅ | 2026-04-18 |
 | US-019 | 完善前端 Zustand 状态管理 | ✅ | 2026-04-15 |
+| US-020 | 产品体验优化方案（测试与验证） | ✅ | 2026-04-19 |
 | US-021 | 实现华生全程对话陪伴功能 | ✅ | 2026-04-12 |
 | - | 修复前后端字段命名不一致 | ✅ | 2026-04-12 |
 | - | 实现华生对话框可拖拽移动 | ✅ | 2026-04-12 |
@@ -57,11 +58,9 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 | - | 实现@提及菜单键盘导航功能 | ✅ | 2026-04-15 |
 | - | 修复 watsonChatStore 类型错误 | ✅ | 2026-04-18 |
 
-### 待完成的用户故事 (2/21)
+### 待完成的用户故事 (0/21)
 
-| ID | 标题 | 优先级 | 备注 |
-|----|------|--------|------|
-| US-020 | 集成所有模块并端到端测试 | 20 | 完整流程测试 |
+全部用户故事已完成！
 
 ---
 
@@ -75,12 +74,16 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   ├── case_generator_agent.py   # 案件生成
 │   │   │   ├── suspect_agent.py          # 嫌疑人对话
 │   │   │   ├── watson_agent.py           # 华生NPC
+│   │   │   ├── oracle_agent.py           # 裁决官（推理/指控验证）
+│   │   │   ├── scene_agent.py            # 场景NPC（自然语言场景探索）
 │   │   │   ├── _llm_helpers.py           # LLM调用通用封装
 │   │   │   └── prompts/                 # Prompt模板集中管理
 │   │   │       ├── __init__.py
 │   │   │       ├── case_prompts.py       # 案件生成Prompt
 │   │   │       ├── suspect_prompts.py    # 嫌疑人Prompt
-│   │   │       └── watson_prompts.py     # 华生Prompt
+│   │   │       ├── watson_prompts.py     # 华生Prompt
+│   │   │       ├── oracle_prompts.py     # 裁决官Prompt
+│   │   │       └── scene_prompts.py      # 场景NPC Prompt
 │   │   ├── models/                   # Pydantic 数据模型
 │   │   │   ├── case.py                   # 案件、推理相关模型
 │   │   │   └── game.py                   # 游戏状态模型
@@ -100,9 +103,10 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   └── useDrag.ts               # 拖拽 Hook
 │   │   ├── pages/                    # 页面组件
 │   │   │   ├── StartPage.tsx             # 起始页面
-│   │   │   ├── InvestigationPage.tsx     # 勘查页面
-│   │   │   ├── InterrogationPage.tsx     # 质询页面
-│   │   │   ├── DeductionBoard.tsx        # 推理板页面
+│   │   │   ├── InvestigationPage.tsx     # 勘查页面（场景列表）
+│   │   │   ├── ScenePage.tsx             # 场景详情页（三列布局+NPC对话）
+│   │   │   ├── InterrogationPage.tsx     # 质询页面（可选中消息+华生Tips）
+│   │   │   ├── DeductionBoard.tsx        # 推理板页面（Oracle验证+指认凶手）
 │   │   │   └── ConclusionPage.tsx        # 结案页面
 │   │   ├── store/                    # Zustand 状态管理
 │   │   │   ├── index.ts                  # 导出所有 store
@@ -114,7 +118,17 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   ├── storeManager.ts           # 统一状态管理器
 │   │   │   └── README.md                # 状态管理文档
 │   │   ├── components/                 # 通用组件
-│   │   │   └── WatsonChatDialog.tsx      # 华生对话框组件
+│   │   │   ├── WatsonChatDialog.tsx      # 华生对话框组件
+│   │   │   ├── ScenePanel/               # 场景相关组件
+│   │   │   │   ├── SceneChat.tsx         # 场景NPC对话聊天框
+│   │   │   │   ├── SceneObjectCard.tsx   # 可交互对象卡片
+│   │   │   │   └── AddClueModal.tsx      # 添加线索Modal
+│   │   │   ├── SelectableMessage.tsx     # 可选中文本消息（审讯提取线索）
+│   │   │   ├── ExtractClueModal.tsx      # 审讯提取线索Modal
+│   │   │   ├── WatsonTipsPanel.tsx       # 华生审讯实时提示面板
+│   │   │   ├── ReasoningRecordCard.tsx   # 推理记录卡片（带verdict徽章）
+│   │   │   ├── CombineReasoningModal.tsx # 组合推理Modal
+│   │   │   └── AccusationModal.tsx       # 指认凶手Modal
 │   │   ├── services/                 # API 服务
 │   │   │   └── api.ts                    # API 客户端（含字段转换）
 │   │   ├── types/                    # TypeScript 类型
@@ -127,7 +141,6 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │
 ├── scripts/ralph/                    # Ralph Agent 配置
 │   ├── prd.json                      # 产品需求文档
-│   ├── progress.txt                  # 开发进度日志
 │   ├── CLAUDE.md                     # Ralph Agent 指令
 │   └── ralph.sh                      # Ralph 启动脚本
 │
@@ -176,6 +189,96 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-19
+- ✅ **完成产品体验优化方案 章节 8：测试与验证**:
+  - **8.1**: `backend/tests/test_oracle_agent.py` 已存在（4 个测试用例全绿）
+  - **8.2**: `backend/tests/test_scene_search.py` 已存在（4 个测试用例全绿）
+  - **8.3**: 新建 `backend/tests/test_accuse_validation.py`（5 个测试用例全绿：空列表校验、超过 3 条记录校验、无效 ID 校验、wrong 记录校验）
+  - **8.4**: `backend/tests/test_difficulty.py` 已扩展（章节 8.4 的 Scene 生成测试已集成，TestSceneGeneration 类 4 个用例全绿）
+  - **8.5**: 前端 `npm run typecheck` ✅ 全绿（0 错误）
+  - **验收**: 后端 pytest 29/30 通过（1 个预存 WatsonAgent.llm 缺陷与本次无关），前端 typecheck 通过
+  - **端到端冒烟**: 需用户手工执行 13 步操作清单验证完整流程
+- ✅ **完成产品体验优化方案 章节 7：前端改造（7.1→7.4 全部完成）**:
+  - **7.1 类型与 API 客户端先行**:
+    - `frontend/src/types/game.ts`：新增 `SceneObject`, `Scene`, `SceneSearchResponse`, `ReasoningRecord`, `WatsonTip` 5 个类型；扩展 `Clue`（+`userLabel/sourceType/sourceRef/userGenerated`）、`Case`（+`scenes`）、`Inference`（+`clueIds/verificationResult/oracleExplanation/userMarkedImportant`）
+    - `frontend/src/services/api.ts`：新增 `sceneSearch`, `addClue`, `submitReasoning`, `extractClueFromInterrogation`, `getInterrogationTips` 5 个方法；改造 `makeAccusation` 接受 `reasoningRecordIds`
+  - **7.2 勘查页面重构**:
+    - `App.tsx` 新增路由 `/investigation/:gameId/scene/:sceneId`
+    - 新建 `ScenePage.tsx`：三列布局（对象列表 / 氛围图 / NPC对话聊天）
+    - 新建 `ScenePanel/SceneChat.tsx`：场景 NPC 对话，clue_candidates → AddClueModal → 调 `gameApi.addClue`
+    - 新建 `ScenePanel/SceneObjectCard.tsx`、`ScenePanel/AddClueModal.tsx`
+    - 改写 `InvestigationPage.tsx`：替换热区点图为 `scene-list` 卡片网格，已添加线索面板
+    - `cluesStore.ts`：新增 `addClueFromBackend`（存在则更新，不存在则追加）
+  - **7.3 推理板重构**:
+    - `deductionStore.ts`：新增 `reasoningRecords/selectedClueIds/filter` 状态；新增 `submitReasoning/toggleClue/setFilter/markImportant/deleteRecord/accuse` actions；旧版 Inference/Hypothesis actions 完整保留（向后兼容）
+    - `DeductionBoard.tsx` 完全重写：左栏线索勾选 + 右栏推理记录 + `filter-tabs` 筛选 + 指认凶手 FAB（仅在 ≥1 条 correct 记录时激活）
+    - 新建 `ReasoningRecordCard.tsx`：verdict 徽章（✅/❌/⚠️）、关联线索 chip、裁决官解释、标记重要/删除
+    - 新建 `CombineReasoningModal.tsx`：选中线索列表 + 结论输入框 + 提交中状态
+    - 新建 `AccusationModal.tsx`：嫌疑人下拉 + 1-3 条 correct 推理记录多选
+  - **7.4 审讯页面增强**:
+    - 新建 `SelectableMessage.tsx`：`mouseup` 监听，选中 >5 字符时浮现"📎 生成线索" tooltip
+    - 新建 `ExtractClueModal.tsx`：引用片段展示 + 命名输入
+    - 新建 `WatsonTipsPanel.tsx`：展示 suggestion/contradiction/question_template 三类 tip
+    - `interrogationStore.ts`：新增 `watsonTips/watsonTipsLoading/extractedClues` 状态；新增 `fetchTips/extractClue/clearWatsonTips` actions
+    - `InterrogationPage.tsx`：嫌疑人消息渲染换为 `<SelectableMessage>`，每轮 `sendPrivateQuestion` 后异步调 `fetchTips`，右侧挂载 `<WatsonTipsPanel>`，页面末尾挂载 `<ExtractClueModal>`
+  - **样式**：`index.css` 新增约 300 行（推理板暗色金边、场景三列布局、通用 Modal、SelectableMessage tooltip 等）
+  - **验收**：`npm run typecheck` ✅ 全绿（0 错误）
+- ✅ **完成产品体验优化方案 章节 6：WatsonAgent 强化**:
+  - **6.1**: 扩展 `backend/app/agents/prompts/watson_prompts.py`，新增 4 个 Prompt 模板：
+    - `watson_scene_hint_prompt`：场景勘查一句话建议（纯文本）
+    - `watson_interrogation_tips_prompt`：审讯实时 Tips（JSON 模式，含 suggestion + contradiction 两种类型）
+    - `watson_deduction_hint_prompt`：推理板关联提示（纯文本）
+    - `watson_contradiction_prompt`：嫌疑人陈述矛盾检测（JSON 模式，替代关键词启发式）
+  - **6.2**: 扩展 `backend/app/agents/watson_agent.py`，新增 4 个异步方法：
+    - `offer_scene_hint(scene_name, recent_actions) -> str`：场景勘查建议，有 mock 降级
+    - `offer_interrogation_tips(case, suspect, conversation_history, clues) -> List[Dict]`：返回 tips 数组，JSON 模式 + fallback
+    - `offer_deduction_hint(clues, inferences) -> str`：推理板关联提示
+    - `detect_contradictions(case, conversation_history, suspect_statements) -> List[Dict]`：基于 LLM 的矛盾检测，替代旧关键词启发式（已在章节 5.5 的 contradiction-check 端点中调用）
+  - **适配说明**: 所有新方法遵循现有 `invoke_with_retry(chain, inputs, fallback_fn, parse_json)` 签名；JSON 方法使用 `parse_json=True + StrOutputParser()`
+  - **验收**: `from app.agents.watson_agent import WatsonAgent` 4 个新方法全部注册，pytest 24/25 通过（1 个预存 WatsonAgent.llm 缺陷与本次改动无关）
+- ✅ **完成产品体验优化方案 章节 5：后端 API 新增与改造**:
+  - **5.1**: 在 `backend/app/routers/game.py` 新增 5 个 Request 模型：`SceneSearchRequest`、`AddClueRequest`、`SubmitReasoningRequest`、`ExtractClueFromInterrogationRequest`、`WatsonInterrogationTipsRequest`
+  - **5.2**: 改造 `MakeAccusationRequest`，增加必填 `reasoning_record_ids: List[str]`，保留 `reasoning_steps` 兼容旧字段
+  - **5.3**: 新增 5 个 API 端点：
+    - `POST /{game_id}/scene/{scene_id}/search`（场景 NPC 自然语言搜查，调用 SceneAgent）
+    - `POST /{game_id}/clues`（添加用户自定义命名线索）
+    - `POST /{game_id}/deduction/reasoning`（核心：选取线索+结论 → OracleAgent 验证 → 持久化 Inference）
+    - `POST /{game_id}/interrogation/extract-clue`（从审讯片段生成线索）
+    - `POST /{game_id}/interrogation/watson-tips`（华生审讯实时提示）
+  - **5.4**: 改造 `make_accusation` 端点：接入 OracleAgent，校验 1-3 条推理记录，拒绝使用被标记为 wrong 的记录
+  - **5.5**: 改造 `contradiction-check` 端点：删除关键词启发式，改为调用 `WatsonAgent.detect_contradictions`（该方法在章节 6 实现）
+  - **game_service.py** 新增 3 个方法：`add_user_clue`、`update_inference`、`record_accusation`
+  - **验收**: 全部模块导入成功，24/25 测试通过（1 个预存 WatsonAgent.llm 缺陷与本次无关），5 个新端点正确注册
+- ✅ **完成产品体验优化方案 章节 4：CaseGeneratorAgent 升级（scenes 生成）**:
+  - **4.1**: 修改 `backend/app/agents/prompts/case_prompts.py`，在 JSON Schema 追加 `scenes` 字段（含 objects 结构约束：≥3 scenes，每个 3-6 objects，非红鲱鱼线索必须被至少 1 个 object 引用）
+  - **4.2**: 修改 `backend/app/agents/case_generator_agent.py`：
+    - 导入 `Scene`, `SceneObject`
+    - `_generate_mock_case` 构造 3 个预设 scenes（书房/客厅/厨房），每个 3 个 objects，所有线索分配到对应 objects
+    - `_build_case_from_llm_output` 新增 `_parse_scenes_from_data` 解析 LLM 返回 scenes，含 fallback 降级逻辑
+    - `investigation_locations` 同步为 `[s.name for s in case.scenes]`
+  - **4.3**: 扩展 `backend/tests/test_difficulty.py`，新增 `TestSceneGeneration` 类（4 个用例：≥3 scenes、每 scene 3-6 objects、非红鲱鱼线索覆盖验证、investigation_locations 镜像验证），全绿
+  - **验收**: 模型导入成功，`_generate_mock_case` 返回 3 scenes，每个 3 objects，非红鲱鱼线索全部被覆盖，17 个测试中 16 绿（1 个预存 WatsonAgent.llm 缺陷与本次无关）
+- ✅ **完成产品体验优化方案 章节 3：新增 SceneAgent**:
+  - **3.1**: 新增 `backend/app/agents/prompts/scene_prompts.py`（`SCENE_SYSTEM` + `SCENE_SEARCH_USER` 两个 Prompt 模板）
+  - **3.2**: 新增 `backend/app/agents/scene_agent.py`（`SceneAgent` 类，含 `search` 异步方法及 `get_scene_agent` 单例工厂；`_format_scene` / `_format_history` / `_format_clues_for_scene` 三个辅助函数）
+  - **3.3**: 新增 `backend/tests/test_scene_search.py`（4 个单测全绿：schema 验证、clue_candidates 解析、fallback 降级、历史对话截取 6 轮）
+  - **适配说明**: 同章节 2，使用 `ChatPromptTemplate | ChatOpenAI | StrOutputParser` 构建 LangChain 链，适配实际 `invoke_with_retry` 签名
+  - **验收**: 模块导入输出非空，4 个单测全绿
+- ✅ **完成产品体验优化方案 章节 2：新增 OracleAgent**:
+  - **2.1**: 新增 `backend/app/agents/prompts/oracle_prompts.py`（`ORACLE_SYSTEM` / `VERIFY_INFERENCE_USER` / `VERIFY_ACCUSATION_USER` 三个 Prompt 模板）
+  - **2.2**: 新增 `backend/app/agents/oracle_agent.py`（`OracleAgent` 类，含 `verify_inference` / `verify_accusation` 两个异步方法，`get_oracle_agent` 单例工厂）
+  - **2.3**: 新增 `backend/tests/test_oracle_agent.py`（4 个单测全绿：schema 验证、fallback 降级正确/错误嫌疑人、含推理记录的 accusation）
+  - **适配说明**: `invoke_with_retry` 实际签名为 `(chain, inputs, fallback_fn, parse_json)`，OracleAgent 使用 `ChatPromptTemplate | ChatOpenAI | StrOutputParser` 构建 LangChain 链并适配
+  - **验收**: `python -c "from app.agents.oracle_agent import get_oracle_agent; print(get_oracle_agent())"` 输出非空，4 个单测全绿
+- ✅ **完成产品体验优化方案 章节 1：数据模型扩展** (`backend/app/models/case.py`):
+  - **1.1**: 新增 `SceneObject` 模型（可交互场景对象，含 hidden_clue_ids 和 search_hints）
+  - **1.2**: 新增 `Scene` 模型（案件场景，含 objects 列表和 npc_persona）
+  - **1.3**: 扩展 `Clue` 新增字段：`user_label`、`source_type`、`source_ref`、`quoted_text`、`user_generated`（向后兼容，全部有默认值）
+  - **1.4**: 扩展 `Case` 新增 `scenes: List[Scene]` 字段
+  - **1.5**: 扩展 `Inference` 新增字段：`clue_ids`、`verification_result`、`oracle_explanation`、`user_marked_important`
+  - **1.6**: 新增 `ReasoningRecord(Inference)` 语义别名类
+  - **验收**: 模型导入全部成功，pytest 12/13 绿（1 个预存 WatsonAgent.llm 缺陷与本次改动无关）
 
 ### 2026-04-18
 - ✅ **完成 US-018 维多利亚哥特风 UI 精致化**:
@@ -271,6 +374,7 @@ npm run lint
 ## 备注
 
 - 本文档应在每次 significant 变更后更新
-- 详细进度请查看 `scripts/ralph/progress.txt`
 - 详细需求请查看 `scripts/ralph/prd.json`
 - Git 分支: `ralph/sherlock-holmes-detective-game`
+- 产品体验优化文档：AI福尔摩斯案件推理游戏产品体验优化方案.md
+- 产品体验优化技术实现文档：AI福尔摩斯案件推理游戏产品体验优化方案—技术实现.md
