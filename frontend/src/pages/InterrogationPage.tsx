@@ -24,11 +24,12 @@ export default function InterrogationPage() {
   const {
     mode,
     setMode,
-    conversationHistory,
+    conversationHistoryBySuspect,
+    selectedSuspectId,
+    getCurrentConversationHistory,
     addConversationMessage,
     lieDetection,
     setLieDetection,
-    clearConversationHistory,
     setSelectedSuspectId,
     groupMessages,
     addGroupMessage,
@@ -84,7 +85,7 @@ export default function InterrogationPage() {
   // 滚动到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversationHistory, groupMessages, addWatsonMessage])
+  }, [conversationHistoryBySuspect, selectedSuspectId, groupMessages, addWatsonMessage])
 
   // 重置选中索引
   useEffect(() => {
@@ -107,7 +108,6 @@ export default function InterrogationPage() {
     console.debug('[InterrogationPage] 选择嫌疑人', { suspectId: suspect.id, suspectName: suspect.name })
     setSelectedSuspect(suspect)
     setSelectedSuspectId(suspect.id)
-    clearConversationHistory()
     setLieDetection(null)
 
     // 华生主动提问
@@ -307,7 +307,7 @@ export default function InterrogationPage() {
       gameId,
       selectedSuspect.id,
       question,
-      conversationHistory,
+      getCurrentConversationHistory(),
       true,
       []
     )
@@ -350,7 +350,8 @@ export default function InterrogationPage() {
 
     // 每轮问答后请求华生提示（异步，不阻塞 UI）
     if (gameId && selectedSuspect) {
-      fetchTips(gameId, selectedSuspect.id, [...conversationHistory, {
+      const currentHistory = getCurrentConversationHistory()
+      fetchTips(gameId, selectedSuspect.id, [...currentHistory, {
         role: 'user', content: question,
       }, { role: 'suspect', content: response.response }])
     }
@@ -363,7 +364,7 @@ export default function InterrogationPage() {
       const clue = await extractClue(gameId, {
         suspectId: selectedSuspect.id,
         quotedText: pendingExtractText,
-        contextMessages: conversationHistory,
+        contextMessages: getCurrentConversationHistory(),
         userLabel,
       })
       addClueFromBackend(clue)
@@ -552,38 +553,41 @@ export default function InterrogationPage() {
               {/* 对话历史 + 华生提示并排 */}
               <div className="conversation-area conversation-area--with-tips">
                 <div className="conversation-messages">
-                  {conversationHistory.length === 0 ? (
-                    <div className="no-messages">
-                      <p>开始询问{selectedSuspect.name}吧。</p>
-                    </div>
-                  ) : (
-                    conversationHistory.map((msg, idx) => (
-                      <div key={idx} className={`message message--${msg.role}`}>
-                        <div className="message-avatar">
-                          {msg.role === 'user' ? '🔍' : selectedSuspect.isGuilty ? '🔪' : '👤'}
-                        </div>
-                        <div className="message-content">
-                          {msg.role === 'suspect' ? (
-                            <SelectableMessage
-                              text={msg.content}
-                              senderName={selectedSuspect.name}
-                              onExtract={(text) => setPendingExtractText(text)}
-                            />
-                          ) : (
-                            <>
-                              <div className="message-sender">你</div>
-                              <div className="message-text">{msg.content}</div>
-                            </>
-                          )}
-                          {msg.timestamp && (
-                            <div className="message-time">
-                              {new Date(msg.timestamp).toLocaleTimeString()}
-                            </div>
-                          )}
-                        </div>
+                  {(() => {
+                    const currentHistory = getCurrentConversationHistory()
+                    return currentHistory.length === 0 ? (
+                      <div className="no-messages">
+                        <p>开始询问{selectedSuspect.name}吧。</p>
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      currentHistory.map((msg, idx) => (
+                        <div key={idx} className={`message message--${msg.role}`}>
+                          <div className="message-avatar">
+                            {msg.role === 'user' ? '🔍' : selectedSuspect.isGuilty ? '🔪' : '👤'}
+                          </div>
+                          <div className="message-content">
+                            {msg.role === 'suspect' ? (
+                              <SelectableMessage
+                                text={msg.content}
+                                senderName={selectedSuspect.name}
+                                onExtract={(text) => setPendingExtractText(text)}
+                              />
+                            ) : (
+                              <>
+                                <div className="message-sender">你</div>
+                                <div className="message-text">{msg.content}</div>
+                              </>
+                            )}
+                            {msg.timestamp && (
+                              <div className="message-time">
+                                {new Date(msg.timestamp).toLocaleTimeString()}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )
+                  })()}
                   {lieDetection && (
                     <div className={`lie-detection lie-detection--${lieDetection.lie_detected ? 'warning' : 'ok'}`}>
                       <div className="lie-detection-icon">

@@ -31,8 +31,9 @@ interface InterrogationStore {
   mode: InterrogationMode
 
   // 密室问话状态
-  conversationHistory: ConversationMessage[]
+  conversationHistoryBySuspect: Record<string, ConversationMessage[]>
   selectedSuspectId: string | null
+  getCurrentConversationHistory: () => ConversationMessage[]
 
   // 全体质询状态
   groupMessages: GroupMessage[]
@@ -92,13 +93,13 @@ interface InterrogationStore {
 export const useInterrogationStore = create<InterrogationStore>()(
   devtools(
     persist(
-      (set) => {
+      (set, get) => {
         console.debug('[interrogationStore] 初始化 store')
 
         return {
           // 初始状态
           mode: 'private',
-          conversationHistory: [],
+          conversationHistoryBySuspect: {},
           selectedSuspectId: null,
           groupMessages: [],
           mentionedSuspects: [],
@@ -119,17 +120,38 @@ export const useInterrogationStore = create<InterrogationStore>()(
 
           // 密室问话 Actions
           addConversationMessage: (message) => {
-            set((state) => ({ conversationHistory: [...state.conversationHistory, message] }))
+            set((state) => {
+              const suspectId = state.selectedSuspectId || 'default'
+              return {
+                conversationHistoryBySuspect: {
+                  ...state.conversationHistoryBySuspect,
+                  [suspectId]: [...(state.conversationHistoryBySuspect[suspectId] || []), message],
+                },
+              }
+            })
             console.info('[interrogationStore] 添加对话消息', { role: message.role })
           },
 
           setConversationHistory: (messages) => {
-            set({ conversationHistory: messages })
+            set((state) => {
+              const suspectId = state.selectedSuspectId || 'default'
+              return {
+                conversationHistoryBySuspect: {
+                  ...state.conversationHistoryBySuspect,
+                  [suspectId]: messages,
+                },
+              }
+            })
             console.debug('[interrogationStore] 设置对话历史', { count: messages.length })
           },
 
           clearConversationHistory: () => {
-            set({ conversationHistory: [] })
+            set((state) => {
+              const suspectId = state.selectedSuspectId || 'default'
+              const next = { ...state.conversationHistoryBySuspect }
+              delete next[suspectId]
+              return { conversationHistoryBySuspect: next }
+            })
             console.info('[interrogationStore] 清空对话历史')
           },
 
@@ -146,12 +168,23 @@ export const useInterrogationStore = create<InterrogationStore>()(
           },
 
           clearPrivateInterrogation: () => {
-            set({
-              conversationHistory: [],
-              selectedSuspectId: null,
-              lieDetection: null,
+            set((state) => {
+              const suspectId = state.selectedSuspectId || 'default'
+              const next = { ...state.conversationHistoryBySuspect }
+              delete next[suspectId]
+              return {
+                conversationHistoryBySuspect: next,
+                selectedSuspectId: null,
+                lieDetection: null,
+              }
             })
             console.info('[interrogationStore] 清空单独审讯状态')
+          },
+
+          getCurrentConversationHistory: () => {
+            const state = get()
+            const suspectId = state.selectedSuspectId || 'default'
+            return state.conversationHistoryBySuspect[suspectId] || []
           },
 
           // 全体质询 Actions
@@ -271,7 +304,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
           resetAll: () => {
             set({
               mode: 'private',
-              conversationHistory: [],
+              conversationHistoryBySuspect: {},
               selectedSuspectId: null,
               groupMessages: [],
               mentionedSuspects: [],
@@ -293,7 +326,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
         storage: createJSONStorage(() => createGameScopedStorage('interrogation-store')),
         partialize: (state) => ({
           mode: state.mode,
-          conversationHistory: state.conversationHistory,
+          conversationHistoryBySuspect: state.conversationHistoryBySuspect,
           selectedSuspectId: state.selectedSuspectId,
           groupMessages: state.groupMessages,
           mentionedSuspects: state.mentionedSuspects,

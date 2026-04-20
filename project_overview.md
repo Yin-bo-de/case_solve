@@ -191,6 +191,21 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
+### 2026-04-20（审讯页面聊天记录持久化修复）
+- ✅ **修复 interrogationStore 聊天记录存储结构** (`frontend/src/store/interrogationStore.ts`):
+  - 将 `conversationHistory: ConversationMessage[]` 改为 `conversationHistoryBySuspect: Record<string, ConversationMessage[]>`
+  - 新增 `getCurrentConversationHistory: () => ConversationMessage[]` 方法
+  - 修改 `addConversationMessage`/`setConversationHistory`/`clearConversationHistory` 方法，改为按嫌疑人存储
+  - 修改 `clearPrivateInterrogation`/`resetAll` 方法，适配新结构
+  - 修改 `persist` 配置，持久化 `conversationHistoryBySuspect`
+- ✅ **修复 InterrogationPage 切换嫌疑人聊天记录丢失** (`frontend/src/pages/InterrogationPage.tsx`):
+  - 从 store 中获取 `conversationHistoryBySuspect`、`selectedSuspectId`、`getCurrentConversationHistory`
+  - 移除 `handleSuspectSelect` 中的 `clearConversationHistory()` 调用
+  - 使用 `getCurrentConversationHistory()` 获取当前嫌疑人的对话历史
+  - 修改 useEffect 依赖项，使用 `conversationHistoryBySuspect` 和 `selectedSuspectId`
+- ✅ **验收**: `npm run typecheck` ✅ 全绿（0 错误）
+- ✅ **效果**: 每个嫌疑人的对话记录独立存储，切换嫌疑人时保留之前的聊天记录
+
 ### 2026-04-19（场景搜查对话会话级持久化）
 - ✅ **新增 sceneChatStore 状态管理** (`frontend/src/store/sceneChatStore.ts`):
   - 新增 `SceneChatMessage` 接口（`role`/`content`/`candidates`）
