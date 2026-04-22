@@ -712,7 +712,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(201,160,92,0.4) transparent;
 }
+.clue-list::-webkit-scrollbar { width: 5px; }
+.clue-list::-webkit-scrollbar-track { background: transparent; }
+.clue-list::-webkit-scrollbar-thumb { background: rgba(201,160,92,0.4); border-radius: 3px; }
+.clue-list::-webkit-scrollbar-thumb:hover { background: rgba(201,160,92,0.7); }
 
 .clue-item {
   background:
@@ -2800,8 +2809,8 @@ body {
   border-bottom: 1px solid rgba(201,160,92,0.15);
   font-size: 0.9rem; color: #ccc; line-height: 1.6;
 }
-.discovered-clues-panel { padding: 1rem 2rem; border-top: 1px solid rgba(201,160,92,0.15); }
-.discovered-clues-panel h2 { color: #c9a05c; font-size: 1rem; margin-bottom: 0.75rem; }
+.discovered-clues-panel { padding: 1rem 2rem; border-top: 1px solid rgba(201,160,92,0.15); display: flex; flex-direction: column; min-height: 0; }
+.discovered-clues-panel h2 { color: #c9a05c; font-size: 1rem; margin-bottom: 0.75rem; flex-shrink: 0; }
 
 /* ═══════════════════════════════════════════════════════
    通用 Modal

@@ -416,10 +416,19 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ## 下一步开发建议
 
 ### 待解决的问题
-- watson-tips-panel__header的提示内容，需要重新考虑是在华生npc中还是保持单独弄一个提示组件
+- [P2] watson-tips-panel__header的提示内容，需要重新考虑是在华生npc中还是保持单独弄一个提示组件
 - 华生当前没有获取到用户在当前游戏中已经发现的线索、审讯的聊天记录、
 - 密室问话场景下，当嫌疑人A在生成消息的过程中，如果用户切换嫌疑人B，嫌疑人A的消息会出现在嫌疑人B的聊天窗口下。
-
+- 在investigation页面的某个场景中，自己主动选中文字添加线索后，回到场景勘查页面，该场景scene-card__badge的线索数量显示不对，没有算上手动选中文字添加的线索数量
+- 华生总结的线索和已经发现的线索不一致，华生返回的内容如下：{
+    "message": "已得线索七项：死者衣袋中之怀表停于三时四分；现场地板有靴痕，深浅不一；壁炉旁发现沾血之断刀；死者左腕有勒痕；壁炉灰烬中检出异乡烟草残渣；窗外马车辙印指向北行；死者书桌上留有未竟之信函。",
+    "message_type": "clue_discussion"
+}，后端日志：2026-04-22 00:57:08.103 | INFO     | app.agents.watson_agent:chat:343 - [WatsonAgent] 收到用户消息: 总结一下已发现的线索...
+2026-04-22 00:57:08.104 | INFO     | app.agents.watson_agent:chat:347 - [WatsonAgent] 消息类型: clue_discussion
+2026-04-22 00:57:09.638 | INFO     | app.agents._llm_helpers:invoke_with_retry:39 - [LLMHelper] 调用成功 (attempt=1, elapsed=1.53s)
+2026-04-22 00:57:09.639 | INFO     | app.services.game_service:add_watson_chat_message:535 - [GameService] 添加华生对话消息: 1a096747-b7b6-408f-a626-dbda2423076f -> watson
+2026-04-22 00:57:09.639 | INFO     | app.routers.game:chat_with_watson:797 - [API] 华生回复生成成功: 1a096747-b7b6-408f-a626-dbda2423076f, 类型: clue_discussion
+- deduction页面的线索列表，点击线索需要支持预览线索详细内容
 ---
 
 ## 开发命令参考
