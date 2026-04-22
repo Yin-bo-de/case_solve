@@ -550,9 +550,35 @@ class GameService:
         # 统计线索数量
         clues_collected = 0
         current_clue_ids = []
+        current_clues = []
+        available_scenes = []
+        suspects = []
         if game.case:
             clues_collected = len([c for c in game.case.clues if c.discovered])
             current_clue_ids = [c.id for c in game.case.clues if c.discovered]
+            current_clues = [
+                {
+                    "id": c.id,
+                    "label": c.user_label or "未命名线索",
+                    "description": c.description,
+                }
+                for c in game.case.clues if c.discovered
+            ]
+            available_scenes = [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "description": s.description,
+                }
+                for s in game.case.scenes
+            ]
+            suspects = [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                }
+                for s in game.case.suspects
+            ]
 
         # 统计嫌疑人
         current_suspect_ids = []
@@ -567,7 +593,10 @@ class GameService:
             inferences_count=len(chain.inferences),
             hypotheses_count=len(chain.hypotheses),
             current_clue_ids=current_clue_ids,
-            current_suspect_ids=current_suspect_ids
+            current_suspect_ids=current_suspect_ids,
+            current_clues=current_clues,
+            available_scenes=available_scenes,
+            suspects=suspects,
         )
 
 

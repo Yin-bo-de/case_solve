@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-23（修复审讯切换嫌疑人消息错乱 + 打字动画隔离）
+**更新日期**: 2026-04-23（修复华生 Agent 线索与场景信息链路）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -191,6 +191,16 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-23（修复华生 Agent 线索与场景信息链路）
+- ✅ **修复华生自由对话无法获取具体线索和场景信息的问题**：
+  - **根因**: `WatsonChatContext` 模型只传递了统计数字（`clues_collected=3`）和 ID 列表，LLM system prompt 中完全没有注入具体的线索内容、场景列表和嫌疑人信息。导致用户问"总结线索"或"有哪些场景"时，LLM 只能凭模糊的案件概要瞎编。
+  - **修复步骤1**: 扩展 `backend/app/models/game.py` 的 `WatsonChatContext`，新增 `current_clues`（已发现线索列表，含 id/label/description）、`available_scenes`（可勘查场景列表，含 id/name/description）、`suspects`（嫌疑人列表，含 id/name）三个字段。
+  - **修复步骤2**: 修改 `backend/app/services/game_service.py` 的 `build_watson_chat_context()`，从 `game.case.clues` / `game.case.scenes` / `game.case.suspects` 提取具体数据填充到上述新字段。
+  - **修复步骤3**: 修改 `backend/app/agents/prompts/watson_prompts.py` 的 `WATSON_CHAT_SYSTEM`，在 system prompt 中新增 `{current_clues_block}`、`{available_scenes_block}`、`{suspects_block}` 三个动态变量段，并明确要求 LLM"基于上面列出的具体信息回答，不要编造"。
+  - **修复步骤4**: 修改 `backend/app/agents/watson_agent.py` 的 `_generate_response()`，将 context 中的线索、场景、嫌疑人数据格式化为 `"- 标签：描述"` 字符串块并注入 prompt 输入。
+  - **验证**: 后端 `py_compile` 全绿；创建测试游戏 → 添加线索 → 调用 `/watson/chat`，华生准确总结了"酒杯指纹"和"威胁信"两条线索；询问场景时准确列出了"格雷珠宝行办公室"、"死者住所"、"印度宝石供应商办公室"三个场景。
+  - **影响范围**: 仅影响 `/api/game/{game_id}/watson/chat` 自由对话体验，不影响审讯提示、矛盾检测、推理反馈等其他 API（这些接口已单独传入 `clues`/`case` 数据）。
 
 ### 2026-04-23（修复场景线索数量角标）
 - ✅ **修复 cluesStore.ts mergeClues 函数** (`frontend/src/store/cluesStore.ts`):
@@ -452,18 +462,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ### 待解决的问题
 - [P2] watson-tips-panel__header的提示内容，需要重新考虑是在华生npc中还是保持单独弄一个提示组件
-- 华生当前没有获取到用户在当前游戏中已经发现的线索、审讯的聊天记录、
-- ~~密室问话场景下，当嫌疑人A在生成消息的过程中，如果用户切换嫌疑人B，嫌疑人A的消息会出现在嫌疑人B的聊天窗口下。~~ ✅ 已修复（2026-04-23）
-- ~~密室问话场景下，嫌疑人A生成消息过程中的打字动画未按嫌疑人隔离，切换后会在嫌疑人B窗口显示。~~ ✅ 已修复（2026-04-23）
-- 华生总结的线索和已经发现的线索不一致，华生返回的内容如下：{
-    "message": "已得线索七项：死者衣袋中之怀表停于三时四分；现场地板有靴痕，深浅不一；壁炉旁发现沾血之断刀；死者左腕有勒痕；壁炉灰烬中检出异乡烟草残渣；窗外马车辙印指向北行；死者书桌上留有未竟之信函。",
-    "message_type": "clue_discussion"
-}，后端日志：2026-04-22 00:57:08.103 | INFO     | app.agents.watson_agent:chat:343 - [WatsonAgent] 收到用户消息: 总结一下已发现的线索...
-2026-04-22 00:57:08.104 | INFO     | app.agents.watson_agent:chat:347 - [WatsonAgent] 消息类型: clue_discussion
-2026-04-22 00:57:09.638 | INFO     | app.agents._llm_helpers:invoke_with_retry:39 - [LLMHelper] 调用成功 (attempt=1, elapsed=1.53s)
-2026-04-22 00:57:09.639 | INFO     | app.services.game_service:add_watson_chat_message:535 - [GameService] 添加华生对话消息: 1a096747-b7b6-408f-a626-dbda2423076f -> watson
-2026-04-22 00:57:09.639 | INFO     | app.routers.game:chat_with_watson:797 - [API] 华生回复生成成功: 1a096747-b7b6-408f-a626-dbda2423076f, 类型: clue_discussion
-- ~~deduction页面的线索列表，点击线索需要支持预览线索详细内容~~ ✅ 已完成（2026-04-22）
+- 华生当前没有获取到用户在当前游戏中审讯的聊天记录（自由对话 prompt 中未注入审讯历史，未来可按需扩展）
 ---
 
 ## 开发命令参考

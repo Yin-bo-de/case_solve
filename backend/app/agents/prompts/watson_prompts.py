@@ -170,9 +170,18 @@ WATSON_CHAT_SYSTEM = """\
 - 推理数量：{inferences_count}
 - 假设数量：{hypotheses_count}
 
+已发现的线索：
+{current_clues_block}
+
+可勘查的场景：
+{available_scenes_block}
+
+案件中的嫌疑人：
+{suspects_block}
+
 案件概要：{case_summary}
 
-用维多利亚时代中文回复，根据消息类型给出恰当响应（指导/分析/知识/鼓励等）。回复简短。
+用维多利亚时代中文回复，根据消息类型给出恰当响应（指导/分析/知识/鼓励等）。回复简短。当玩家询问线索或场景时，请基于上面列出的具体信息回答，不要编造。
 """
 
 WATSON_CHAT_HUMAN = "{user_message}"

@@ -418,6 +418,19 @@ class WatsonAgent:
             # 走原有 mock 分支
             return await self._mock_generate_response(message, message_type, context)
 
+        # 格式化线索、场景、嫌疑人信息块
+        clues_block = "\n".join(
+            f"- {c['label']}：{c['description']}" for c in context.current_clues
+        ) if context.current_clues else "（尚无线索）"
+
+        scenes_block = "\n".join(
+            f"- {s['name']}：{s['description']}" for s in context.available_scenes
+        ) if context.available_scenes else "（暂无场景信息）"
+
+        suspects_block = "\n".join(
+            f"- {s['name']}" for s in context.suspects
+        ) if context.suspects else "（暂无嫌疑人信息）"
+
         # 统一走 watson_chat_prompt + LLM
         chain = watson_chat_prompt | self.llm
         suspects_str = "、".join(context.suspects_interviewed) if context.suspects_interviewed else "无"
@@ -430,6 +443,9 @@ class WatsonAgent:
                 "suspects_interviewed": suspects_str,
                 "inferences_count": context.inferences_count,
                 "hypotheses_count": context.hypotheses_count,
+                "current_clues_block": clues_block,
+                "available_scenes_block": scenes_block,
+                "suspects_block": suspects_block,
                 "case_summary": "正在进行中的谋杀案调查",
                 "user_message": message,
             },

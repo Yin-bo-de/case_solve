@@ -53,6 +53,9 @@ class WatsonChatContext(BaseModel):
     current_clue_ids: List[str] = []
     current_suspect_ids: List[str] = []
     recent_conversation_summary: Optional[str] = None
+    current_clues: List[Dict[str, str]] = Field(default_factory=list)
+    available_scenes: List[Dict[str, str]] = Field(default_factory=list)
+    suspects: List[Dict[str, str]] = Field(default_factory=list)
 
 
 class GameState(BaseModel):
