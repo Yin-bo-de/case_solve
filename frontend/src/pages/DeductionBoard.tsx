@@ -113,23 +113,23 @@ export default function DeductionBoard() {
               尚无线索，请先在场景中探查或审讯嫌疑人。
             </p>
           ) : (
-            <ul className="clue-checkbox-list">
+            <ul className="clue-list clue-list--deduction">
               {clues.map((c) => (
                 <li
                   key={c.id}
-                  className={`clue-checkbox-item ${selectedClueIds.includes(c.id) ? 'clue-checkbox-item--selected' : ''} ${previewedClueId === c.id ? 'clue-checkbox-item--previewed' : ''}`}
+                  className={`clue-item clue-item--deduction ${selectedClueIds.includes(c.id) ? 'clue-item--selected' : ''} ${previewedClueId === c.id ? 'clue-item--previewed' : ''} ${c.isRedHerring ? 'clue-item--red-herring' : ''}`}
                   onClick={() => setPreviewedClueId(c.id)}
                 >
                   <span
-                    className="clue-checkbox-item__check"
+                    className="clue-item__check"
                     onClick={(e) => { e.stopPropagation(); toggleClue(c.id) }}
                   >
                     {selectedClueIds.includes(c.id) ? '☑' : '☐'}
                   </span>
-                  <span className="clue-checkbox-item__label">
+                  <span className="clue-item__label">
                     {c.userLabel || c.description.substring(0, 30)}
                   </span>
-                  <span className="clue-checkbox-item__source">
+                  <span className="clue-item__source">
                     {c.sourceType === 'scene' ? '📍' : c.sourceType === 'interrogation' ? '🗣' : '📋'}
                   </span>
                 </li>
