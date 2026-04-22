@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-23（修复场景卡片 badge 手动线索计数不更新）
+**更新日期**: 2026-04-23（修复审讯切换嫌疑人消息错乱 + 打字动画隔离）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -192,11 +192,23 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
-### 2026-04-23（修复场景卡片 badge 手动线索计数不更新）
+### 2026-04-23（修复场景线索数量角标）
 - ✅ **修复 cluesStore.ts mergeClues 函数** (`frontend/src/store/cluesStore.ts`):
   - 原 `mergeClues` 只追加新线索（按 id 判重），不更新已有线索
   - 当 `useGameSessionSync` revalidate 时，已有线索被跳过，无法修复内存中可能缺失的 `sourceType`/`sourceRef`
   - 改为"合并更新"模式：既添加新线索，也用后端数据更新已有线索，确保字段完整
+- ✅ **验收**: `npm run typecheck` ✅ 全绿（0 错误）
+
+### 2026-04-23（修复审讯切换嫌疑人消息错乱 + 打字动画隔离）
+- ✅ **修复密室问话消息归属错乱** (`frontend/src/store/interrogationStore.ts` + `frontend/src/pages/InterrogationPage.tsx`):
+  - **根因**: `addConversationMessage` 使用当前 `selectedSuspectId` 存储消息，API 异步期间用户切换嫌疑人后，响应消息被写入新嫌疑人历史
+  - **修复**: `addConversationMessage`/`setConversationHistory`/`getCurrentConversationHistory`/`clearConversationHistory` 均支持传入可选 `suspectId` 参数
+  - `sendPrivateQuestion` 发请求前缓存 `targetSuspectId`，后续所有消息添加、API 传参、`fetchTips` 调用均使用缓存值
+  - `handleExtractConfirm` 同样缓存嫌疑人ID，避免模态框打开期间切换导致上下文错乱
+- ✅ **修复打字动画未按嫌疑人隔离** (`frontend/src/pages/InterrogationPage.tsx`):
+  - **根因**: `isProcessing` 是全局布尔状态，切换嫌疑人后 A 的生成动画会显示在 B 的窗口中
+  - **修复**: 新增 `processingSuspectId` 状态，单独审讯时设为 `targetSuspectId`，全体质询时设为 `'group'`
+  - 渲染打字动画条件改为：`isProcessing && processingSuspectId === selectedSuspect?.id`（单独）或 `=== 'group'`（全体）
 - ✅ **验收**: `npm run typecheck` ✅ 全绿（0 错误）
 
 ### 2026-04-22（推理页面线索预览弹窗）
@@ -441,7 +453,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ### 待解决的问题
 - [P2] watson-tips-panel__header的提示内容，需要重新考虑是在华生npc中还是保持单独弄一个提示组件
 - 华生当前没有获取到用户在当前游戏中已经发现的线索、审讯的聊天记录、
-- 密室问话场景下，当嫌疑人A在生成消息的过程中，如果用户切换嫌疑人B，嫌疑人A的消息会出现在嫌疑人B的聊天窗口下。
+- ~~密室问话场景下，当嫌疑人A在生成消息的过程中，如果用户切换嫌疑人B，嫌疑人A的消息会出现在嫌疑人B的聊天窗口下。~~ ✅ 已修复（2026-04-23）
+- ~~密室问话场景下，嫌疑人A生成消息过程中的打字动画未按嫌疑人隔离，切换后会在嫌疑人B窗口显示。~~ ✅ 已修复（2026-04-23）
 - 华生总结的线索和已经发现的线索不一致，华生返回的内容如下：{
     "message": "已得线索七项：死者衣袋中之怀表停于三时四分；现场地板有靴痕，深浅不一；壁炉旁发现沾血之断刀；死者左腕有勒痕；壁炉灰烬中检出异乡烟草残渣；窗外马车辙印指向北行；死者书桌上留有未竟之信函。",
     "message_type": "clue_discussion"

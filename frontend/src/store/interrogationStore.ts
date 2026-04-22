@@ -33,7 +33,7 @@ interface InterrogationStore {
   // 密室问话状态
   conversationHistoryBySuspect: Record<string, ConversationMessage[]>
   selectedSuspectId: string | null
-  getCurrentConversationHistory: () => ConversationMessage[]
+  getCurrentConversationHistory: (suspectId?: string) => ConversationMessage[]
 
   // 全体质询状态
   groupMessages: GroupMessage[]
@@ -50,9 +50,9 @@ interface InterrogationStore {
   setMode: (mode: InterrogationMode) => void
 
   // Actions - 密室问话
-  addConversationMessage: (message: ConversationMessage) => void
-  setConversationHistory: (messages: ConversationMessage[]) => void
-  clearConversationHistory: () => void
+  addConversationMessage: (message: ConversationMessage, suspectId?: string) => void
+  setConversationHistory: (messages: ConversationMessage[], suspectId?: string) => void
+  clearConversationHistory: (suspectId?: string) => void
   setSelectedSuspectId: (suspectId: string | null) => void
   setLieDetection: (detection: LieDetectionResult | null) => void
   clearPrivateInterrogation: () => void
@@ -119,9 +119,9 @@ export const useInterrogationStore = create<InterrogationStore>()(
           },
 
           // 密室问话 Actions
-          addConversationMessage: (message) => {
+          addConversationMessage: (message, targetSuspectId) => {
             set((state) => {
-              const suspectId = state.selectedSuspectId || 'default'
+              const suspectId = targetSuspectId || state.selectedSuspectId || 'default'
               return {
                 conversationHistoryBySuspect: {
                   ...state.conversationHistoryBySuspect,
@@ -129,12 +129,12 @@ export const useInterrogationStore = create<InterrogationStore>()(
                 },
               }
             })
-            console.info('[interrogationStore] 添加对话消息', { role: message.role })
+            console.info('[interrogationStore] 添加对话消息', { role: message.role, suspectId: targetSuspectId })
           },
 
-          setConversationHistory: (messages) => {
+          setConversationHistory: (messages, targetSuspectId) => {
             set((state) => {
-              const suspectId = state.selectedSuspectId || 'default'
+              const suspectId = targetSuspectId || state.selectedSuspectId || 'default'
               return {
                 conversationHistoryBySuspect: {
                   ...state.conversationHistoryBySuspect,
@@ -142,17 +142,17 @@ export const useInterrogationStore = create<InterrogationStore>()(
                 },
               }
             })
-            console.debug('[interrogationStore] 设置对话历史', { count: messages.length })
+            console.debug('[interrogationStore] 设置对话历史', { count: messages.length, suspectId: targetSuspectId })
           },
 
-          clearConversationHistory: () => {
+          clearConversationHistory: (targetSuspectId) => {
             set((state) => {
-              const suspectId = state.selectedSuspectId || 'default'
+              const suspectId = targetSuspectId || state.selectedSuspectId || 'default'
               const next = { ...state.conversationHistoryBySuspect }
               delete next[suspectId]
               return { conversationHistoryBySuspect: next }
             })
-            console.info('[interrogationStore] 清空对话历史')
+            console.info('[interrogationStore] 清空对话历史', { suspectId: targetSuspectId })
           },
 
           setSelectedSuspectId: (suspectId) => {
@@ -181,9 +181,9 @@ export const useInterrogationStore = create<InterrogationStore>()(
             console.info('[interrogationStore] 清空单独审讯状态')
           },
 
-          getCurrentConversationHistory: () => {
+          getCurrentConversationHistory: (targetSuspectId) => {
             const state = get()
-            const suspectId = state.selectedSuspectId || 'default'
+            const suspectId = targetSuspectId || state.selectedSuspectId || 'default'
             return state.conversationHistoryBySuspect[suspectId] || []
           },
 

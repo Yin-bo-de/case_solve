@@ -53,6 +53,8 @@ export default function InterrogationPage() {
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
   const [question, setQuestion] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  // 记录当前正在生成回复的嫌疑人ID，防止切换嫌疑人后看到错误的打字动画
+  const [processingSuspectId, setProcessingSuspectId] = useState<string | null>(null)
   // 待提取线索的引用文本
   const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
@@ -287,6 +289,7 @@ export default function InterrogationPage() {
       setError(err instanceof Error ? err.message : '发送问题失败')
     } finally {
       setIsProcessing(false)
+      setProcessingSuspectId(null)
     }
   }
 
@@ -294,41 +297,47 @@ export default function InterrogationPage() {
   const sendPrivateQuestion = async () => {
     if (!gameId || !selectedSuspect) return
 
+    // 缓存目标嫌疑人ID，防止异步请求期间用户切换导致消息错乱
+    const targetSuspectId = selectedSuspect.id
+    const targetSuspectName = selectedSuspect.name
+    setProcessingSuspectId(targetSuspectId)
+
     // 添加用户问题到对话历史
     const userMessage: ConversationMessage = {
       role: 'user',
       content: question,
       timestamp: new Date().toISOString(),
     }
-    addConversationMessage(userMessage)
+    addConversationMessage(userMessage, targetSuspectId)
 
-    // 调用API
+    // 调用API（使用缓存的嫌疑人ID和历史，避免切换后读取错误）
+    const historyBeforeApi = getCurrentConversationHistory(targetSuspectId)
     const response = await gameApi.askSuspectQuestion(
       gameId,
-      selectedSuspect.id,
+      targetSuspectId,
       question,
-      getCurrentConversationHistory(),
+      historyBeforeApi,
       true,
       []
     )
 
-    // 添加嫌疑人回复到对话历史
+    // 添加嫌疑人回复到对话历史（仍使用缓存的嫌疑人ID）
     const suspectMessage: ConversationMessage = {
       role: 'suspect',
       content: response.response,
       timestamp: new Date().toISOString(),
     }
-    addConversationMessage(suspectMessage)
+    addConversationMessage(suspectMessage, targetSuspectId)
 
     // 设置谎言检测结果（响应拦截器已转换为 camelCase）
     const newLieDetection = response.lieDetection ?? null
     setLieDetection(newLieDetection)
 
-    // 华生评论（添加防御性检查）
+    // 华生评论（使用缓存的嫌疑人信息）
     if (newLieDetection && newLieDetection.lieDetected && newLieDetection.microexpression) {
       setTimeout(() => {
         addWatsonMessage(
-          `你注意到了吗？${selectedSuspect.name}${newLieDetection.microexpression}。我觉得${newLieDetection.notes || '这里有点可疑'}。`,
+          `你注意到了吗？${targetSuspectName}${newLieDetection.microexpression}。我觉得${newLieDetection.notes || '这里有点可疑'}。`,
           'suspect_analysis'
         )
       }, 800)
@@ -349,22 +358,22 @@ export default function InterrogationPage() {
     setQuestion('')
 
     // 每轮问答后请求华生提示（异步，不阻塞 UI）
-    if (gameId && selectedSuspect) {
-      const currentHistory = getCurrentConversationHistory()
-      fetchTips(gameId, selectedSuspect.id, [...currentHistory, {
-        role: 'user', content: question,
-      }, { role: 'suspect', content: response.response }])
-    }
+    const currentHistory = getCurrentConversationHistory(targetSuspectId)
+    fetchTips(gameId, targetSuspectId, [...currentHistory, {
+      role: 'user', content: question,
+    }, { role: 'suspect', content: response.response }])
   }
 
   // 处理从嫌疑人消息中提取线索
   const handleExtractConfirm = async (userLabel: string) => {
     if (!gameId || !selectedSuspect || !pendingExtractText) return
+    // 缓存目标嫌疑人，防止模态框打开期间切换导致上下文错乱
+    const targetSuspectId = selectedSuspect.id
     try {
       const clue = await extractClue(gameId, {
-        suspectId: selectedSuspect.id,
+        suspectId: targetSuspectId,
         quotedText: pendingExtractText,
-        contextMessages: getCurrentConversationHistory(),
+        contextMessages: getCurrentConversationHistory(targetSuspectId),
         userLabel,
       })
       addClueFromBackend(clue)
@@ -379,6 +388,7 @@ export default function InterrogationPage() {
   // 发送全体质询问题
   const sendGroupQuestion = async () => {
     if (!gameId || !gameState?.case?.suspects) return
+    setProcessingSuspectId('group')
 
     // 解析@提及的嫌疑人
     const mentionedSuspectIds: string[] = []
@@ -609,7 +619,7 @@ export default function InterrogationPage() {
                       </div>
                     </div>
                   )}
-                  {isProcessing && (
+                  {isProcessing && processingSuspectId === selectedSuspect?.id && (
                     <div className="message message--suspect">
                       <div className="message-avatar">
                         {selectedSuspect.isGuilty ? '🔪' : '👤'}
@@ -754,7 +764,7 @@ export default function InterrogationPage() {
                       </div>
                     ))
                   )}
-                  {isProcessing && (
+                  {isProcessing && processingSuspectId === 'group' && (
                     <div className="message message--suspect">
                       <div className="message-avatar">👤</div>
                       <div className="message-content">
