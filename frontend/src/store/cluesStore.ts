@@ -103,11 +103,28 @@ export const useCluesStore = create<CluesStore>()(
         mergeClues: (incoming: Clue[]) => {
           if (!incoming || incoming.length === 0) return
           set((state) => {
-            const existingIds = new Set(state.clues.map((c) => c.id))
-            const toAdd = incoming.filter((c) => !existingIds.has(c.id))
-            if (toAdd.length === 0) return state
-            console.info('[cluesStore] 合并后端线索', { incoming: incoming.length, added: toAdd.length })
-            return { clues: [...state.clues, ...toAdd] }
+            const incomingMap = new Map(incoming.map((c) => [c.id, c]))
+            let changed = false
+
+            // 更新已有线索（后端数据补充缺失字段，如 sourceType/sourceRef）
+            const updated = state.clues.map((existing) => {
+              const inc = incomingMap.get(existing.id)
+              if (!inc) return existing
+              incomingMap.delete(existing.id)
+              const merged = { ...existing, ...inc }
+              changed = true
+              return merged
+            })
+
+            // 追加全新线索
+            for (const c of incomingMap.values()) {
+              updated.push(c)
+              changed = true
+            }
+
+            if (!changed) return state
+            console.info('[cluesStore] 合并线索', { incoming: incoming.length, result: updated.length })
+            return { clues: updated }
           })
         },
 
