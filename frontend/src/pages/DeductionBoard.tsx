@@ -6,6 +6,7 @@ import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 import CombineReasoningModal from '@/components/CombineReasoningModal'
 import AccusationModal from '@/components/AccusationModal'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
+import CluePreviewModal from '@/components/CluePreviewModal'
 
 console.debug('[DeductionBoard.tsx] 加载模块')
 
@@ -30,6 +31,7 @@ export default function DeductionBoard() {
 
   const [showCombineModal, setShowCombineModal] = useState(false)
   const [showAccuseModal, setShowAccuseModal] = useState(false)
+  const [previewedClueId, setPreviewedClueId] = useState<string | null>(null)
 
   console.debug('[DeductionBoard.tsx] 渲染', { gameId, clueCount: clues.length, recordCount: reasoningRecords.length })
 
@@ -49,6 +51,11 @@ export default function DeductionBoard() {
   const selectedClues = useMemo(
     () => clues.filter((c) => selectedClueIds.includes(c.id)),
     [clues, selectedClueIds]
+  )
+
+  const previewedClue = useMemo(
+    () => clues.find((c) => c.id === previewedClueId) ?? null,
+    [clues, previewedClueId]
   )
 
   const handleSubmitReasoning = useCallback(
@@ -110,10 +117,13 @@ export default function DeductionBoard() {
               {clues.map((c) => (
                 <li
                   key={c.id}
-                  className={`clue-checkbox-item ${selectedClueIds.includes(c.id) ? 'clue-checkbox-item--selected' : ''}`}
-                  onClick={() => toggleClue(c.id)}
+                  className={`clue-checkbox-item ${selectedClueIds.includes(c.id) ? 'clue-checkbox-item--selected' : ''} ${previewedClueId === c.id ? 'clue-checkbox-item--previewed' : ''}`}
+                  onClick={() => setPreviewedClueId(c.id)}
                 >
-                  <span className="clue-checkbox-item__check">
+                  <span
+                    className="clue-checkbox-item__check"
+                    onClick={(e) => { e.stopPropagation(); toggleClue(c.id) }}
+                  >
                     {selectedClueIds.includes(c.id) ? '☑' : '☐'}
                   </span>
                   <span className="clue-checkbox-item__label">
@@ -215,6 +225,13 @@ export default function DeductionBoard() {
       )}
 
       <WatsonChatDialog gameId={gameId!} />
+
+      {previewedClue && (
+        <CluePreviewModal
+          clue={previewedClue}
+          onClose={() => setPreviewedClueId(null)}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-19（场景搜查对话会话级持久化）
+**更新日期**: 2026-04-22（推理页面线索预览弹窗）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -119,6 +119,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   └── README.md                # 状态管理文档
 │   │   ├── components/                 # 通用组件
 │   │   │   ├── WatsonChatDialog.tsx      # 华生对话框组件
+│   │   │   ├── CluePreviewModal.tsx       # 线索详情预览弹窗
 │   │   │   ├── ScenePanel/               # 场景相关组件
 │   │   │   │   ├── SceneChat.tsx         # 场景NPC对话聊天框
 │   │   │   │   ├── SceneObjectCard.tsx   # 可交互对象卡片
@@ -190,6 +191,21 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-22（推理页面线索预览弹窗）
+- ✅ **新增 CluePreviewModal 组件** (`frontend/src/components/CluePreviewModal.tsx`):
+  - 弹窗展示线索完整详情：完整描述、线索类型（物证/证词/法医）、发现地点、来源、引用原文、发现记录
+  - Meta badges：🧑 用户线索、⚠️ 可疑线索（isRedHerring 显示为"可疑线索"保持游戏悬念）
+  - 复用已有 `modal-overlay`/`modal`/`modal-header`/`modal-close`/`modal-body` 样式体系
+- ✅ **修改 DeductionBoard.tsx** (`frontend/src/pages/DeductionBoard.tsx`):
+  - 新增 `previewedClueId` 本地 state 和 `previewedClue` 派生 memo
+  - 点击线索文字区域 → 弹出 CluePreviewModal 预览详情
+  - 点击复选框 ☑/☐ → 仅切换选中状态（`stopPropagation` 隔离，不影响预览）
+  - 当前预览线索在列表中显示 `clue-checkbox-item--previewed` 高亮样式
+- ✅ **修改 index.css** (`frontend/src/index.css`):
+  - 新增 `.clue-checkbox-item--previewed` 高亮样式
+  - 新增弹窗内容专属样式：`.clue-preview-modal`、字段布局、引用块、badges
+- ✅ **验收**: `npm run typecheck` ✅ 全绿（0 错误）
 
 ### 2026-04-20（审讯页面聊天记录持久化修复）
 - ✅ **修复 interrogationStore 聊天记录存储结构** (`frontend/src/store/interrogationStore.ts`):
@@ -428,7 +444,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 2026-04-22 00:57:09.638 | INFO     | app.agents._llm_helpers:invoke_with_retry:39 - [LLMHelper] 调用成功 (attempt=1, elapsed=1.53s)
 2026-04-22 00:57:09.639 | INFO     | app.services.game_service:add_watson_chat_message:535 - [GameService] 添加华生对话消息: 1a096747-b7b6-408f-a626-dbda2423076f -> watson
 2026-04-22 00:57:09.639 | INFO     | app.routers.game:chat_with_watson:797 - [API] 华生回复生成成功: 1a096747-b7b6-408f-a626-dbda2423076f, 类型: clue_discussion
-- deduction页面的线索列表，点击线索需要支持预览线索详细内容
+- ~~deduction页面的线索列表，点击线索需要支持预览线索详细内容~~ ✅ 已完成（2026-04-22）
 ---
 
 ## 开发命令参考

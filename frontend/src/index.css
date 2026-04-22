@@ -2583,6 +2583,7 @@ body {
 .clue-checkbox-item__check { color: #c9a05c; width: 1.2rem; flex-shrink: 0; }
 .clue-checkbox-item__label { flex: 1; font-size: 0.85rem; }
 .clue-checkbox-item__source { font-size: 0.8rem; color: #888; }
+.clue-checkbox-item--previewed { background: rgba(201,160,92,0.08); border-color: rgba(201,160,92,0.25); }
 .deduction-board__clues-footer {
   display: flex; align-items: center; justify-content: space-between;
   padding-top: 0.75rem; border-top: 1px solid rgba(201,160,92,0.2);
@@ -2853,6 +2854,19 @@ body {
   background: rgba(180,30,30,0.3); border: 1px solid rgba(220,53,69,0.5); color: #f44336;
 }
 .action-button--danger:hover:not(:disabled) { background: rgba(180,30,30,0.5); }
+
+/* ── Clue preview modal ── */
+.clue-preview-modal { max-width: 520px; }
+.clue-preview-modal__body { display: flex; flex-direction: column; gap: 1rem; max-height: 60vh; overflow-y: auto; }
+.clue-preview-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.clue-preview-field__label { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+.clue-preview-field__value { font-size: 0.9rem; color: #e8dcc8; line-height: 1.5; margin: 0; }
+.clue-preview-field__value--notes { color: #aaa; font-style: italic; font-size: 0.85rem; }
+.clue-preview-quote { font-size: 0.85rem; color: #c9a05c; font-style: italic; border-left: 2px solid rgba(201,160,92,0.4); padding-left: 0.75rem; margin: 0; line-height: 1.5; }
+.clue-preview-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid rgba(201,160,92,0.15); }
+.clue-preview-badge { font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 10px; }
+.clue-preview-badge--user { background: rgba(33,150,243,0.12); border: 1px solid rgba(33,150,243,0.4); color: #64b5f6; }
+.clue-preview-badge--herring { background: rgba(255,152,0,0.12); border: 1px solid rgba(255,152,0,0.4); color: #ffb74d; }
 
 /* ═══════════════════════════════════════════════════════
    SelectableMessage & ExtractClueTooltip
