@@ -3,7 +3,8 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 重要提示
-**请先读取 `project_overview.md` 文件**，该文件包含了完整的项目概览、目录结构、关键文件说明和最近修复记录，可以帮助您快速了解项目。 
+1、**请先读取 `project_overview.md` 文件**，该文件包含了完整的项目概览、目录结构、关键文件说明和最近修复记录，可以帮助您快速了解项目。 
+2、每次完成一个任务后，自动将进展更新到**project_overview.md**中。
 
 ## 项目概述
 
