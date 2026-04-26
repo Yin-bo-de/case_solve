@@ -21,7 +21,8 @@ dist-ssr/
 .gitignore
 
 # Environment
-.env
+# 注意：.env 需要参与 Docker 构建（生产环境 API 路径配置）
+# .env
 .env.local
 .env.*.local
 

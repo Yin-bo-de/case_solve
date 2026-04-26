@@ -206,6 +206,10 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 **本地开发适配**
 - 本地开发时在前端目录创建 `.env.local` 并设置 `VITE_API_BASE_URL=http://localhost:8000`，Vite 优先读取且该文件已被 `.gitignore` 排除
 
+**后续发现**
+- ⚠️ **根因补充**: `frontend/.dockerignore` 中 `.env` 被排除，导致 Docker 构建时未复制 `.env` 文件，Vite 构建仍使用代码默认值 `http://localhost:8000`
+- ✅ **修复 `frontend/.dockerignore`**：注释掉 `.env` 排除规则，确保生产构建能读取 API 路径配置
+
 ### 2026-04-26（Docker 部署：Caddy 替换 Nginx 实现自动 HTTPS）
 
 **背景**: 项目使用 Docker 部署后无法通过 HTTPS 访问，原因为 Nginx 配置未启用 SSL。用户要求使用最省心的方案，且当前无域名。
