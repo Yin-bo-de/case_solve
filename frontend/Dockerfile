@@ -1,5 +1,5 @@
 # 前端 Dockerfile
-# 多阶段构建：Stage 1 构建静态文件，Stage 2 使用 Nginx 托管
+# 多阶段构建：Stage 1 构建静态文件，Stage 2 使用 Caddy 托管
 
 # Stage 1: 构建阶段
 FROM node:20-alpine AS builder
@@ -19,17 +19,18 @@ COPY . .
 # 构建生产版本
 RUN npm run build
 
-# Stage 2: 服务阶段
-FROM nginx:alpine
+# Stage 2: 服务阶段（使用 Caddy 替代 Nginx，支持自动 HTTPS）
+FROM caddy:2-alpine
 
-# 复制自定义 Nginx 配置
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# 复制自定义 Caddy 配置
+COPY Caddyfile /etc/caddy/Caddyfile
 
-# 从构建阶段复制构建产物到 Nginx 根目录
-COPY --from=builder /app/dist /usr/share/nginx/html
+# 从构建阶段复制构建产物到 Caddy 站点目录
+COPY --from=builder /app/dist /usr/share/caddy/html
 
-# 暴露 80 端口
+# Caddy 默认暴露 80 和 443 端口
 EXPOSE 80
+EXPOSE 443
 
-# 启动 Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# 启动 Caddy（使用默认的 Caddyfile 路径）
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

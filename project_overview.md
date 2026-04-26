@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-26（兑换码扣减逻辑重构完成）
+**更新日期**: 2026-04-26（Caddy 自动 HTTPS 配置完成）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -138,6 +138,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   ├── App.tsx                   # 路由配置
 │   │   ├── main.tsx                  # 应用入口
 │   │   └── index.css                 # 全局样式（维多利亚风格）
+│   ├── Dockerfile
+│   ├── Caddyfile
 │   ├── package.json
 │   └── .env.example
 │
@@ -191,6 +193,35 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-26（Docker 部署：Caddy 替换 Nginx 实现自动 HTTPS）
+
+**背景**: 项目使用 Docker 部署后无法通过 HTTPS 访问，原因为 Nginx 配置未启用 SSL。用户要求使用最省心的方案，且当前无域名。
+
+**改动**
+- ✅ **新增 `frontend/Caddyfile`**：
+  - 全局配置 `auto_https off`（无域名时必需，防止 Caddy 启动失败）
+  - `:80` 占位符块提供 HTTP 服务，支持 React Router（`try_files`）
+  - `/api/*` 反向代理到后端 `backend:8000`
+  - 预留注释好的域名配置模板，注册域名后替换即可自动启用 HTTPS
+- ✅ **重写 `frontend/Dockerfile`**：
+  - Stage 2 基础镜像由 `nginx:alpine` 替换为 `caddy:2-alpine`
+  - 暴露 80 和 443 端口
+  - 启动命令指向 Caddyfile
+- ✅ **修改 `docker-compose.prod.yml`**：
+  - 前端端口增加 `443:443`
+  - 新增 `volumes` 持久化 `caddy-data:/data` 和 `caddy-config:/config`，证书和配置在容器重建后不丢失
+  - 文件底部定义两个 named volume
+
+**域名注册后的启用步骤**
+1. 域名解析到服务器公网 IP
+2. 编辑 `frontend/Caddyfile`，删除 `auto_https off`，将 `:80` 替换为域名（如 `your-domain.com`）
+3. 执行 `docker compose -f docker-compose.prod.yml up -d --build`
+4. Caddy 自动申请并续期 Let's Encrypt 证书，无需其他操作
+
+**风险与依赖**
+- Let's Encrypt 不支持纯 IP 地址，必须使用域名才能启用受信任的 HTTPS
+- 当前无域名时仅提供 HTTP 服务
 
 ### 2026-04-26（兑换码扣减逻辑重构 - verify 与 /new 分离）
 

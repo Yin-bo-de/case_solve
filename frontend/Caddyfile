@@ -1,0 +1,50 @@
+{
+    # 全局选项：默认禁用自动 HTTPS，等有域名后再开启
+    # 注册域名后，删除下面这行，并取消注释域名配置块
+    auto_https off
+}
+
+# 占位符：注册域名后，将 :80 替换为您的域名，例如：example.com
+# 替换后 Caddy 会自动申请并续期 Let's Encrypt 证书
+:80 {
+    # 设置站点根目录
+    root * /usr/share/caddy/html
+
+    # 启用文件服务
+    file_server
+
+    # 支持前端路由（React Router）：未找到文件时返回 index.html
+    try_files {path} {path}/ /index.html
+
+    # API 反向代理到后端服务
+    handle_path /api/* {
+        reverse_proxy backend:8000
+    }
+
+    # 日志输出到 stdout（Docker 可收集）
+    log {
+        output stdout
+        format json
+    }
+}
+
+# ============================================================
+# 域名注册后，使用以下配置替换上方的 :80 块：
+# ============================================================
+# your-domain.com {
+#     root * /usr/share/caddy/html
+#     file_server
+#     try_files {path} {path}/ /index.html
+#
+#     handle_path /api/* {
+#         reverse_proxy backend:8000
+#     }
+#
+#     # 自动 HTTPS：Caddy 会自动申请、配置和续期证书
+#     # 无需手动指定 ssl_certificate
+#
+#     log {
+#         output stdout
+#         format json
+#     }
+# }
