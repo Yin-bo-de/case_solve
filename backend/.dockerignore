@@ -37,3 +37,6 @@ logs/
 # Misc
 .DS_Store
 *.md
+
+# Redemption codes (contains API keys)
+data/redemption_codes.json
