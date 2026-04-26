@@ -194,6 +194,18 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
+### 2026-04-26（修复前端生产环境 API 地址配置错误）
+
+**背景**: 部署到服务器后，浏览器中前端代码向 `http://localhost:8000` 发请求，导致网络失败。根因是 `.env` 中 `VITE_API_BASE_URL=http://localhost:8000` 被构建进生产包，浏览器中的 localhost 指向用户本地电脑而非服务器。
+
+**改动**
+- ✅ **修改 `frontend/.env`**：`VITE_API_BASE_URL` 由 `http://localhost:8000` 改为 `/api`，使前端通过 Caddy 反向代理访问后端
+- ✅ **修改 `frontend/.env.example`**：同步更新示例值，增加注释说明本地开发可用 `.env.local` 覆盖
+- ✅ **修改 `frontend/Caddyfile`**：`handle_path /api/*` → `handle /api/*`，保留 `/api` 前缀代理到后端，与 FastAPI 路由注册路径一致
+
+**本地开发适配**
+- 本地开发时在前端目录创建 `.env.local` 并设置 `VITE_API_BASE_URL=http://localhost:8000`，Vite 优先读取且该文件已被 `.gitignore` 排除
+
 ### 2026-04-26（Docker 部署：Caddy 替换 Nginx 实现自动 HTTPS）
 
 **背景**: 项目使用 Docker 部署后无法通过 HTTPS 访问，原因为 Nginx 配置未启用 SSL。用户要求使用最省心的方案，且当前无域名。

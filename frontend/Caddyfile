@@ -17,7 +17,8 @@
     try_files {path} {path}/ /index.html
 
     # API 反向代理到后端服务
-    handle_path /api/* {
+    # 使用 handle（而非 handle_path）保留 /api 前缀，与后端路由一致
+    handle /api/* {
         reverse_proxy backend:8000
     }
 
