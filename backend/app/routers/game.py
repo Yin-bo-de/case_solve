@@ -172,9 +172,19 @@ async def get_game_state(game_id: str):
     return game
 
 
-@router.post("/{game_id}/difficulty")
-async def set_difficulty(game_id: str, difficulty: GameDifficulty):
-    """设置难度"""
+class SetDifficultyRequest(BaseModel):
+    """设置难度请求"""
+    difficulty: GameDifficulty
+
+
+@router.post("/{game_id}/difficulty", response_model=GameState)
+async def set_difficulty(game_id: str, request: SetDifficultyRequest):
+    """
+    设置难度并（若游戏处于 START 阶段且尚无案件）自动生成案件。
+    兑换码验证流程中游戏是在 verify 阶段预创建的，
+    此端点负责完成难度设置 + 案件生成，返回完整 GameState。
+    """
+    difficulty = request.difficulty
     logger.info(f"[API] 设置游戏难度: {game_id} -> {difficulty}")
 
     game_service = get_game_service()
@@ -202,8 +212,18 @@ async def set_difficulty(game_id: str, difficulty: GameDifficulty):
     game.max_mistakes = max_mistakes
     game.time_limit_minutes = time_limit
 
-    logger.info(f"[API] 难度设置成功: {game_id} -> {difficulty}")
-    return {"gameId": game_id, "difficulty": difficulty}
+    # 若游戏处于 START 阶段且无案件，自动生成案件（兑换码验证预创建游戏的场景）
+    if game.phase == GamePhase.START and game.case is None:
+        logger.info(f"[API] 游戏无案件，自动生成: {game_id} 难度: {difficulty}")
+        case_generator = get_case_generator()
+        case = await case_generator.generate_case(difficulty=difficulty.value)
+        game_service.set_case(game_id, case)
+        game = game_service.get_game(game_id)
+        if not game:
+            raise HTTPException(status_code=500, detail="案件生成后游戏状态丢失")
+
+    logger.info(f"[API] 难度设置成功: {game_id} -> {difficulty}, phase: {game.phase}")
+    return game
 
 
 @router.post("/{game_id}/watson/observation")

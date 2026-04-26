@@ -25,8 +25,14 @@ class GameService:
         self._watson_chat_history: Dict[str, List[WatsonChatMessage]] = {}
         logger.info("[GameService] 初始化游戏服务")
 
-    def create_game(self, difficulty: GameDifficulty = GameDifficulty.CLASSIC) -> GameState:
-        """创建新游戏"""
+    def create_game(
+        self,
+        difficulty: GameDifficulty = GameDifficulty.CLASSIC,
+        openai_api_key: Optional[str] = None,
+        openai_base_url: Optional[str] = None,
+        redemption_code: Optional[str] = None,
+    ) -> GameState:
+        """创建新游戏，可绑定兑换码的 OpenAI 配置快照"""
         import uuid
 
         game_id = str(uuid.uuid4())
@@ -51,6 +57,9 @@ class GameService:
             max_mistakes=max_mistakes,
             time_limit_minutes=time_limit,
             start_time=datetime.utcnow(),
+            openai_api_key=openai_api_key,
+            openai_base_url=openai_base_url,
+            redemption_code=redemption_code,
         )
 
         self._games[game_id] = game_state

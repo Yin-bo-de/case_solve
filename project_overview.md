@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-26（完成 Agent 上下文大小管理）
+**更新日期**: 2026-04-26（完成兑换码全栈实现）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -21,7 +21,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 当前进度
 
-### 总体进度: ~99% 完成（产品体验优化方案进行中：章节 8/10 完成）
+### 总体进度: MVP 后端门控完成（兑换码功能后端 100% 完成，前端待实现）
 
 ### 已完成的用户故事 (18/21) + 额外修复 + 技术债务清理
 
@@ -191,6 +191,34 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-26（兑换码全栈实现 - 3-3-1-typed-widget.md）
+
+**前端部分（本次）**
+- ✅ **新建 `frontend/src/types/redemption.ts`**：`RedemptionVerifyRequest/Response`、`RedemptionGenerateResponse`、`RedemptionSession` 类型
+- ✅ **新建 `frontend/src/utils/redemptionSession.ts`**：`getRedemptionSession/setRedemptionSession/clearRedemptionSession` 工具函数
+- ✅ **更新 `frontend/src/services/api.ts`**：新增 `redemptionApi.verify(code)` + `redemptionApi.generate()`；`setDifficulty` 返回类型改为 `GameStateDto`
+- ✅ **新建 `frontend/src/pages/LoginPage.tsx`**：兑换码输入 + 自动 `XXXX-XXXX-XXXX` 格式化 + 维多利亚哥特风格；验证成功后写入 `redemption-session` 并跳转 `/start`
+- ✅ **更新 `frontend/src/App.tsx`**：`/` → LoginPage；`/start` → StartPage；新增 `RequireRedeem` 守卫保护所有游戏路由
+- ✅ **更新 `frontend/src/pages/StartPage.tsx`**：复用 `session.gameId`，调用 `setDifficulty` 完成案件生成，清除会话后跳转
+- ✅ **更新 `frontend/src/index.css`**：新增 `login-page` 系列样式（约 110 行，维多利亚哥特风格，复用 gaslight 壁灯装饰）
+
+**配套后端改动**
+- ✅ **扩展 `backend/app/routers/game.py` `set_difficulty` 端点**：`POST /{gameId}/difficulty` 现在返回完整 `GameState`；当 game 处于 START 阶段且 `case is None` 时自动调用 case_generator 生成案件（兑换码预创建游戏的场景）
+
+**验收**
+- `npm run typecheck` ✅ 全绿（0 错误）
+- 后端 `py_compile` 全绿
+
+### 2026-04-26（兑换码后端实现 - 3-3-1-typed-widget.md）
+- ✅ **`.gitignore` 更新**：追加 `backend/data/redemption_codes.json`，防止含 apikey 的文件入库
+- ✅ **新建 `backend/app/models/redemption.py`**：`RedemptionCode`（内部）、`RedemptionGenerateResponse`（不含 apikey）、`RedemptionVerifyRequest/Response`
+- ✅ **新建 `backend/app/services/redemption_service.py`**：单例 + `threading.Lock` + 原子写；`generate_code()`、`validate_and_consume()`、`get_remaining_uses()`
+- ✅ **新建 `backend/app/routers/redemption.py`**：`POST /api/redemption/generate`、`POST /api/redemption/verify`（验证成功后直接创建 game 会话，返回 `game_id`）
+- ✅ **扩展 `backend/app/models/game.py`**：`GameState` 新增 `openai_api_key`（`Field(exclude=True)`）、`openai_base_url`、`redemption_code`，apikey 不出现在 API 响应中
+- ✅ **扩展 `backend/app/services/game_service.py`**：`create_game()` 接受可选 openai 配置参数并写入 GameState
+- ✅ **更新 `backend/app/main.py`**：注册 redemption router 到 `/api/redemption`
+- ✅ **新建 `backend/tests/test_redemption_service.py`**：9/9 测试全绿（生成、验证、耗尽、并发无超扣）
 
 ### 2026-04-23（修复华生 Agent 线索与场景信息链路）
 - ✅ **修复华生自由对话无法获取具体线索和场景信息的问题**：

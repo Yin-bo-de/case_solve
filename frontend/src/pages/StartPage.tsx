@@ -5,6 +5,7 @@ import { gameApi } from '@/services/api'
 import { useGameStore } from '@/store'
 import { StoreManager } from '@/store/storeManager'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
+import { getRedemptionSession, setRedemptionSession } from '@/utils/redemptionSession'
 
 const DIFFICULTY_LABELS: Record<GameDifficulty, string> = {
   easy: '简单',
@@ -47,18 +48,31 @@ export default function StartPage() {
 
   const handleStartGame = async () => {
     console.info('[StartPage] 开始新游戏', { difficulty: selectedDifficulty })
+
+    // RequireRedeem 已保证 session 存在；此处只做二次保险
+    const session = getRedemptionSession()
+    if (!session?.gameId) {
+      navigate('/')
+      return
+    }
+
     try {
       StoreManager.clearAllGameSessions()                       // 1. 清历史 localStorage
-      StoreManager.resetAll()                                   // 2. 清所有内存态（含 isLoading reset）
-      setLoading(true)                                          // 3. reset 之后再设置 loading，避免被覆盖
-      const state = await gameApi.createNewGame(selectedDifficulty)  // 4. 后端创建
-      setGameState(state)                                       // 4. 写入新 gameId + 分离 clues
+      StoreManager.resetAll()                                   // 2. 清所有内存态
+      setLoading(true)                                          // 3. reset 之后再设置 loading
+
+      // 4. 每次都创建全新游戏（含 LLM 案件生成），session 仅作鉴权凭证
+      const state = await gameApi.createNewGame(selectedDifficulty)
+      setGameState(state)                                       // 5. 写入新 gameId + 分离 clues
+
       const gameId = state.gameId
-      if (!gameId) {
-        throw new Error('游戏创建成功但 ID 缺失')
-      }
+      if (!gameId) throw new Error('游戏创建成功但 ID 缺失')
+
+      // 6. 用新 gameId 更新 session，保持 RequireRedeem 在后续路由可用
+      setRedemptionSession({ ...session, gameId })
+
       console.info('[StartPage] 新游戏创建成功', { gameId })
-      navigate(`/investigation/${gameId}`)                      // 5. 跳转
+      navigate(`/investigation/${gameId}`)                      // 7. 跳转
     } catch (err) {
       console.error('[StartPage] 新游戏失败', err)
       setError(err instanceof Error ? err.message : '创建游戏失败，请稍后重试')
@@ -141,8 +155,8 @@ export default function StartPage() {
         )}
       </div>
 
-      {/* 华生对话框 */}
-      {gameState && (
+      {/* 华生对话框仅在游戏已进入 investigation 阶段后显示，START 阶段无需华生 */}
+      {gameState && gameState.phase && gameState.phase !== 'start' && (
         <WatsonChatDialog gameId={gameState.gameId} />
       )}
     </div>

@@ -8,6 +8,7 @@ from loguru import logger
 
 from app.config import get_settings
 from app.routers import game
+from app.routers import redemption
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
 
     # 注册路由
     app.include_router(game.router, prefix="/api/game", tags=["game"])
+    app.include_router(redemption.router, prefix="/api/redemption", tags=["redemption"])
 
     @app.get("/health")
     async def health_check():

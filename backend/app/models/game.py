@@ -72,6 +72,10 @@ class GameState(BaseModel):
     time_limit_minutes: Optional[int] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    # 兑换码绑定快照（apikey 不对外暴露，通过 response_model_exclude 过滤）
+    openai_api_key: Optional[str] = Field(default=None, exclude=True)
+    openai_base_url: Optional[str] = None
+    redemption_code: Optional[str] = None
 
 
 class CreateGameRequest(BaseModel):

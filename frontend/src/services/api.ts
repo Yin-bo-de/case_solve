@@ -6,6 +6,7 @@ import type {
   WatsonChatMessage, WatsonMessageType,
   Clue, SceneSearchResponse, ReasoningRecord, WatsonTip,
 } from '@/types/game'
+import type { RedemptionVerifyResponse, RedemptionGenerateResponse } from '@/types/redemption'
 
 console.info('[api.ts] 初始化 API 服务')
 
@@ -150,11 +151,11 @@ export const gameApi = {
     return response.data
   },
 
-  /** 设置游戏难度 */
-  async setDifficulty(gameId: string, difficulty: GameDifficulty): Promise<{ gameId: string; difficulty: GameDifficulty }> {
+  /** 设置游戏难度，若游戏无案件则同时生成案件，返回完整 GameState */
+  async setDifficulty(gameId: string, difficulty: GameDifficulty): Promise<GameStateDto> {
     validateGameId(gameId, 'setDifficulty')
     console.info('[gameApi] 设置游戏难度', { gameId, difficulty })
-    const response = await apiClient.post<{ gameId: string; difficulty: GameDifficulty }>(
+    const response = await apiClient.post<GameStateDto>(
       `/api/game/${gameId}/difficulty`,
       { difficulty }
     )
@@ -496,6 +497,23 @@ export const gameApi = {
     const response = await apiClient.get<{
       messages: WatsonChatMessage[]
     }>(`/api/game/${gameId}/watson/history`)
+    return response.data
+  },
+}
+
+export const redemptionApi = {
+  /** 生成兑换码（管理员调用） */
+  async generate(): Promise<RedemptionGenerateResponse> {
+    console.info('[redemptionApi] 生成兑换码')
+    const response = await apiClient.post<RedemptionGenerateResponse>('/api/redemption/generate')
+    return response.data
+  },
+
+  /** 验证兑换码，成功后返回 game_id */
+  async verify(code: string): Promise<RedemptionVerifyResponse> {
+    const maskedCode = code.length > 4 ? `${code.slice(0, 4)}***` : '***'
+    console.info('[redemptionApi] 验证兑换码', { code: maskedCode })
+    const response = await apiClient.post<RedemptionVerifyResponse>('/api/redemption/verify', { code })
     return response.data
   },
 }

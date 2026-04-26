@@ -303,6 +303,160 @@ body {
   cursor: not-allowed;
 }
 
+/* ═══════════════════════════════════════════════════════
+   登录页面（兑换码验证）
+   ═══════════════════════════════════════════════════════ */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-page__content {
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+  color: #e8e8e8;
+  position: relative;
+  z-index: 2;
+}
+
+.login-page__title {
+  font-family: 'Cinzel', 'IM Fell English', Georgia, serif;
+  font-size: 2.8rem;
+  color: #c9a05c;
+  text-shadow: 0 0 30px rgba(201, 160, 92, 0.4);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.05em;
+}
+
+.login-page__subtitle {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 0.95rem;
+  color: #a0a0b8;
+  font-style: italic;
+  margin-bottom: 2.5rem;
+  line-height: 1.6;
+}
+
+.login-page__card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(201, 160, 92, 0.25);
+  border-radius: 8px;
+  padding: 2rem 2.5rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(201, 160, 92, 0.1);
+  text-align: left;
+}
+
+.login-page__card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.login-page__card-icon {
+  font-size: 1.2rem;
+}
+
+.login-page__card-title {
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 1.1rem;
+  color: #c9a05c;
+  margin: 0;
+  font-weight: normal;
+}
+
+.login-page__card-desc {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.login-page__field {
+  margin-bottom: 1.25rem;
+}
+
+.login-page__label {
+  display: block;
+  font-size: 0.8rem;
+  color: #aaa;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.login-page__input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(201, 160, 92, 0.3);
+  border-radius: 4px;
+  color: #e8e8e8;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.2rem;
+  letter-spacing: 0.2em;
+  padding: 0.7rem 1rem;
+  text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.login-page__input::placeholder {
+  color: rgba(201, 160, 92, 0.3);
+  letter-spacing: 0.15em;
+}
+
+.login-page__input:focus {
+  outline: none;
+  border-color: rgba(201, 160, 92, 0.6);
+  box-shadow: 0 0 0 2px rgba(201, 160, 92, 0.1);
+}
+
+.login-page__input--error {
+  border-color: rgba(255, 80, 80, 0.6);
+}
+
+.login-page__error {
+  font-size: 0.8rem;
+  color: #ff6b6b;
+  margin-top: 0.4rem;
+}
+
+.login-page__button {
+  width: 100%;
+  background: linear-gradient(135deg, rgba(201, 160, 92, 0.15), rgba(201, 160, 92, 0.05));
+  border: 1px solid rgba(201, 160, 92, 0.5);
+  border-radius: 4px;
+  color: #c9a05c;
+  font-family: 'Cinzel', Georgia, serif;
+  font-size: 0.95rem;
+  padding: 0.85rem 1.5rem;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+  letter-spacing: 0.03em;
+}
+
+.login-page__button:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(201, 160, 92, 0.25), rgba(201, 160, 92, 0.1));
+  box-shadow: 0 0 20px rgba(201, 160, 92, 0.2);
+  transform: translateY(-1px);
+}
+
+.login-page__button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-page__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* 勘查页面样式 */
 .investigation-page {
   min-height: 100vh;
