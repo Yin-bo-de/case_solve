@@ -91,6 +91,18 @@ docker compose -f docker-compose.prod.yml logs -f backend
 
 # 停止生产服务
 docker compose -f docker-compose.prod.yml down
+
+# 快速重启生产服务
+docker compose -f docker-compose.prod.yml restart 
+
+# 查看生产服务日志
+docker logs -f <容器名或ID>
+
+# 进入容器的 bash shell
+docker exec -it <容器名或ID> /bin/bash
+
+# 退出容器
+exit
 ```
 
 **生产环境特性：**
