@@ -59,17 +59,17 @@ cp .env.example .env
 
 ```bash
 # 构建并启动（支持热重载）
-docker-compose up --build
+docker compose up --build
 
 # 后台运行
-docker-compose up -d --build
+docker compose up -d --build
 
 # 查看日志
-docker-compose logs -f backend
-docker-compose logs -f frontend
+docker compose logs -f backend
+docker compose logs -f frontend
 
 # 停止服务
-docker-compose down
+docker compose down
 ```
 
 **访问地址：**
@@ -81,16 +81,16 @@ docker-compose down
 
 ```bash
 # 使用生产环境配置
-docker-compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml up -d --build
 
 # 查看服务健康状态
-docker-compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # 查看后端健康检查日志
-docker-compose -f docker-compose.prod.yml logs -f backend
+docker compose -f docker-compose.prod.yml logs -f backend
 
 # 停止生产服务
-docker-compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml down
 ```
 
 **生产环境特性：**
@@ -162,7 +162,7 @@ VITE_API_BASE_URL=http://localhost:8000
 ```
 
 - 开发模式：`npm run dev` 会自动读取 `.env` 中的 `VITE_API_BASE_URL`
-- Docker 环境：通过 `docker-compose.yml` 注入环境变量，前端通过 Nginx 反向代理访问后端
+- Docker 环境：通过 `docker-compose.yml`（或新版 `compose.yml`）注入环境变量，前端通过 Nginx 反向代理访问后端
 - 生产部署：如前端和后端分离部署，需将 `VITE_API_BASE_URL` 指向实际后端地址
 
 ---
