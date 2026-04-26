@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -i https://pypi.mirrors.ustc.edu.cn/simple/ -r re
 # 复制应用代码
 COPY . .
 
+# 创建日志目录（确保容器内有 logs/ 可写）
+RUN mkdir -p logs
+
 # 暴露 8000 端口
 EXPOSE 8000
 

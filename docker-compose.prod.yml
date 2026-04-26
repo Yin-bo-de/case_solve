@@ -26,6 +26,8 @@ services:
         reservations:
           cpus: '0.5'
           memory: 256M
+    volumes:
+      - ./log:/app/logs
     networks:
       - sherlock-network-prod
 

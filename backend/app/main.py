@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from app.config import get_settings
+from app.logging_config import setup_logging
 from app.routers import game
 from app.routers import redemption
 
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """创建并配置 FastAPI 应用"""
+    setup_logging()
     settings = get_settings()
 
     app = FastAPI(

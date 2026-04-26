@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-26（修复 red herring 答案在运行时 API 中泄密）
+**更新日期**: 2026-04-26（Docker 后端日志本地持久化与按天轮转变更）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -214,6 +214,24 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 **遗留 / 后续建议**
 - `Suspect.is_guilty` 同样存在「在运行时 API 被下发」的潜在泄密风险（GameState 序列化会带出），本次未纳入修复范围，需要时可一并处理
 - 旧游戏存档为内存存储，重启即清，无持久化兼容性问题
+
+### 2026-04-26（Docker 后端日志本地持久化与按天轮转）
+
+**背景**: Docker 生产环境部署后，后端日志仅输出到容器 stdout，容器重建或崩溃时日志丢失，不利于问题排查。
+
+**改动**
+- ✅ **新建 `backend/app/logging_config.py`**：
+  - 配置 loguru `logger.add("logs/app.log", rotation="00:00", retention="30 days")`，每天午夜自动切分新日志文件，保留最近 30 天
+  - 添加 `InterceptHandler` 拦截标准库 logging，使 uvicorn 访问日志与 FastAPI 业务日志统一落入 loguru 文件
+  - 同时保留 stderr sink，确保 `docker logs` 命令仍可查看实时日志
+- ✅ **修改 `backend/app/main.py`**：在 `create_app()` 开头调用 `setup_logging()` 完成日志初始化
+- ✅ **修改 `backend/Dockerfile`**：增加 `RUN mkdir -p logs`，确保容器内 `/app/logs` 目录存在且可写
+- ✅ **修改 `docker-compose.prod.yml`**：backend 服务新增 `volumes: - ./log:/app/logs`，将容器内日志文件实时同步到宿主机项目根目录的 `log/` 文件夹
+
+**兼容性与风险**
+- 代码中使用相对路径 `logs/app.log`，容器内解析为 `/app/logs/app.log`，本地开发解析为 `backend/logs/app.log`，两端兼容
+- 当前 Dockerfile 未切换非 root 用户，默认拥有写权限，无额外权限风险
+- `.gitignore` 已包含 `*.log` 与 `logs/`，日志文件不会被误提交
 
 ### 2026-04-26（修复前端生产环境 API 地址配置错误）
 
