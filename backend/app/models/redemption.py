@@ -35,4 +35,3 @@ class RedemptionVerifyResponse(BaseModel):
     success: bool
     remaining_uses: int
     message: str
-    game_id: Optional[str] = None

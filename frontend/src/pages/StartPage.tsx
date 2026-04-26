@@ -5,7 +5,7 @@ import { gameApi } from '@/services/api'
 import { useGameStore } from '@/store'
 import { StoreManager } from '@/store/storeManager'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
-import { getRedemptionSession, setRedemptionSession } from '@/utils/redemptionSession'
+import { getRedemptionSession } from '@/utils/redemptionSession'
 
 const DIFFICULTY_LABELS: Record<GameDifficulty, string> = {
   easy: '简单',
@@ -51,7 +51,7 @@ export default function StartPage() {
 
     // RequireRedeem 已保证 session 存在；此处只做二次保险
     const session = getRedemptionSession()
-    if (!session?.gameId) {
+    if (!session?.code) {
       navigate('/')
       return
     }
@@ -62,14 +62,11 @@ export default function StartPage() {
       setLoading(true)                                          // 3. reset 之后再设置 loading
 
       // 4. 每次都创建全新游戏（含 LLM 案件生成），session 仅作鉴权凭证
-      const state = await gameApi.createNewGame(selectedDifficulty)
+      const state = await gameApi.createNewGame(selectedDifficulty, session.code)
       setGameState(state)                                       // 5. 写入新 gameId + 分离 clues
 
       const gameId = state.gameId
       if (!gameId) throw new Error('游戏创建成功但 ID 缺失')
-
-      // 6. 用新 gameId 更新 session，保持 RequireRedeem 在后续路由可用
-      setRedemptionSession({ ...session, gameId })
 
       console.info('[StartPage] 新游戏创建成功', { gameId })
       navigate(`/investigation/${gameId}`)                      // 7. 跳转

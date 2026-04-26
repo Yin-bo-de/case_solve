@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-26（完成兑换码全栈实现）
+**更新日期**: 2026-04-26（兑换码扣减逻辑重构完成）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -192,23 +192,36 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
-### 2026-04-26（兑换码全栈实现 - 3-3-1-typed-widget.md）
+### 2026-04-26（兑换码扣减逻辑重构 - verify 与 /new 分离）
 
-**前端部分（本次）**
-- ✅ **新建 `frontend/src/types/redemption.ts`**：`RedemptionVerifyRequest/Response`、`RedemptionGenerateResponse`、`RedemptionSession` 类型
-- ✅ **新建 `frontend/src/utils/redemptionSession.ts`**：`getRedemptionSession/setRedemptionSession/clearRedemptionSession` 工具函数
-- ✅ **更新 `frontend/src/services/api.ts`**：新增 `redemptionApi.verify(code)` + `redemptionApi.generate()`；`setDifficulty` 返回类型改为 `GameStateDto`
-- ✅ **新建 `frontend/src/pages/LoginPage.tsx`**：兑换码输入 + 自动 `XXXX-XXXX-XXXX` 格式化 + 维多利亚哥特风格；验证成功后写入 `redemption-session` 并跳转 `/start`
-- ✅ **更新 `frontend/src/App.tsx`**：`/` → LoginPage；`/start` → StartPage；新增 `RequireRedeem` 守卫保护所有游戏路由
-- ✅ **更新 `frontend/src/pages/StartPage.tsx`**：复用 `session.gameId`，调用 `setDifficulty` 完成案件生成，清除会话后跳转
-- ✅ **更新 `frontend/src/index.css`**：新增 `login-page` 系列样式（约 110 行，维多利亚哥特风格，复用 gaslight 壁灯装饰）
+**背景**: 原实现中 verify 按钮同时完成验证+扣减+创建游戏，用户希望验证仅做验证，实际扣减移到 `/new` 接口。
 
-**配套后端改动**
-- ✅ **扩展 `backend/app/routers/game.py` `set_difficulty` 端点**：`POST /{gameId}/difficulty` 现在返回完整 `GameState`；当 game 处于 START 阶段且 `case is None` 时自动调用 case_generator 生成案件（兑换码预创建游戏的场景）
+**后端改动**
+- ✅ **拆分 `backend/app/services/redemption_service.py`**：`validate_and_consume` 拆分为 `validate_only`（仅验证）、`consume`（仅扣减）、`validate_and_consume`（保留原子操作供测试复用）
+- ✅ **改造 `backend/app/routers/redemption.py` `verify` 接口**：仅验证可用性，不扣减次数，不创建游戏，返回 `game_id=None`
+- ✅ **改造 `backend/app/routers/game.py` `/new` 接口**：
+  - 新增 `redemption_code` 可选参数
+  - 若提供了兑换码，先调用 `validate_only` 获取其绑定的 OpenAI 配置
+  - 创建游戏时绑定 `openai_api_key/openai_base_url/redemption_code`
+  - 生成案件后调用 `consume` 扣减一次使用次数
+- ✅ **扩展 `backend/app/models/game.py`**：`CreateGameRequest` 新增 `redemption_code` 字段
+- ✅ **移除 `backend/app/models/redemption.py`**：`RedemptionVerifyResponse` 移除 `game_id` 字段
+
+**前端改动**
+- ✅ **更新 `frontend/src/services/api.ts`**：`createNewGame` 新增 `redemptionCode` 参数，透传给后端
+- ✅ **更新 `frontend/src/pages/LoginPage.tsx`**：移除 `!result.gameId` 检查（verify 现返回 `gameId: undefined`），直接跳转 `/start`
+- ✅ **更新 `frontend/src/pages/StartPage.tsx`**：调用 `createNewGame(selectedDifficulty, session.code)`；移除 `setRedemptionSession` 调用（不再存储 gameId）
+- ✅ **更新 `frontend/src/App.tsx`**：`RequireRedeem` 守卫检查 `session?.code` 而非 `session?.gameId`
+- ✅ **更新 `frontend/src/types/redemption.ts`**：`RedemptionVerifyResponse` 移除 `gameId`；`RedemptionSession` 移除 `gameId`（改为可选后完全移除）
+
+**新完整流程**
+1. 登录页验证 → `POST /api/redemption/verify` → 仅验证，`session.code` 存入 localStorage
+2. 选择难度 → `POST /api/game/new`（传入 `redemption_code`）→ 验证兑换码 + 创建游戏 + 生成案件 + **扣减次数**
+3. 跳转勘查页
 
 **验收**
 - `npm run typecheck` ✅ 全绿（0 错误）
-- 后端 `py_compile` 全绿
+- 后端 pytest `test_redemption_service.py` 9/9 全绿
 
 ### 2026-04-26（兑换码后端实现 - 3-3-1-typed-widget.md）
 - ✅ **`.gitignore` 更新**：追加 `backend/data/redemption_codes.json`，防止含 apikey 的文件入库

@@ -68,9 +68,55 @@ class RedemptionService:
             created_at=now,
         )
 
+    def validate_only(self, code: str) -> tuple[bool, Optional[RedemptionCode], str]:
+        """
+        仅校验兑换码有效性，不扣减次数。
+
+        Returns:
+            (success, redemption_code_or_none, message)
+        """
+        data = self._load()
+        entry = next((c for c in data["codes"] if c["code"] == code), None)
+
+        if entry is None:
+            logger.warning(f"[RedemptionService] 兑换码不存在: {code}")
+            return False, None, "兑换码无效"
+
+        if entry["used_count"] >= entry["max_uses"]:
+            logger.warning(f"[RedemptionService] 兑换码已耗尽: {code}")
+            return False, None, "兑换码已达使用上限"
+
+        record = RedemptionCode(**entry)
+        logger.info(f"[RedemptionService] 兑换码验证通过: {code}, 剩余: {record.max_uses - record.used_count}")
+        return True, record, "验证成功"
+
+    def consume(self, code: str) -> tuple[bool, Optional[RedemptionCode], str]:
+        """
+        扣减一次使用次数（不做有效性校验，假设调用前已通过 validate_only）。
+
+        Returns:
+            (success, redemption_code_or_none, message)
+        """
+        with self._lock:
+            data = self._load()
+            entry = next((c for c in data["codes"] if c["code"] == code), None)
+
+            if entry is None:
+                logger.warning(f"[RedemptionService] 兑换码不存在: {code}")
+                return False, None, "兑换码无效"
+
+            entry["used_count"] += 1
+            entry["last_used_at"] = _now_iso()
+            self._save(data)
+
+        record = RedemptionCode(**entry)
+        remaining = record.max_uses - record.used_count
+        logger.info(f"[RedemptionService] 兑换码扣减成功: {code}, 剩余: {remaining}")
+        return True, record, "扣减成功"
+
     def validate_and_consume(self, code: str) -> tuple[bool, Optional[RedemptionCode], str]:
         """
-        校验兑换码有效性并扣减一次使用次数。
+        校验兑换码有效性并扣减一次使用次数（原子操作）。
 
         Returns:
             (success, redemption_code_or_none, message)
@@ -91,10 +137,10 @@ class RedemptionService:
             entry["last_used_at"] = _now_iso()
             self._save(data)
 
-        record = RedemptionCode(**entry)
-        remaining = record.max_uses - record.used_count
-        logger.info(f"[RedemptionService] 兑换码验证成功: {code}, 剩余: {remaining}")
-        return True, record, "验证成功"
+            record = RedemptionCode(**entry)
+            remaining = record.max_uses - record.used_count
+            logger.info(f"[RedemptionService] 兑换码验证成功: {code}, 剩余: {remaining}")
+            return True, record, "验证成功"
 
     def get_remaining_uses(self, code: str) -> int:
         """查询剩余可用次数（不扣减）"""

@@ -13,7 +13,7 @@ console.debug('[App.tsx] 渲染 App 组件')
 /** 路由守卫：检查 localStorage 中存在有效的兑换码会话，否则跳回登录页 */
 function RequireRedeem({ children }: { children: React.ReactNode }) {
   const session = getRedemptionSession()
-  if (!session?.gameId) {
+  if (!session?.code) {
     console.info('[RequireRedeem] 无有效兑换码会话，重定向至登录页')
     return <Navigate to="/" replace />
   }

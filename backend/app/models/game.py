@@ -81,3 +81,4 @@ class GameState(BaseModel):
 class CreateGameRequest(BaseModel):
     """创建游戏请求"""
     difficulty: GameDifficulty = GameDifficulty.CLASSIC
+    redemption_code: Optional[str] = None

@@ -13,6 +13,7 @@ from app.models.game import (
 )
 from app.models.case import Observation, Inference, Hypothesis, DeductionChain
 from app.services.game_service import get_game_service
+from app.services.redemption_service import get_redemption_service
 from app.agents.case_generator_agent import get_case_generator
 from app.agents.watson_agent import get_watson_agent, WatsonAgent
 from app.agents.suspect_agent import get_suspect_agent
@@ -136,14 +137,31 @@ class GetWatsonHistoryResponse(BaseModel):
 
 @router.post("/new", response_model=GameState)
 async def create_new_game(request: CreateGameRequest):
-    """创建新案件"""
-    logger.info(f"[API] 创建新游戏请求, 难度: {request.difficulty}")
+    """创建新案件，若提供了 redemption_code 则绑定其 OpenAI 配置并扣减一次使用次数"""
+    logger.info(f"[API] 创建新游戏请求, 难度: {request.difficulty}, 兑换码: {'已绑定' if request.redemption_code else '无'}")
 
     game_service = get_game_service()
     case_generator = get_case_generator()
 
+    openai_api_key = None
+    openai_base_url = None
+
+    # 若提供了兑换码，获取其绑定的 OpenAI 配置（验证可用性）
+    if request.redemption_code:
+        redemption_service = get_redemption_service()
+        success, record, msg = redemption_service.validate_only(request.redemption_code)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"兑换码无效: {msg}")
+        openai_api_key = record.openai_api_key
+        openai_base_url = record.openai_base_url
+
     # 创建游戏状态
-    game = game_service.create_game(difficulty=request.difficulty)
+    game = game_service.create_game(
+        difficulty=request.difficulty,
+        openai_api_key=openai_api_key,
+        openai_base_url=openai_base_url,
+        redemption_code=request.redemption_code,
+    )
 
     # 生成案件
     case = await case_generator.generate_case(difficulty=request.difficulty.value)
@@ -153,6 +171,16 @@ async def create_new_game(request: CreateGameRequest):
     updated_game = game_service.get_game(game.game_id)
     if not updated_game:
         raise HTTPException(status_code=500, detail="创建游戏失败")
+
+    # 若绑定了兑换码，扣减一次使用次数
+    if updated_game.redemption_code:
+        redemption_service = get_redemption_service()
+        success, _, msg = redemption_service.consume(updated_game.redemption_code)
+        if not success:
+            logger.warning(f"[API] 兑换码扣减失败: {updated_game.redemption_code} - {msg}")
+        else:
+            remaining = redemption_service.get_remaining_uses(updated_game.redemption_code)
+            logger.info(f"[API] 兑换码扣减成功: {updated_game.redemption_code}, 剩余: {remaining}")
 
     logger.info(f"[API] 游戏创建成功: {game.game_id}")
     return updated_game

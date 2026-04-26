@@ -28,13 +28,13 @@ async def generate_code():
 @router.post("/verify", response_model=RedemptionVerifyResponse)
 async def verify_code(request: RedemptionVerifyRequest):
     """
-    验证兑换码并扣减一次使用次数。
-    验证成功后直接创建一个 START 阶段的游戏会话，返回 game_id 给前端。
+    仅验证兑换码有效性（不扣减次数，不创建游戏）。
+    前端验证成功后调用 /new 接口创建游戏并生成案件。
     """
     logger.info(f"[API] 验证兑换码请求: {request.code[:4]}***")
 
     redemption_service = get_redemption_service()
-    success, record, message = redemption_service.validate_and_consume(request.code)
+    success, record, message = redemption_service.validate_only(request.code)
 
     if not success:
         logger.warning(f"[API] 兑换码验证失败: {request.code[:4]}*** - {message}")
@@ -45,21 +45,12 @@ async def verify_code(request: RedemptionVerifyRequest):
             game_id=None,
         )
 
-    # 验证通过 → 创建游戏会话，绑定 OpenAI 配置快照
-    game_service = get_game_service()
-    game = game_service.create_game(
-        difficulty=GameDifficulty.CLASSIC,
-        openai_api_key=record.openai_api_key,
-        openai_base_url=record.openai_base_url,
-        redemption_code=request.code,
-    )
-
     remaining = record.max_uses - record.used_count
-    logger.info(f"[API] 兑换码验证成功，创建游戏: {game.game_id}, 剩余次数: {remaining}")
+    logger.info(f"[API] 兑换码验证通过: {request.code[:4]}***, 剩余: {remaining}")
 
     return RedemptionVerifyResponse(
         success=True,
         remaining_uses=remaining,
         message="验证成功",
-        game_id=game.game_id,
+        game_id=None,
     )

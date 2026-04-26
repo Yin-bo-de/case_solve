@@ -47,19 +47,18 @@ export default function LoginPage() {
     try {
       const result = await redemptionApi.verify(trimmed)
 
-      if (!result.success || !result.gameId) {
+      if (!result.success) {
         setError(result.message || '兑换码无效，请检查后重试')
         return
       }
 
       setRedemptionSession({
-        gameId: result.gameId,
         code: trimmed,
         remainingUses: result.remainingUses,
         validatedAt: new Date().toISOString(),
       })
 
-      console.info('[LoginPage] 验证成功，跳转至开始页', { gameId: result.gameId, remainingUses: result.remainingUses })
+      console.info('[LoginPage] 验证成功，跳转至开始页', { remainingUses: result.remainingUses })
       navigate('/start')
     } catch (err) {
       console.error('[LoginPage] 验证请求失败', err)

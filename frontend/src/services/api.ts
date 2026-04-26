@@ -134,9 +134,13 @@ export type GroupControlAction = 'quiet' | 'let_speak' | 'continue'
 
 export const gameApi = {
   /** 创建新游戏 */
-  async createNewGame(difficulty: GameDifficulty = 'classic'): Promise<GameStateDto> {
-    console.info('[gameApi] 创建新游戏', { difficulty })
-    const response = await apiClient.post<GameStateDto>('/api/game/new', { difficulty })
+  async createNewGame(difficulty: GameDifficulty = 'classic', redemptionCode?: string): Promise<GameStateDto> {
+    console.info('[gameApi] 创建新游戏', { difficulty, redemptionCode: redemptionCode ? `${redemptionCode.slice(0, 4)}***` : undefined })
+    const payload: Record<string, unknown> = { difficulty }
+    if (redemptionCode) {
+      payload.redemption_code = redemptionCode
+    }
+    const response = await apiClient.post<GameStateDto>('/api/game/new', payload)
     return response.data
   },
 

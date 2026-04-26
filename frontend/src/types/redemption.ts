@@ -8,7 +8,6 @@ export interface RedemptionVerifyResponse {
   success: boolean
   remainingUses: number
   message: string
-  gameId?: string
 }
 
 export interface RedemptionGenerateResponse {
@@ -20,7 +19,6 @@ export interface RedemptionGenerateResponse {
 
 /** localStorage 中持久化的兑换码会话信息 */
 export interface RedemptionSession {
-  gameId: string
   code: string
   remainingUses: number
   validatedAt: string
