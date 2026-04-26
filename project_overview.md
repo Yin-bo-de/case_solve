@@ -201,7 +201,9 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 **改动**
 - ✅ **修改 `frontend/.env`**：`VITE_API_BASE_URL` 由 `http://localhost:8000` 改为 `/api`，使前端通过 Caddy 反向代理访问后端
 - ✅ **修改 `frontend/.env.example`**：同步更新示例值，增加注释说明本地开发可用 `.env.local` 覆盖
-- ✅ **修改 `frontend/Caddyfile`**：`handle_path /api/*` → `handle /api/*`，保留 `/api` 前缀代理到后端，与 FastAPI 路由注册路径一致
+- ✅ **修改 `frontend/Caddyfile`**：
+  - `handle_path /api/*` → `handle /api/*`，保留 `/api` 前缀代理到后端
+  - `try_files` 和 `file_server` 移入独立的 `handle` 块，避免 `/api/*` 请求被重写为 `index.html`
 
 **本地开发适配**
 - 本地开发时在前端目录创建 `.env.local` 并设置 `VITE_API_BASE_URL=http://localhost:8000`，Vite 优先读取且该文件已被 `.gitignore` 排除

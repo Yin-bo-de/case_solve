@@ -10,16 +10,18 @@
     # 设置站点根目录
     root * /usr/share/caddy/html
 
-    # 启用文件服务
-    file_server
-
-    # 支持前端路由（React Router）：未找到文件时返回 index.html
-    try_files {path} {path}/ /index.html
-
     # API 反向代理到后端服务
     # 使用 handle（而非 handle_path）保留 /api 前缀，与后端路由一致
+    # handle 块互斥：匹配 /api/* 后不会执行后续 handle
     handle /api/* {
         reverse_proxy backend:8000
+    }
+
+    # 其他所有请求：静态文件 + 前端路由 fallback
+    handle {
+        # 支持前端路由（React Router）：未找到文件时返回 index.html
+        try_files {path} {path}/ /index.html
+        file_server
     }
 
     # 日志输出到 stdout（Docker 可收集）
@@ -34,11 +36,14 @@
 # ============================================================
 # your-domain.com {
 #     root * /usr/share/caddy/html
-#     file_server
-#     try_files {path} {path}/ /index.html
 #
-#     handle_path /api/* {
+#     handle /api/* {
 #         reverse_proxy backend:8000
+#     }
+#
+#     handle {
+#         try_files {path} {path}/ /index.html
+#         file_server
 #     }
 #
 #     # 自动 HTTPS：Caddy 会自动申请、配置和续期证书
