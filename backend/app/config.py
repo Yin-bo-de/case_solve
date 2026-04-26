@@ -23,6 +23,15 @@ class Settings(BaseSettings):
     # 日志
     log_level: str = "INFO"
 
+    # Agent 上下文管理配置
+    suspect_agent_max_history_messages: int = 20
+    suspect_agent_max_history_tokens: int = 8000
+    watson_chat_max_history_messages: int = 50
+    watson_chat_max_history_tokens: int = 12000
+    scene_agent_max_history_messages: int = 6
+    scene_agent_max_history_tokens: int = 4000
+    oracle_agent_max_context_tokens: int = 10000
+
     class Config:
         env_file = ".env"
 

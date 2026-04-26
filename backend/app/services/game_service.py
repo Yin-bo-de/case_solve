@@ -13,6 +13,7 @@ from app.models.game import (
 from app.models.case import (
     Case, Clue, Observation, Inference, Hypothesis, DeductionChain
 )
+from app.config import get_settings
 
 
 class GameService:
@@ -115,6 +116,11 @@ class GameService:
         import uuid
         chain = self.get_or_create_deduction_chain(game_id)
 
+        # 推理数量软上限防护
+        MAX_INFERENCES_PER_GAME = 50
+        if len(chain.inferences) >= MAX_INFERENCES_PER_GAME:
+            raise ValueError(f"推理记录已达上限 ({MAX_INFERENCES_PER_GAME}条)，请先删除不必要的记录")
+
         # 计算置信度（基于观察数量）
         confidence = min(0.3 + len(observation_ids) * 0.15, 0.95)
 
@@ -163,6 +169,11 @@ class GameService:
         """创建假设"""
         import uuid
         chain = self.get_or_create_deduction_chain(game_id)
+
+        # 假设数量软上限防护
+        MAX_HYPOTHESES_PER_GAME = 20
+        if len(chain.hypotheses) >= MAX_HYPOTHESES_PER_GAME:
+            raise ValueError(f"假设记录已达上限 ({MAX_HYPOTHESES_PER_GAME}条)，请先删除不必要的记录")
 
         # 收集支持证据
         supporting_evidence = []
@@ -452,6 +463,12 @@ class GameService:
         if not game or not game.case:
             raise ValueError("游戏或案件不存在")
 
+        # 用户线索数量软上限防护
+        MAX_USER_CLUES_PER_GAME = 30
+        user_clues = [c for c in game.case.clues if getattr(c, "user_generated", False)]
+        if len(user_clues) >= MAX_USER_CLUES_PER_GAME and not base_clue_id:
+            raise ValueError(f"用户自定义线索已达上限 ({MAX_USER_CLUES_PER_GAME}条)，请先整理已有线索")
+
         if base_clue_id:
             existing = next((c for c in game.case.clues if c.id == base_clue_id), None)
             if existing:
@@ -522,6 +539,16 @@ class GameService:
         """添加华生对话消息"""
         if game_id not in self._watson_chat_history:
             self._watson_chat_history[game_id] = []
+
+        settings = get_settings()
+        max_history = settings.watson_chat_max_history_messages
+        history = self._watson_chat_history[game_id]
+
+        # 聊天记录上限保护：超出时丢弃最旧的消息
+        if len(history) >= max_history:
+            removed = len(history) - max_history + 1
+            self._watson_chat_history[game_id] = history[removed:]
+            logger.info(f"[GameService] Watson 聊天记录上限保护: 丢弃最旧 {removed} 条消息")
 
         message = WatsonChatMessage(
             id=str(uuid.uuid4()),

@@ -17,7 +17,7 @@ from app.agents.prompts.suspect_prompts import (
     suspect_lie_detection_prompt,
     suspect_interjection_prompt,
 )
-from app.agents._llm_helpers import invoke_with_retry
+from app.agents._llm_helpers import invoke_with_retry, truncate_messages_by_token, estimate_token_count
 
 
 class SuspectAgent:
@@ -62,9 +62,41 @@ class SuspectAgent:
         if not settings.openai_api_key:
             return self._generate_mock_response(suspect, case, user_question, is_private)
 
+        # 上下文截断：防止对话历史线性增长超出 LLM 上下文窗口
+        raw_history = conversation_history or []
+        original_count = len(raw_history)
+
+        # 1. 按消息数量截断：保留最近 N 轮（每轮含 user + assistant 2 条消息）
+        max_messages = settings.suspect_agent_max_history_messages * 2  # 每轮 2 条
+        if original_count > max_messages:
+            raw_history = raw_history[-max_messages:]
+            logger.info(
+                f"[SuspectAgent] 历史消息数量截断: {original_count} -> {len(raw_history)} "
+                f"(保留最近 {settings.suspect_agent_max_history_messages} 轮)"
+            )
+
+        # 2. 按 token 数量截断
+        max_tokens = settings.suspect_agent_max_history_tokens
+        history_tokens = sum(
+            estimate_token_count(msg.get("content", ""), model=settings.openai_model)
+            for msg in raw_history
+        )
+        if history_tokens > max_tokens:
+            raw_history = truncate_messages_by_token(
+                raw_history, max_tokens=max_tokens, model=settings.openai_model
+            )
+            new_tokens = sum(
+                estimate_token_count(msg.get("content", ""), model=settings.openai_model)
+                for msg in raw_history
+            )
+            logger.info(
+                f"[SuspectAgent] 历史消息 token 截断: {history_tokens} -> {new_tokens} tokens, "
+                f"消息数 {original_count} -> {len(raw_history)}"
+            )
+
         # 构建对话历史为 LangChain messages
         history = []
-        for msg in (conversation_history or []):
+        for msg in raw_history:
             if msg.get("role") == "user":
                 history.append(HumanMessage(content=msg["content"]))
             else:

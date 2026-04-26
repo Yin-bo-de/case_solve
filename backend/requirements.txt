@@ -8,6 +8,7 @@ langchain>=0.1.0
 langchain-openai>=0.0.5
 loguru>=0.7.2
 python-dotenv>=1.0.0
+tiktoken>=0.7.0
 
 # 开发依赖
 pytest>=7.4.0

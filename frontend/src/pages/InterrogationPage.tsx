@@ -102,6 +102,7 @@ export default function InterrogationPage() {
   useEffect(() => {
     if (gameState?.case?.suspects && gameState.case.suspects.length > 0 && !selectedSuspect) {
       setSelectedSuspect(gameState.case.suspects[0])
+      setSelectedSuspectId(gameState.case.suspects[0].id)
     }
   }, [gameState?.case?.suspects, selectedSuspect])
 
