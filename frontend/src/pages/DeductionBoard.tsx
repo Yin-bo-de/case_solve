@@ -117,7 +117,7 @@ export default function DeductionBoard() {
               {clues.map((c) => (
                 <li
                   key={c.id}
-                  className={`clue-item clue-item--deduction ${selectedClueIds.includes(c.id) ? 'clue-item--selected' : ''} ${previewedClueId === c.id ? 'clue-item--previewed' : ''} ${c.isRedHerring ? 'clue-item--red-herring' : ''}`}
+                  className={`clue-item clue-item--deduction ${selectedClueIds.includes(c.id) ? 'clue-item--selected' : ''} ${previewedClueId === c.id ? 'clue-item--previewed' : ''}`}
                   onClick={() => setPreviewedClueId(c.id)}
                 >
                   <span

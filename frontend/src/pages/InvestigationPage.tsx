@@ -108,7 +108,7 @@ export default function InvestigationPage() {
             <h2>已添加线索 ({clues.length})</h2>
             <ul className="clue-list">
               {clues.map((clue) => (
-                <li key={clue.id} className={`clue-item ${clue.isRedHerring ? 'clue-item--red-herring' : ''}`}>
+                <li key={clue.id} className="clue-item">
                   <span className="clue-item__label">{clue.userLabel || clue.description.substring(0, 30)}</span>
                   <span className="clue-item__source">
                     {clue.sourceType === 'scene' ? '📍 现场' : clue.sourceType === 'interrogation' ? '🗣 审讯' : '📋 初始'}

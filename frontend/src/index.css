@@ -905,11 +905,6 @@ body {
   box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
 }
 
-.clue-item--red-herring {
-  background: rgba(255, 152, 0, 0.08);
-  border-left-color: #ff9800;
-}
-
 .clue-type {
   color: #d4af37;
   font-weight: bold;
@@ -3106,7 +3101,6 @@ body {
 .clue-preview-meta { display: flex; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid rgba(201,160,92,0.15); }
 .clue-preview-badge { font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 10px; }
 .clue-preview-badge--user { background: rgba(33,150,243,0.12); border: 1px solid rgba(33,150,243,0.4); color: #64b5f6; }
-.clue-preview-badge--herring { background: rgba(255,152,0,0.12); border: 1px solid rgba(255,152,0,0.4); color: #ffb74d; }
 
 /* ═══════════════════════════════════════════════════════
    SelectableMessage & ExtractClueTooltip

@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-26（Caddy 自动 HTTPS 配置完成）
+**更新日期**: 2026-04-26（修复 red herring 答案在运行时 API 中泄密）
 **当前分支**: ralph/sherlock-holmes-detective-game
 **项目状态**: 开发中
 
@@ -193,6 +193,27 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-26（修复 red herring 答案在运行时 API 中泄密）
+
+**背景**: 玩家在勘查/推理阶段，UI 上以橙色高亮 + ⚠️ 可疑线索徽标直接展示了 red herring（干扰线索）。根因是 `Clue.is_red_herring` 字段在 `GameState` / `Clue` 等运行时接口中被默认序列化下发到前端，前端再据此为线索染色。这等于游戏开局就把答案告诉玩家，使红鲱鱼丧失误导功能。
+
+**改动**
+- ✅ **修改 `backend/app/models/case.py`**：`Clue.is_red_herring` 改为 `Field(default=False, exclude=True)`，所有 `response_model=GameState/Clue` 的接口序列化时自动剥离该字段；后端内存对象保留字段，oracle/watson/case_generator 等内部逻辑不受影响
+- ✅ **保留 `conclusion/reveal` 真相通道**：`game_service.get_case_reveal()` 走手工构造 dict 路径（直接 `c.is_red_herring` 属性访问），不受 `exclude=True` 影响
+- ✅ **修改 `frontend/src/types/game.ts`**：`Clue.isRedHerring` 改为可选（`?: boolean`），运行时 API 不再下发；conclusion reveal 类型保持必填
+- ✅ **修改 `frontend/src/index.css`**：删除 `.clue-item--red-herring` 与 `.clue-preview-badge--herring` 两条样式规则
+- ✅ **修改 `frontend/src/pages/InvestigationPage.tsx` 与 `frontend/src/pages/DeductionBoard.tsx`**：移除 className 中 `${clue.isRedHerring ? 'clue-item--red-herring' : ''}` 的条件分支
+- ✅ **修改 `frontend/src/components/CluePreviewModal.tsx`**：移除「⚠️ 可疑线索」徽标渲染分支，保留「🧑 用户线索」徽标
+
+**验证**
+- Pydantic 模拟：`GameState.model_dump()` 输出中已无 `is_red_herring` 字段
+- 前端 `npm run typecheck` 通过，无类型错误
+- 全量 grep：除 `models/case.py` 字段定义、`game_service.get_case_reveal()` 内部逻辑、几个 Agent 内部 prompt 拼接外，前后端再无泄密路径
+
+**遗留 / 后续建议**
+- `Suspect.is_guilty` 同样存在「在运行时 API 被下发」的潜在泄密风险（GameState 序列化会带出），本次未纳入修复范围，需要时可一并处理
+- 旧游戏存档为内存存储，重启即清，无持久化兼容性问题
 
 ### 2026-04-26（修复前端生产环境 API 地址配置错误）
 

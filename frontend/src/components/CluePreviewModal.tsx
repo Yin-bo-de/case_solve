@@ -80,14 +80,9 @@ export default function CluePreviewModal({ clue, onClose }: Props) {
           )}
 
           {/* Meta badges */}
-          {(clue.userGenerated || clue.isRedHerring) && (
+          {clue.userGenerated && (
             <div className="clue-preview-meta">
-              {clue.userGenerated && (
-                <span className="clue-preview-badge clue-preview-badge--user">🧑 用户线索</span>
-              )}
-              {clue.isRedHerring && (
-                <span className="clue-preview-badge clue-preview-badge--herring">⚠️ 可疑线索</span>
-              )}
+              <span className="clue-preview-badge clue-preview-badge--user">🧑 用户线索</span>
             </div>
           )}
         </div>
