@@ -59,6 +59,10 @@ class WatsonHintRequest(BaseModel):
     observations_count: int = 0
     areas_examined: int = 0
     total_areas: int = 0
+    # 场景勘查提示（hint_type == "scene" 时使用）
+    scene_name: Optional[str] = None
+    recent_actions: List[str] = []
+    unchecked_object_names: Optional[List[str]] = None
 
 
 class SuspectQuestionRequest(BaseModel):
@@ -283,10 +287,22 @@ async def get_watson_hint(game_id: str, request: WatsonHintRequest):
     if not game:
         raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
 
-    watson = get_watson_agent()
+    watson = WatsonAgent.from_difficulty(game.difficulty.value)
     hint: Optional[str] = None
 
-    if request.hint_type == "idle":
+    if request.hint_type == "scene":
+        if not request.scene_name:
+            raise HTTPException(status_code=400, detail="hint_type=scene 时 scene_name 为必填")
+        collected_clues = [c for c in (game.case.clues if game.case else []) if c.discovered or c.user_generated]
+        hint = await watson.offer_scene_hint(
+            scene_name=request.scene_name,
+            recent_actions=request.recent_actions,
+            collected_clues=collected_clues,
+            unchecked_object_names=request.unchecked_object_names,
+            total_clues=len(game.case.clues) if game.case else 5,
+            difficulty=game.difficulty.value,
+        )
+    elif request.hint_type == "idle":
         # 长时间无进展，给出提示
         if request.areas_examined < request.total_areas:
             remaining = request.total_areas - request.areas_examined

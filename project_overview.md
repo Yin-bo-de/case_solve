@@ -194,6 +194,23 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
+### 2026-04-29（扩展 /watson/hint 路由，接入 offer_scene_hint）
+
+**背景**: `WatsonAgent.offer_scene_hint` 方法已在章节 6 实现，但 `/watson/hint` 路由仅做字符串拼接，从未调用该方法，场景勘查提示无法享受 LLM 驱动的个性化建议。
+
+**改动**
+- ✅ **扩展 `backend/app/routers/game.py` 的 `WatsonHintRequest`**：新增 3 个可选字段：`scene_name`（当前场景名称）、`recent_actions`（玩家最近搜查动作列表）、`unchecked_object_names`（未检查对象列表）
+- ✅ **`get_watson_hint` handler 新增 `hint_type == "scene"` 分支**：调用 `WatsonAgent.from_difficulty(...).offer_scene_hint()`；`collected_clues`、`total_clues`、`difficulty` 服务端从 `game` 对象派生，无需前端传入；`scene_name` 缺失时返回 400
+- ✅ **旧 `idle`/`area` 分支保持不变**，无破坏性变更；全局单例 `get_watson_agent()` 统一替换为 `WatsonAgent.from_difficulty()` 与其他华生路由保持一致
+
+**前端对接**
+```json
+POST /{game_id}/watson/hint
+{ "hint_type": "scene", "scene_name": "书房", "recent_actions": ["检查书桌"], "unchecked_object_names": ["壁炉"] }
+```
+
+---
+
 ### 2026-04-26（修复 red herring 答案在运行时 API 中泄密）
 
 **背景**: 玩家在勘查/推理阶段，UI 上以橙色高亮 + ⚠️ 可疑线索徽标直接展示了 red herring（干扰线索）。根因是 `Clue.is_red_herring` 字段在 `GameState` / `Clue` 等运行时接口中被默认序列化下发到前端，前端再据此为线索染色。这等于游戏开局就把答案告诉玩家，使红鲱鱼丧失误导功能。
@@ -595,22 +612,12 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## MVP版本待办事项
-1. 游戏初始页面新增三个输入框和三个按钮：兑换码输入框 + 兑换码验证按钮，openai baseurl输入框 + openai apikey输入框 + 验证按钮 + 提交按钮
-  1.1. 兑换码验证按钮点击后，验证兑换码是否正确，正确则将兑换码在后端映射的baseurl和apikey保存到后端数据库中，并提示用户兑换成功（一个兑换码默认使用10次）
-  1.2. openai baseurl和apikey输入框，点击提交按钮后，将输入的baseurl和apikey保存到后端数据库中，并提示用户提交成功
-  1.3. 验证按钮点击后，验证openai baseurl和apikey是否正确，正确则提示用户验证成功，否则提示用户验证失败并要求重新输入
-2. 数据库接入（PostgreSQL + SQLAlchemy / asyncpg）—— 解决数据丢失问题
+1. 数据库接入（PostgreSQL + SQLAlchemy / asyncpg）—— 解决数据丢失问题
   2.1. 数据库表结构设计
   2.2. 每一个用户进入游戏后需要记录用户的openai baseurl和apikey（包括兑换码的baseurl和apikey）
   2.3. 前端新增一个存档按钮，点击存档后，需要将每一个用户的游戏数据（游戏难度、游戏时间、游戏结果、游戏内对话记录等）存储到数据库
   2.4. 前端新增一个加载按钮，点击加载存档后，需要从数据库中读取用户上一次的游戏数据并恢复到当前游戏页面
-3. 兑换码功能开发
- 3.1 后端
-  3.1.1 增加一个验证码生成能力接口：调用接口自动生成并返回一个兑换码，该兑换码用于前端进行验证，验证后后的兑换码的使用次数为10次。 每一个兑换码都默认关联我提前配置好的openai baseurl和apikey。
-  3.1.2 兑换码以本地json配置文件存储的方式记录使用次数，每次验证兑换码后，需要更新该文件中的使用次数。
-  3.1.3 增加一个兑换码验证接口：调用接口时需要传递兑换码，接口对兑换码进行有效性和次数校验，如果验证通过默认将当前兑换码绑定的openai baseurl和apikey作为当前游戏使用，并返回前端验证成功。
- 3.2 前端
-  3.2.1 增加一个游戏登录页，页面有：兑换码输入框 + 兑换码验证按钮。点击兑换码验证按钮后，需要将输入的兑换码传递给后端进行验证，验证通过后，跳转到游戏的开始页（即难度选择页）
+
 
 ## 开发命令参考
 
