@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useGameStore, useCluesStore } from '@/store'
+import { useGameStore, useCluesStore, useUIStore } from '@/store'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 import type { Scene } from '@/types/game'
 import { useGameSessionSync } from '@/hooks/useGameSessionSync'
@@ -12,8 +13,14 @@ export default function InvestigationPage() {
 
   const { gameState, isLoading, error } = useGameStore()
   const { clues } = useCluesStore()
+  const { startMusic } = useUIStore()
 
   console.debug('[InvestigationPage] 渲染', { gameId })
+
+  // 首次进入 investigation 页面时触发全局背景音乐
+  useEffect(() => {
+    startMusic()
+  }, [startMusic])
 
   useGameSessionSync(gameId)
 

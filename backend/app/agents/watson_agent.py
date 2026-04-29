@@ -578,18 +578,45 @@ class WatsonAgent:
     # 章节 6：新增方法
     # ──────────────────────────────────────────────
 
-    async def offer_scene_hint(self, scene_name: str, recent_actions: List[str]) -> str:
+    async def offer_scene_hint(
+        self,
+        scene_name: str,
+        recent_actions: List[str],
+        collected_clues: Optional[List[Clue]] = None,
+        unchecked_object_names: Optional[List[str]] = None,
+        total_clues: int = 5,
+        difficulty: str = "classic",
+    ) -> str:
         """
         给出当前场景的下一步勘查建议（一句话，维多利亚口吻）。
 
         Args:
             scene_name: 当前场景名称
             recent_actions: 玩家最近的搜查动作列表
+            collected_clues: 已收集的线索列表（含 investigation_hint）
+            unchecked_object_names: 当前场景尚未检查的对象名称列表
+            total_clues: 案件总线索数
+            difficulty: 游戏难度
         Returns:
             华生的一句话建议
         """
-        logger.info(f"[WatsonAgent] offer_scene_hint scene={scene_name} actions={len(recent_actions)}")
+        logger.info(
+            f"[WatsonAgent] offer_scene_hint scene={scene_name} "
+            f"collected={len(collected_clues or [])} actions={len(recent_actions)}"
+        )
         actions_str = "、".join(recent_actions[-3:]) if recent_actions else "（尚未开始搜查）"
+
+        # 构建已收集线索+调查提示的文本块
+        if collected_clues:
+            hints_lines = []
+            for clue in collected_clues:
+                hint_text = clue.investigation_hint or "（无额外提示）"
+                hints_lines.append(f"- {clue.description} → 提示：{hint_text}")
+            clues_with_hints_str = "\n".join(hints_lines)
+        else:
+            clues_with_hints_str = "（尚未收集到任何线索）"
+
+        unchecked_str = "、".join(unchecked_object_names) if unchecked_object_names else "（当前场景对象已全部检查）"
 
         settings = get_settings()
         if not settings.openai_api_key:
@@ -603,7 +630,15 @@ class WatsonAgent:
         chain = watson_scene_hint_prompt | self.llm
         result = await invoke_with_retry(
             chain=chain,
-            inputs={"scene_name": scene_name, "recent_actions": actions_str},
+            inputs={
+                "scene_name": scene_name,
+                "recent_actions": actions_str,
+                "collected_clues_with_hints": clues_with_hints_str,
+                "unchecked_objects": unchecked_str,
+                "total_clues_found": len(collected_clues) if collected_clues else 0,
+                "total_clues": total_clues,
+                "difficulty": difficulty,
+            },
             fallback_fn=lambda: type("R", (), {"content": f"老朋友，不妨再仔细检查一下{scene_name}中的每一个角落。"})(),
         )
         return result.content if hasattr(result, "content") else str(result)

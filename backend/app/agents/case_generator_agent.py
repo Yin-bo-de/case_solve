@@ -334,6 +334,8 @@ class CaseGeneratorAgent:
                 related_suspect_ids=related_ids,
                 is_red_herring=is_rh,
                 obviousness=round(random.uniform(lo, hi), 2),
+                investigation_hint=c.get("investigation_hint"),
+                chain_next_clue_index=c.get("chain_next_clue_index"),
             ))
 
         # 解析 scenes（若 LLM 未返回则生成简单的占位 scenes）

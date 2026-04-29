@@ -20,6 +20,12 @@ interface UIStore {
   viewMode: ViewMode
   isLoading: boolean
 
+  // 背景音乐（进入 investigation 页面后全程保持）
+  musicStarted: boolean
+  musicPlaying: boolean
+  startMusic: () => void
+  setMusicPlaying: (playing: boolean) => void
+
   // 华生对话框（统一管理）
   watsonDialogOpen: boolean
   watsonDialogExpanded: boolean
@@ -84,6 +90,18 @@ export const useUIStore = create<UIStore>()(
         // 全局 UI 状态
         viewMode: 'investigation',
         isLoading: false,
+
+        // 背景音乐
+        musicStarted: false,
+        musicPlaying: false,
+        startMusic: () => {
+          console.info('[uiStore] 触发背景音乐启动')
+          set({ musicStarted: true, musicPlaying: true })
+        },
+        setMusicPlaying: (playing: boolean) => {
+          console.info('[uiStore] 设置背景音乐播放状态', { playing })
+          set({ musicPlaying: playing })
+        },
 
         // 华生对话框
         watsonDialogOpen: true,

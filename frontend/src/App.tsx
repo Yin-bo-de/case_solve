@@ -6,6 +6,7 @@ import ScenePage from '@/pages/ScenePage'
 import InterrogationPage from '@/pages/InterrogationPage'
 import DeductionBoard from '@/pages/DeductionBoard'
 import ConclusionPage from '@/pages/ConclusionPage'
+import MusicPlayer from '@/components/MusicPlayer'
 import { getRedemptionSession } from '@/utils/redemptionSession'
 
 console.debug('[App.tsx] 渲染 App 组件')
@@ -23,6 +24,7 @@ function RequireRedeem({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <div className="app">
+      <MusicPlayer />
       <Routes>
         {/* 登录页：新入口 */}
         <Route path="/" element={<LoginPage />} />

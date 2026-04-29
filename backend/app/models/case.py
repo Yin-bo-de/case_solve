@@ -56,6 +56,8 @@ class Clue(BaseModel):
     source_ref: Optional[str] = None                  # scene_id 或 suspect_id
     quoted_text: Optional[str] = None                 # 来源原文（审讯片段）
     user_generated: bool = False                      # 是否用户主动创建
+    investigation_hint: Optional[str] = None          # 发现此线索后的下一步调查方向（仅服务端使用，供华生提示）
+    chain_next_clue_index: Optional[int] = None       # 调查链：指向下一条线索的数组下标（null=链条终点）
 
 
 class Case(BaseModel):

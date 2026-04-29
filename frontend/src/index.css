@@ -3164,3 +3164,33 @@ body {
 .combine-reasoning-modal__clues { margin-bottom: 1rem; }
 .combine-reasoning-modal__clues-title { font-size: 0.85rem; color: #aaa; margin-bottom: 0.4rem; }
 .combine-reasoning-modal__clue-item { font-size: 0.85rem; padding: 0.2rem 0; color: #c9a05c; }
+
+/* ========== MusicPlayer ========== */
+.music-player-btn {
+  position: fixed;
+  bottom: 5rem;
+  right: 2rem;
+  z-index: 150;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(10, 10, 20, 0.85);
+  border: 1px solid #555;
+  color: #888;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+  padding: 0;
+}
+.music-player-btn:hover {
+  border-color: #d4af37;
+  color: #d4af37;
+}
+.music-player-btn--playing {
+  border-color: #d4af37;
+  color: #d4af37;
+  box-shadow: 0 2px 12px rgba(212, 175, 55, 0.25);
+}

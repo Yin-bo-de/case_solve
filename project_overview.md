@@ -1,7 +1,7 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-26（Docker 后端日志本地持久化与按天轮转变更）
-**当前分支**: ralph/sherlock-holmes-detective-game
+**更新日期**: 2026-04-29（新增全局背景音乐播放器）
+**当前分支**: releaes/1.0.0
 **项目状态**: 开发中
 
 ---
@@ -118,6 +118,7 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   ├── storeManager.ts           # 统一状态管理器
 │   │   │   └── README.md                # 状态管理文档
 │   │   ├── components/                 # 通用组件
+│   │   │   ├── MusicPlayer.tsx           # 全局背景音乐播放器（右下角浮窗）
 │   │   │   ├── WatsonChatDialog.tsx      # 华生对话框组件
 │   │   │   ├── CluePreviewModal.tsx       # 线索详情预览弹窗
 │   │   │   ├── ScenePanel/               # 场景相关组件
@@ -193,6 +194,38 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-04-29（新增全局背景音乐播放器）
+
+**背景**: 游戏缺乏沉浸式氛围，需要在进入勘查阶段后全程播放维多利亚时代背景音乐，且音乐需跨页面持续（不因路由切换中断），并提供右下角浮窗开关控制。
+
+**改动**
+- ✅ **新建 `frontend/src/components/MusicPlayer.tsx`**：
+  - 从 `frontend/assert/案件推理背景音乐_watermark.mp3` 导入音频文件（Vite 静态资源处理）
+  - 读取 `uiStore.musicStarted` / `musicPlaying` 状态：`musicStarted=false` 时返回 null，不渲染按钮
+  - 首次 `musicStarted` 变为 true 时创建 Audio 对象（loop=true, volume=0.5），尝试自动播放；浏览器拦截时降级为手动点击启动
+  - 响应 `musicPlaying` 状态变化执行 `play()` / `pause()`
+  - 右下角圆形浮窗按钮（`position: fixed; bottom: 5rem; right: 2rem; z-index: 150`），播放中金色高亮，暂停时灰色
+- ✅ **修改 `frontend/src/store/uiStore.ts`**：新增 `musicStarted: boolean`、`musicPlaying: boolean`、`startMusic()`、`setMusicPlaying()` 四个状态和 action，不持久化（页面刷新重置）
+- ✅ **修改 `frontend/src/App.tsx`**：在 `<Routes>` 外挂载 `<MusicPlayer />`，使其不随路由切换卸载，全生命周期保持 Audio 引用
+- ✅ **修改 `frontend/src/pages/InvestigationPage.tsx`**：在 `useEffect([], [startMusic])` 中调用 `startMusic()`，首次进入勘查页面触发音乐启动；移除原先页面内的 `<MusicPlayer />` 标签
+- ✅ **修改 `frontend/src/index.css`**：新增 `.music-player-btn` 和 `.music-player-btn--playing` 样式
+
+**Z-index 层级（无冲突）**
+```
+9999  Toast
+2000  ExtractClue Tooltip
+1000  Modal overlay / Watson dragging
+ 150  MusicPlayer（bottom: 5rem, right: 2rem）← 新增
+ 100  WatsonChatDialog（bottom: 2rem, right: 2rem）
+```
+
+**验收**
+- `npm run typecheck` ✅ 全绿（0 错误）
+- 进入 investigation 页面 → 音乐自动播放；切换到 interrogation/deduction/conclusion 任意页面 → 音乐持续；刷新/返回登录页 → 音乐停止，按钮隐藏
+- 点击右下角音符图标可切换开/关
+
+---
 
 ### 2026-04-29（扩展 /watson/hint 路由，接入 offer_scene_hint）
 
