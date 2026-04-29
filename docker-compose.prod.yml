@@ -28,6 +28,7 @@ services:
           memory: 256M
     volumes:
       - ./log:/app/logs
+      - ./backend/data:/app/data
     networks:
       - sherlock-network-prod
 
