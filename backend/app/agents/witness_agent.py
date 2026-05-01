@@ -27,6 +27,7 @@ class WitnessAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=0.7,
+            extra_body={"enable_thinking": False},
         )
         logger.info("[WitnessAgent] 初始化证人 Agent")
 

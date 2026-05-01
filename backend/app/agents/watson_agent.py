@@ -50,6 +50,7 @@ class WatsonAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=0.7,
+            extra_body={"enable_thinking": False},
         )
         self.proactive_rate = proactive_rate
         logger.info(f"[WatsonAgent] 初始化华生NPC Agent (proactive_rate={proactive_rate})")

@@ -31,6 +31,7 @@ class SuspectAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=0.8,
+            extra_body={"enable_thinking": False},
         )
         logger.info("[SuspectAgent] 初始化嫌疑人 Agent")
 

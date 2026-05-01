@@ -754,6 +754,7 @@ POST /{game_id}/watson/hint
 - 华生当前没有获取到用户在当前游戏中审讯的聊天记录（自由对话 prompt 中未注入审讯历史，未来可按需扩展）
 - [P1] 在每一条scene_page的消息下方，新增一个选项框，供用户选择接下来的对话内容，选项内容由scene_agent生成
 - [P1] 前端页面适配移动端
+- [P2] 为scene_agent之外的其他agent的invoke_with_retry 返回后，添加一个 _normalize_keys 辅助函数，映射已知别名，避免llm返回缩写导致的字段命名不一致问题
 ---
 
 ## MVP版本待办事项
