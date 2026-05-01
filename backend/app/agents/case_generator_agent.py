@@ -28,6 +28,7 @@ class CaseGeneratorAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=0.8,  # 较高温度增加创造性
+            max_tokens=settings.case_generator_max_output_tokens,  # 防止大型案件 JSON 被截断
         )
         logger.info("[CaseGeneratorAgent] 初始化案件生成Agent")
 
@@ -62,7 +63,7 @@ class CaseGeneratorAgent:
             inputs={"difficulty": difficulty},
             fallback_fn=lambda: None,  # None 时走下面的降级逻辑
             max_retries=2,
-            timeout=45.0,
+            timeout=120.0,
             parse_json=True,
         )
 

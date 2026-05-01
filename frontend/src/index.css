@@ -2941,7 +2941,7 @@ body {
 .scene-page__clue-count { font-size: 0.8rem; color: #888; }
 .scene-page__body {
   display: grid;
-  grid-template-columns: 240px 1fr 320px;
+  grid-template-columns: 400px 1fr 500px;
   flex: 1; overflow: hidden;
 }
 .scene-page__section-title { color: #c9a05c; font-size: 0.95rem; margin-bottom: 0.75rem; }
