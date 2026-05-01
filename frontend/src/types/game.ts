@@ -41,6 +41,46 @@ export interface Suspect {
   secrets: string[]
 }
 
+export interface Witness {
+  id: string
+  name: string
+  age: number
+  occupation: string
+  relationshipToCase: string
+  timeline: string
+  personalityTraits: string[]
+  relatedSuspectIds: string[]
+  credibility: number
+  // secrets / isLyingForSomeone / bribedBySuspectId 服务端剥离，不下发前端
+}
+
+export interface ExpertKeyFinding {
+  topic: string
+  finding: string
+  relatedClueIds: string[]
+}
+
+export interface Expert {
+  id: string
+  name: string
+  title: string
+  expertise: string[]
+  preliminaryReport: string
+  keyFindings: ExpertKeyFinding[]
+  methodologyNotes: string[]
+  relatedClueIds: string[]
+}
+
+export type ActorType = 'suspect' | 'witness' | 'expert'
+
+export interface CredibilityCheckResult {
+  credibilityConcern: boolean
+  concernType?: 'fear' | 'bribery' | 'memory_gap' | null
+  confidence: number
+  microexpression?: string
+  notes?: string
+}
+
 export interface SceneObject {
   id: string
   name: string
@@ -95,7 +135,7 @@ export interface Clue {
   discovered: boolean
   discoveryNotes?: string
   userLabel?: string
-  sourceType?: 'initial' | 'scene' | 'interrogation'
+  sourceType?: 'initial' | 'scene' | 'interrogation' | 'witness' | 'expert'
   sourceRef?: string
   quotedText?: string
   userGenerated?: boolean
@@ -115,6 +155,8 @@ export interface Case {
   trueMurdererId?: string
   investigationLocations: string[]
   scenes: Scene[]
+  witnesses: Witness[]
+  experts: Expert[]
 }
 
 /** 后端 DTO：仅用于 API 层和 setGameState 入口，含后端返回的初始 clues */

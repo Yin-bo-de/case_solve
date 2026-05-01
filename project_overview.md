@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-29（新增全局背景音乐播放器）
+**更新日期**: 2026-05-01（新增证人/专家角色与审讯互动）
 **当前分支**: releaes/1.0.0
 **项目状态**: 开发中
 
@@ -73,6 +73,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   ├── agents/                   # LangChain Agents
 │   │   │   ├── case_generator_agent.py   # 案件生成
 │   │   │   ├── suspect_agent.py          # 嫌疑人对话
+│   │   │   ├── witness_agent.py          # 证人对话（新增）
+│   │   │   ├── expert_agent.py           # 专家对话（新增）
 │   │   │   ├── watson_agent.py           # 华生NPC
 │   │   │   ├── oracle_agent.py           # 裁决官（推理/指控验证）
 │   │   │   ├── scene_agent.py            # 场景NPC（自然语言场景探索）
@@ -81,6 +83,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │       ├── __init__.py
 │   │   │       ├── case_prompts.py       # 案件生成Prompt
 │   │   │       ├── suspect_prompts.py    # 嫌疑人Prompt
+│   │   │       ├── witness_prompts.py    # 证人Prompt（新增）
+│   │   │       ├── expert_prompts.py     # 专家Prompt（新增）
 │   │   │       ├── watson_prompts.py     # 华生Prompt
 │   │   │       ├── oracle_prompts.py     # 裁决官Prompt
 │   │   │       └── scene_prompts.py      # 场景NPC Prompt
@@ -194,6 +198,83 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-01（新增证人 Witness / 专家 Expert 角色与后端审讯互动）
+
+**背景**: 当前案件中仅有 3 名嫌疑人可对话，缺乏真实推理小说中的目击证人和法医专家角色。为增强维多利亚时代探案的真实感，新增两类角色并扩展后端审讯 API。
+
+**角色设计**
+- **证人（Witness）**: 1-3 名/案，提供目击证词。可能因恐惧或被收买而隐瞒事实，保留「可信度提示」（区别于嫌疑人的战术性谎言）。不参与圆桌对峙。
+- **专家（Expert）**: 固定 1 名/案（皇家法医），首次进入即给出「初步法医报告」，完全可信，可被追问技术细节。不检测谎言。
+
+**后端改动**
+- ✅ **数据模型扩展** (`backend/app/models/case.py`):
+  - 新增 `Witness` 模型（含 `key_observations`、`is_lying_for_someone`、`bribed_by_suspect_id`、`credibility` 等字段，敏感字段 `exclude=True`）
+  - 新增 `ExpertKeyFinding`、`Expert` 模型（含 `preliminary_report`、`methodology_notes`、`related_clue_ids`）
+  - 扩展 `Case` 新增 `witnesses: List[Witness]`、`experts: List[Expert]`
+  - `Clue.source_type` 语义扩展为 `"initial" | "scene" | "interrogation" | "witness" | "expert"`
+- ✅ **Prompt 模板新建/扩展**:
+  - 新建 `backend/app/agents/prompts/witness_prompts.py`：`witness_response_prompt`（基于 `key_observations` 发言、维多利亚口吻、动态注入撒谎上下文）、`witness_credibility_prompt`（JSON 模式返回可信度评估）
+  - 新建 `backend/app/agents/prompts/expert_prompts.py`：`expert_response_prompt`（反幻觉策略——显式列出 `related_clue_descriptions` 作为唯一可引用物证池，拒绝动机/心理类问题）、`watson_witness_tips_prompt`（提示侦探追问 observation 而非测谎）
+  - 扩展 `backend/app/agents/prompts/case_prompts.py`：JSON Schema 追加 `witnesses`/`experts` 数组定义及数量/难度约束（easy 0 撒谎 credibility≥0.8；classic ≤1 撒谎；hardcore ≤2 撒谎 0.3-0.6）
+- ✅ **新建 Agent**:
+  - 新建 `backend/app/agents/witness_agent.py`：`WitnessAgent`（`generate_response`、`detect_credibility`、`_build_lying_context`、mock 降级）
+  - 新建 `backend/app/agents/expert_agent.py`：`ExpertAgent`（`get_preliminary_report`、`answer_question`、`_build_related_clue_descriptions` 反幻觉、mock 降级，temperature=0.4）
+- ✅ **案件生成扩展** (`backend/app/agents/case_generator_agent.py`):
+  - `_generate_mock_case` 按难度动态配置证人可信度与撒谎状态，新增 2 名证人 + 1 名法医专家
+  - 新增 `_parse_witnesses_from_data`、`_parse_experts_from_data`、`_build_fallback_witnesses`、`_build_fallback_expert` 解析/兜底方法
+- ✅ **API 路由扩展** (`backend/app/routers/game.py`):
+  - 新增 4 个请求模型：`WitnessQuestionRequest`、`ExpertQuestionRequest`、`ExtractClueFromActorRequest`、`WitnessWatsonTipsRequest`
+  - 新增 5 个端点：`POST /interrogation/witness/question`、`POST /interrogation/expert/question`、`GET /interrogation/expert/{id}/preliminary-report`、`POST /interrogation/extract-clue-from-actor`、`POST /interrogation/witness/watson-tips`
+  - 旧端点 `/interrogation/extract-clue` 与 `/interrogation/watson-tips` 完全不变，保持兼容
+- ✅ **Service 层扩展** (`backend/app/services/game_service.py`):
+  - `build_watson_chat_context` 新增填充 `witnesses`（id/name/occupation）与 `experts`（id/name/title）摘要
+- ✅ **华生 Agent 扩展** (`backend/app/agents/watson_agent.py`):
+  - 新增 `offer_witness_interrogation_tips(case, witness, conversation_history, clues)` 方法，提示追问关键目击事实
+- ✅ **配置扩展** (`backend/app/config.py`):
+  - 新增 `witness_agent_max_history_messages: int = 8`、`expert_agent_max_history_messages: int = 6`
+- ✅ **测试覆盖**:
+  - 新建 `backend/tests/test_witness_expert.py`：20 个 pytest 用例（mock 案件结构、交叉引用一致性、Agent mock 回退、Service 层 source_type 兼容、WatsonChatContext 包含证人专家），全绿
+  - 扩展 `backend/tests/test_difficulty.py`：新增 `TestWitnessDifficultyDistribution`（6 个用例：三难度下证人撒谎数与可信度范围验证），全绿
+
+**前端改动（Commit 5+6 已完成）**
+- ✅ **类型扩展** (`frontend/src/types/game.ts`)：新增 `Witness`、`Expert`、`ExpertKeyFinding`、`ActorType`、`CredibilityCheckResult`，`Case` 新增 `witnesses/experts`，`Clue.sourceType` 扩展 `witness/expert`
+- ✅ **API 客户端** (`frontend/src/services/api.ts`)：新增 `askWitnessQuestion`、`askExpertQuestion`、`getExpertPreliminaryReport`、`extractClueFromActor`、`getWitnessInterrogationTips` 5 个方法
+- ✅ **Store 改造** (`frontend/src/store/interrogationStore.ts`)：
+  - 新增 `SelectedTab` / `ActorMessage` 类型（并存，不重构旧字段）
+  - 新增 10 个状态字段：`selectedTab`、证人相关 5 个、专家相关 3 个、`extractedActorClues`
+  - 新增 9 个 actions：`setSelectedTab`、`setSelectedWitnessId`、`addWitnessConversationMessage`、`setWitnessCredibilityCheck`、`fetchWitnessTips`、`setSelectedExpertId`、`addExpertConversationMessage`、`markExpertReportLoaded`、`extractClueFromActor`
+  - persist `version: 1` + `migrate` 兼容旧存档（旧版本 v0 自动补齐新字段默认值）
+  - `partialize` 追加新字段，旧字段完全不变
+
+**前端改动（Commit 7 已完成）**
+- ✅ **页面改造** (`frontend/src/pages/InterrogationPage.tsx`)：
+  - 左栏重构为 `actors-panel`，顶部 3 个 Tab（嫌疑人 N / 证人 N / 专家 N），切换后自动选中第一个角色
+  - 切换到证人/专家 Tab 时强制锁定 `private` 模式，圆桌对峙按钮在非嫌疑人 Tab 下 disabled
+  - 标题动态：suspects→单独审讯/全体质询，witnesses→证人问询，experts→法医咨询
+  - 证人对话区：`SelectableMessage` 提取 + 可信度检测卡（`证人迟疑/有所保留/记忆偏差` 文案）+ 华生提示面板
+  - 专家对话区：自动加载 `.expert-report-card`（初步报告 + 关键发现 + 依据 clue ids）+ 对话区（无谎言检测/无华生提示）
+  - 统一 `handleSendQuestion` dispatcher，按 `selectedTab` 分发到 `sendWitnessQuestion` / `sendExpertQuestion` / `sendPrivateQuestion` / `sendGroupQuestion`
+  - `handleExtractConfirm` 按 Tab 分支：嫌疑人→旧 `extractClue`，证人/专家→`extractClueFromActor`
+  - 新增内联样式：`.actor-tabs`、`.actor-tab`、`.actor-tab__count`、`.witness-badge`（蓝色系）、`.expert-badge`（绿色系）、`.expert-report-card`、`.credibility-check` 系列
+
+**端到端联调（Commit 8 已完成）**
+- ✅ 全量回归测试：`pytest tests/ -v` → 77/77 全绿（无回归）
+- ✅ 冒烟测试 1：`POST /api/game/new` → case 含 `witnesses: 2, experts: 1`
+- ✅ 冒烟测试 2：`POST /interrogation/witness/question` → 返回 `response` + `credibility_check`（含 `credibility_concern`, `confidence`）
+- ✅ 冒烟测试 3：`POST /interrogation/expert/question` → 返回 `response`（无 `credibility_check` 字段）
+- ✅ 冒烟测试 4：`GET /interrogation/expert/{id}/preliminary-report` → `preliminary_report` 159 字非空
+- ✅ 冒烟测试 5：`POST /interrogation/extract-clue-from-actor` → `source_type: "witness"` 正确
+- ✅ 冒烟测试 6：`POST /interrogation/witness/watson-tips` → 返回 3 条 `suggestion` 类型提示
+- ✅ 前端 TypeScript 检查：`npm run typecheck` → 零错误
+- ✅ 前端构建：`npm run build` → 128 modules，构建成功
+
+**验收**
+- 后端 `pytest tests/test_witness_expert.py tests/test_difficulty.py -v` ✅ 41/41 全绿
+- 后端全量 `pytest tests/ -v` ✅ 77/77 全绿
+- 前端 `npm run typecheck && npm run build` ✅ 零错误，构建成功
+
+---
 
 ### 2026-04-29（新增全局背景音乐播放器）
 

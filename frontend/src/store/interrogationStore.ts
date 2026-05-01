@@ -2,13 +2,23 @@ import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 import { createGameScopedStorage } from './gameScopedStorage'
 import type { ConversationMessage, LieDetectionResult, ContradictionResult } from '@/services/api'
-import type { WatsonTip, Clue } from '@/types/game'
+import type { WatsonTip, Clue, CredibilityCheckResult, ActorType } from '@/types/game'
 import { gameApi } from '@/services/api'
 
 console.debug('[interrogationStore.ts] 加载模块')
 
 // 审讯模式
 export type InterrogationMode = 'private' | 'group'
+
+// 左栏 Tab 类型
+export type SelectedTab = 'suspects' | 'witnesses' | 'experts'
+
+// 证人/专家对话消息（role 扩展到 witness/expert）
+export interface ActorMessage {
+  role: 'user' | 'witness' | 'expert'
+  content: string
+  timestamp?: string
+}
 
 // 全体质询消息类型
 export interface GroupMessage {
@@ -30,10 +40,28 @@ interface InterrogationStore {
   // 审讯模式
   mode: InterrogationMode
 
+  // 左栏 Tab（嫌疑人/证人/专家）
+  selectedTab: SelectedTab
+
   // 密室问话状态
   conversationHistoryBySuspect: Record<string, ConversationMessage[]>
   selectedSuspectId: string | null
   getCurrentConversationHistory: (suspectId?: string) => ConversationMessage[]
+
+  // 证人状态（并存字段）
+  selectedWitnessId: string | null
+  witnessConversationsByWitnessId: Record<string, ActorMessage[]>
+  witnessCredibilityCheck: CredibilityCheckResult | null
+  witnessWatsonTips: WatsonTip[]
+  witnessWatsonTipsLoading: boolean
+
+  // 专家状态（并存字段）
+  selectedExpertId: string | null
+  expertConversationsByExpertId: Record<string, ActorMessage[]>
+  expertReportLoadedById: Record<string, boolean>
+
+  // 从证人/专家提取的线索（本地缓存，真实数据存 cluesStore）
+  extractedActorClues: Clue[]
 
   // 全体质询状态
   groupMessages: GroupMessage[]
@@ -46,8 +74,9 @@ interface InterrogationStore {
   // Lie detection 状态
   lieDetection: LieDetectionResult | null
 
-  // Actions - 模式
+  // Actions - 模式与 Tab
   setMode: (mode: InterrogationMode) => void
+  setSelectedTab: (tab: SelectedTab) => void
 
   // Actions - 密室问话
   addConversationMessage: (message: ConversationMessage, suspectId?: string) => void
@@ -56,6 +85,29 @@ interface InterrogationStore {
   setSelectedSuspectId: (suspectId: string | null) => void
   setLieDetection: (detection: LieDetectionResult | null) => void
   clearPrivateInterrogation: () => void
+
+  // Actions - 证人
+  setSelectedWitnessId: (witnessId: string | null) => void
+  addWitnessConversationMessage: (message: ActorMessage, witnessId: string) => void
+  setWitnessCredibilityCheck: (check: CredibilityCheckResult | null) => void
+  fetchWitnessTips: (gameId: string, witnessId: string, history: ActorMessage[]) => Promise<void>
+
+  // Actions - 专家
+  setSelectedExpertId: (expertId: string | null) => void
+  addExpertConversationMessage: (message: ActorMessage, expertId: string) => void
+  markExpertReportLoaded: (expertId: string) => void
+
+  // Actions - 证人/专家提取线索
+  extractClueFromActor: (
+    gameId: string,
+    payload: {
+      actorType: Exclude<ActorType, 'suspect'>
+      actorId: string
+      quotedText: string
+      contextMessages: ActorMessage[]
+      userLabel: string
+    }
+  ) => Promise<Clue>
 
   // Actions - 全体质询
   addGroupMessage: (message: GroupMessage) => void
@@ -72,13 +124,13 @@ interface InterrogationStore {
   setContradictions: (contradictions: ContradictionResult[]) => void
   clearGroupInterrogation: () => void
 
-  // 华生实时提示（单独审讯）
+  // 华生实时提示（单独审讯嫌疑人）
   watsonTips: WatsonTip[]
   watsonTipsLoading: boolean
-  /** 审讯中提取的线索（本地缓存，真实数据存 cluesStore） */
+  /** 审讯嫌疑人中提取的线索（本地缓存，真实数据存 cluesStore） */
   extractedClues: Clue[]
 
-  // Actions - 华生提示
+  // Actions - 华生提示（嫌疑人）
   fetchTips: (gameId: string, suspectId: string, history: ConversationMessage[]) => Promise<void>
   extractClue: (
     gameId: string,
@@ -99,8 +151,21 @@ export const useInterrogationStore = create<InterrogationStore>()(
         return {
           // 初始状态
           mode: 'private',
+          selectedTab: 'suspects',
           conversationHistoryBySuspect: {},
           selectedSuspectId: null,
+          // 证人初始状态
+          selectedWitnessId: null,
+          witnessConversationsByWitnessId: {},
+          witnessCredibilityCheck: null,
+          witnessWatsonTips: [],
+          witnessWatsonTipsLoading: false,
+          // 专家初始状态
+          selectedExpertId: null,
+          expertConversationsByExpertId: {},
+          expertReportLoadedById: {},
+          extractedActorClues: [],
+          // 全体质询
           groupMessages: [],
           mentionedSuspects: [],
           interjectionCounts: {},
@@ -112,10 +177,15 @@ export const useInterrogationStore = create<InterrogationStore>()(
           watsonTipsLoading: false,
           extractedClues: [],
 
-          // Actions - 模式
+          // Actions - 模式与 Tab
           setMode: (mode) => {
             set({ mode })
             console.info('[interrogationStore] 设置审讯模式', { mode })
+          },
+
+          setSelectedTab: (tab) => {
+            set({ selectedTab: tab })
+            console.info('[interrogationStore] 切换左栏 Tab', { tab })
           },
 
           // 密室问话 Actions
@@ -185,6 +255,82 @@ export const useInterrogationStore = create<InterrogationStore>()(
             const state = get()
             const suspectId = targetSuspectId || state.selectedSuspectId || 'default'
             return state.conversationHistoryBySuspect[suspectId] || []
+          },
+
+          // Actions - 证人
+          setSelectedWitnessId: (witnessId) => {
+            set({ selectedWitnessId: witnessId, witnessCredibilityCheck: null })
+            console.debug('[interrogationStore] 设置选中的证人', { witnessId })
+          },
+
+          addWitnessConversationMessage: (message, witnessId) => {
+            set((state) => ({
+              witnessConversationsByWitnessId: {
+                ...state.witnessConversationsByWitnessId,
+                [witnessId]: [...(state.witnessConversationsByWitnessId[witnessId] || []), message],
+              },
+            }))
+            console.info('[interrogationStore] 添加证人对话消息', { role: message.role, witnessId })
+          },
+
+          setWitnessCredibilityCheck: (check) => {
+            set({ witnessCredibilityCheck: check })
+            if (check) {
+              console.info('[interrogationStore] 设置证人可信度检测结果', check)
+            }
+          },
+
+          fetchWitnessTips: async (gameId, witnessId, history) => {
+            console.info('[interrogationStore] 获取证人审讯提示', { gameId, witnessId })
+            set({ witnessWatsonTipsLoading: true })
+            try {
+              const apiHistory = history.map((m) => ({ role: m.role, content: m.content }))
+              const result = await gameApi.getWitnessInterrogationTips(gameId, witnessId, apiHistory)
+              set({ witnessWatsonTips: result.tips, witnessWatsonTipsLoading: false })
+              console.info('[interrogationStore] 证人审讯提示已更新', { count: result.tips.length })
+            } catch (err) {
+              console.error('[interrogationStore] 获取证人审讯提示失败', err)
+              set({ witnessWatsonTipsLoading: false })
+            }
+          },
+
+          // Actions - 专家
+          setSelectedExpertId: (expertId) => {
+            set({ selectedExpertId: expertId })
+            console.debug('[interrogationStore] 设置选中的专家', { expertId })
+          },
+
+          addExpertConversationMessage: (message, expertId) => {
+            set((state) => ({
+              expertConversationsByExpertId: {
+                ...state.expertConversationsByExpertId,
+                [expertId]: [...(state.expertConversationsByExpertId[expertId] || []), message],
+              },
+            }))
+            console.info('[interrogationStore] 添加专家对话消息', { role: message.role, expertId })
+          },
+
+          markExpertReportLoaded: (expertId) => {
+            set((state) => ({
+              expertReportLoadedById: { ...state.expertReportLoadedById, [expertId]: true },
+            }))
+            console.info('[interrogationStore] 标记专家报告已加载', { expertId })
+          },
+
+          // Actions - 证人/专家提取线索
+          extractClueFromActor: async (gameId, payload) => {
+            console.info('[interrogationStore] 从角色对话提取线索', { gameId, actorType: payload.actorType, actorId: payload.actorId })
+            const apiPayload = {
+              actorType: payload.actorType,
+              actorId: payload.actorId,
+              quotedText: payload.quotedText,
+              contextMessages: payload.contextMessages.map((m) => ({ role: m.role, content: m.content })),
+              userLabel: payload.userLabel,
+            }
+            const clue = await gameApi.extractClueFromActor(gameId, apiPayload)
+            set((state) => ({ extractedActorClues: [...state.extractedActorClues, clue] }))
+            console.info('[interrogationStore] 角色线索已提取', { clueId: clue.id, actorType: payload.actorType })
+            return clue
           },
 
           // 全体质询 Actions
@@ -304,8 +450,18 @@ export const useInterrogationStore = create<InterrogationStore>()(
           resetAll: () => {
             set({
               mode: 'private',
+              selectedTab: 'suspects',
               conversationHistoryBySuspect: {},
               selectedSuspectId: null,
+              selectedWitnessId: null,
+              witnessConversationsByWitnessId: {},
+              witnessCredibilityCheck: null,
+              witnessWatsonTips: [],
+              witnessWatsonTipsLoading: false,
+              selectedExpertId: null,
+              expertConversationsByExpertId: {},
+              expertReportLoadedById: {},
+              extractedActorClues: [],
               groupMessages: [],
               mentionedSuspects: [],
               interjectionCounts: {},
@@ -324,10 +480,36 @@ export const useInterrogationStore = create<InterrogationStore>()(
       {
         name: 'interrogation-store',
         storage: createJSONStorage(() => createGameScopedStorage('interrogation-store')),
+        version: 1,
+        migrate: (persistedState: any, version: number) => {
+          if (version === 0) {
+            // 旧存档补齐证人/专家相关字段默认值
+            return {
+              ...persistedState,
+              selectedTab: 'suspects' as SelectedTab,
+              selectedWitnessId: null,
+              witnessConversationsByWitnessId: {},
+              witnessCredibilityCheck: null,
+              witnessWatsonTips: [],
+              witnessWatsonTipsLoading: false,
+              selectedExpertId: null,
+              expertConversationsByExpertId: {},
+              expertReportLoadedById: {},
+              extractedActorClues: [],
+            }
+          }
+          return persistedState
+        },
         partialize: (state) => ({
           mode: state.mode,
+          selectedTab: state.selectedTab,
           conversationHistoryBySuspect: state.conversationHistoryBySuspect,
           selectedSuspectId: state.selectedSuspectId,
+          selectedWitnessId: state.selectedWitnessId,
+          witnessConversationsByWitnessId: state.witnessConversationsByWitnessId,
+          selectedExpertId: state.selectedExpertId,
+          expertConversationsByExpertId: state.expertConversationsByExpertId,
+          expertReportLoadedById: state.expertReportLoadedById,
           groupMessages: state.groupMessages,
           mentionedSuspects: state.mentionedSuspects,
           interjectionCounts: state.interjectionCounts,
