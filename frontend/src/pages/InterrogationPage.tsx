@@ -1253,9 +1253,9 @@ export default function InterrogationPage() {
           <Link to={`/deduction/${gameId}`} className="footer-button footer-button--secondary">
             推理板
           </Link>
-          <button className="footer-button footer-button--next" disabled={true} type="button">
-            下一步: 结案 (开发中)
-          </button>
+          <Link to={`/conclusion/${gameId}`} className="footer-button footer-button--next">
+            下一步: 结案
+          </Link>
         </div>
       </footer>
 

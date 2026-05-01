@@ -47,10 +47,12 @@ export default function SceneChat({ gameId, sceneId }: Props) {
     setIsLoading(true)
 
     try {
-      const history = messages.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'assistant',
-        content: m.content,
-      }))
+      const history = messages
+        .filter((m) => m.content)
+        .map((m) => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        }))
       const result = await gameApi.sceneSearch(gameId, sceneId, query, history)
       console.info('[SceneChat] 收到场景回应', { candidates: result.clueCandidates.length })
 

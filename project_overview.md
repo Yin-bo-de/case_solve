@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-01（修复勘查页面已发现线索面板宽度不稳定）
+**更新日期**: 2026-05-01（修复 SceneAgent LLM 返回 JSON key 缩写问题）
 **当前分支**: releaes/1.0.0
 **项目状态**: 开发中
 
@@ -198,6 +198,13 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-01（修复 SceneAgent LLM 返回 JSON key 缩写问题）
+
+**背景**: SceneAgent 调用 LLM 后，返回的 JSON 中 `narrative` 被模型缩写为 `narr`，导致前端无法正确读取叙述文本字段。即使 prompt 中明确要求"不要随意修改key"，LLM 仍倾向缩写长 key，这是 LLM 输出格式的固有问题。
+
+**改动**
+- ✅ **`backend/app/agents/scene_agent.py`**：新增 `_KEY_ALIASES` 映射表（`narr→narrative`、`narration→narrative`、`text→narrative`、`matched_objects→matched_object_ids`、`clues→clue_candidates`）和 `_normalize_keys()` 归一化函数，在 `search()` 方法返回前对 LLM 结果做 key 校正
 
 ### 2026-05-01（修复勘查页面已发现线索面板宽度不稳定）
 
@@ -745,6 +752,8 @@ POST /{game_id}/watson/hint
 ### 待解决的问题
 - [P2] watson-tips-panel__header的提示内容，需要重新考虑是在华生npc中还是保持单独弄一个提示组件
 - 华生当前没有获取到用户在当前游戏中审讯的聊天记录（自由对话 prompt 中未注入审讯历史，未来可按需扩展）
+- [P1] 在每一条scene_page的消息下方，新增一个选项框，供用户选择接下来的对话内容，选项内容由scene_agent生成
+- [P1] 前端页面适配移动端
 ---
 
 ## MVP版本待办事项

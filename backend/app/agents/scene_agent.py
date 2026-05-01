@@ -12,6 +12,23 @@ from app.models.case import Case, Scene
 from app.agents._llm_helpers import invoke_with_retry
 from app.agents.prompts.scene_prompts import SCENE_SYSTEM, SCENE_SEARCH_USER
 
+# LLM 返回 JSON 中常见的 key 缩写 → 标准 key 映射
+_KEY_ALIASES: Dict[str, str] = {
+    "narr": "narrative",
+    "narration": "narrative",
+    "text": "narrative",
+    "matched_objects": "matched_object_ids",
+    "clues": "clue_candidates",
+}
+
+
+def _normalize_keys(data: Dict[str, Any]) -> Dict[str, Any]:
+    """将 LLM 返回 JSON 中的非标准 key 归一化为 prompt 定义的标准 key"""
+    normalized = {}
+    for k, v in data.items():
+        normalized[_KEY_ALIASES.get(k, k)] = v
+    return normalized
+
 
 def _format_scene(scene: Scene) -> str:
     lines = [f"name: {scene.name}", f"desc: {scene.description}", "objects:"]
@@ -23,7 +40,7 @@ def _format_scene(scene: Scene) -> str:
 
 def _format_history(history: List[Dict[str, str]], limit: int = 6) -> str:
     recent = history[-limit:]
-    return "\n".join([f"{m['role']}: {m['content']}" for m in recent]) or "（无）"
+    return "\n".join([f"{m['role']}: {m.get('content', '')}" for m in recent]) or "（无）"
 
 
 def _format_clues_for_scene(case: Case, scene: Scene) -> str:
@@ -42,6 +59,7 @@ class SceneAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=temperature,
+            extra_body={"enable_thinking": False},
         )
         logger.info(f"[SceneAgent] 初始化场景NPC Agent (temperature={temperature})")
 
@@ -77,6 +95,7 @@ class SceneAgent:
             },
             parse_json=True,
         )
+        result = _normalize_keys(result)
         logger.info(f"[SceneAgent] search 完成 candidates={len(result.get('clue_candidates', []))}")
         return result
 

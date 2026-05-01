@@ -27,7 +27,7 @@ SCENE_SEARCH_USER = """## 当前场景
 {query}
 
 ## 任务
-返回 JSON:
+返回 JSON，必须包含以下字段（不要随意修改key，比如narrative不要写成narr）:
 {{
   "narrative": "你的回应（沉浸式，符合维多利亚风格）",
   "matched_object_ids": ["命中的 SceneObject id 列表"],
