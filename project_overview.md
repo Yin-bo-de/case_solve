@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-01（新增证人/专家角色与审讯互动）
+**更新日期**: 2026-05-01（修复勘查页面已发现线索面板宽度不稳定）
 **当前分支**: releaes/1.0.0
 **项目状态**: 开发中
 
@@ -198,6 +198,28 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-01（修复勘查页面已发现线索面板宽度不稳定）
+
+**背景**: `.discovered-clues-panel` 组件宽度随线索内容变化而变化，每次渲染宽度不一致。根因是该面板位于 `flex-direction: row` 的父容器 `.investigation-main` 中，且未设置任何宽度约束，宽度完全由内容撑开。
+
+**改动**
+- ✅ **`frontend/src/index.css`**：`.discovered-clues-panel` 新增 `width: 100%; max-width: 100%`，面板宽度固定为父容器满宽，不再随内容变化
+
+### 2026-05-01（修复案件生成 JSON 截断报错）
+
+**背景**: 生成案件时报错 `Unterminated string starting at: line 161 column 28 (char 5108)`，LLM 输出的案件 JSON 在约 5100 字符处被截断，导致 `json.loads` 失败。
+
+**根因**: `CaseGeneratorAgent` 的 `ChatOpenAI` 未设置 `max_tokens`，模型默认输出上限（通常 4096 tokens）不足以装下完整案件 JSON（3 嫌疑人 + 5 线索 + 3 场景 + 证人 + 专家），输出在中途被截断。
+
+**改动**
+- ✅ **`backend/app/config.py`**：新增 `case_generator_max_output_tokens: int = 8000` 配置项
+- ✅ **`backend/app/agents/case_generator_agent.py`**：`ChatOpenAI` 构造时传入 `max_tokens=settings.case_generator_max_output_tokens`
+- ✅ **`backend/app/agents/_llm_helpers.py`**：`invoke_with_retry` 的 JSON 解析逻辑优化——截断导致的 `JSONDecodeError` 不再无意义重试，直接 `break` 跳出循环进入 fallback，避免浪费时间等待同样的截断结果
+
+**验收**
+- 41/41 后端测试全绿，无回归
+- 三处修改均通过导入验证
 
 ### 2026-05-01（新增证人 Witness / 专家 Expert 角色与后端审讯互动）
 

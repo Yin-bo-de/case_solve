@@ -3045,7 +3045,7 @@ body {
   border-bottom: 1px solid rgba(201,160,92,0.15);
   font-size: 0.9rem; color: #ccc; line-height: 1.6;
 }
-.discovered-clues-panel { padding: 1rem 2rem; border-top: 1px solid rgba(201,160,92,0.15); display: flex; flex-direction: column; min-height: 0; }
+.discovered-clues-panel { padding: 1rem 2rem; border-top: 1px solid rgba(201,160,92,0.15); display: flex; flex-direction: column; min-height: 0; width: 100%; max-width: 100%; }
 .discovered-clues-panel h2 { color: #c9a05c; font-size: 1rem; margin-bottom: 0.75rem; flex-shrink: 0; }
 
 /* ═══════════════════════════════════════════════════════
