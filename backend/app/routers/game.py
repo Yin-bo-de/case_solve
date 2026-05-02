@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from loguru import logger
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 
 from app.models.game import (
     GameState, CreateGameRequest, GameDifficulty, GamePhase,
@@ -17,6 +17,8 @@ from app.services.redemption_service import get_redemption_service
 from app.agents.case_generator_agent import get_case_generator
 from app.agents.watson_agent import get_watson_agent, WatsonAgent
 from app.agents.suspect_agent import get_suspect_agent
+from app.agents.witness_agent import get_witness_agent
+from app.agents.expert_agent import get_expert_agent
 
 router = APIRouter()
 
@@ -92,6 +94,21 @@ class SceneSearchRequest(BaseModel):
     history: List[Dict[str, str]] = []
 
 
+class SceneClueCandidate(BaseModel):
+    """场景线索候选项"""
+    object_id: str
+    suggested_clue_id: Optional[str] = None
+    hint: str
+
+
+class SceneSearchResponse(BaseModel):
+    """场景搜查响应"""
+    narrative: str
+    matched_object_ids: List[str] = []
+    clue_candidates: List[SceneClueCandidate] = []
+    dialog_options: List[str] = []
+
+
 class AddClueRequest(BaseModel):
     """添加自定义线索请求"""
     user_label: str
@@ -127,6 +144,35 @@ class MakeAccusationRequest(BaseModel):
     suspect_id: str
     reasoning_record_ids: List[str]   # 必填，1-3 条
     reasoning_steps: List[str] = []   # 兼容旧字段
+
+
+class WitnessQuestionRequest(BaseModel):
+    """证人提问请求"""
+    witness_id: str
+    question: str
+    conversation_history: List[Dict[str, str]] = []
+
+
+class ExpertQuestionRequest(BaseModel):
+    """专家提问请求"""
+    expert_id: str
+    question: str
+    conversation_history: List[Dict[str, str]] = []
+
+
+class ExtractClueFromActorRequest(BaseModel):
+    """从证人/专家对话片段提取线索请求"""
+    actor_type: Literal["witness", "expert"]
+    actor_id: str
+    quoted_text: str
+    context_messages: List[Dict[str, str]] = []
+    user_label: str
+
+
+class WitnessWatsonTipsRequest(BaseModel):
+    """华生证人审讯提示请求"""
+    witness_id: str
+    conversation_history: List[Dict[str, str]] = []
 
 
 class WatsonChatRequest(BaseModel):
@@ -466,7 +512,7 @@ async def group_control(game_id: str, request: GroupControlRequest):
     return {"success": True, "message": response_message}
 
 
-@router.post("/{game_id}/scene/{scene_id}/search")
+@router.post("/{game_id}/scene/{scene_id}/search", response_model=SceneSearchResponse)
 async def scene_search(game_id: str, scene_id: str, request: SceneSearchRequest):
     """场景 NPC 搜查：自然语言探索场景对象"""
     logger.info(f"[API] 场景搜查: {game_id} scene_id={scene_id} query_len={len(request.query)}")
@@ -606,6 +652,175 @@ async def watson_interrogation_tips(
         clues=[c for c in game.case.clues if c.discovered or c.user_generated],
     )
     logger.info(f"[API] 华生审讯提示生成成功: {game_id} tips_count={len(tips)}")
+    return {"tips": tips}
+
+
+@router.post("/{game_id}/interrogation/witness/question")
+async def ask_witness_question(game_id: str, request: WitnessQuestionRequest):
+    """向证人提问"""
+    logger.info(f"[API] 向证人提问: {game_id}, 证人: {request.witness_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    witness = next(
+        (w for w in game.case.witnesses if w.id == request.witness_id),
+        None
+    )
+    if not witness:
+        raise HTTPException(status_code=404, detail=f"证人不存在: {request.witness_id}")
+
+    witness_agent = get_witness_agent()
+    response = await witness_agent.generate_response(
+        witness=witness,
+        case=game.case,
+        user_question=request.question,
+        conversation_history=request.conversation_history,
+    )
+    credibility_check = await witness_agent.detect_credibility(
+        witness=witness,
+        response=response,
+        case=game.case,
+    )
+
+    logger.info(f"[API] 证人回复生成成功: {game_id}")
+    return {
+        "witness_id": witness.id,
+        "witness_name": witness.name,
+        "response": response,
+        "credibility_check": credibility_check,
+    }
+
+
+@router.post("/{game_id}/interrogation/expert/question")
+async def ask_expert_question(game_id: str, request: ExpertQuestionRequest):
+    """向专家提问"""
+    logger.info(f"[API] 向专家提问: {game_id}, 专家: {request.expert_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    expert = next(
+        (e for e in game.case.experts if e.id == request.expert_id),
+        None
+    )
+    if not expert:
+        raise HTTPException(status_code=404, detail=f"专家不存在: {request.expert_id}")
+
+    expert_agent = get_expert_agent()
+    response = await expert_agent.answer_question(
+        expert=expert,
+        case=game.case,
+        user_question=request.question,
+        conversation_history=request.conversation_history,
+    )
+
+    logger.info(f"[API] 专家回复生成成功: {game_id}")
+    return {
+        "expert_id": expert.id,
+        "expert_name": expert.name,
+        "response": response,
+    }
+
+
+@router.get("/{game_id}/interrogation/expert/{expert_id}/preliminary-report")
+async def get_expert_preliminary_report(game_id: str, expert_id: str):
+    """获取专家初步法医报告"""
+    logger.info(f"[API] 获取专家初步报告: {game_id}, 专家: {expert_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    expert = next(
+        (e for e in game.case.experts if e.id == expert_id),
+        None
+    )
+    if not expert:
+        raise HTTPException(status_code=404, detail=f"专家不存在: {expert_id}")
+
+    expert_agent = get_expert_agent()
+    report = await expert_agent.get_preliminary_report(expert=expert, case=game.case)
+
+    key_findings_summary = [
+        {"topic": f.topic, "finding": f.finding}
+        for f in expert.key_findings
+    ]
+
+    logger.info(f"[API] 专家初步报告返回成功: {game_id}")
+    return {
+        "expert_id": expert.id,
+        "expert_name": expert.name,
+        "title": expert.title,
+        "preliminary_report": report,
+        "key_findings_summary": key_findings_summary,
+    }
+
+
+@router.post("/{game_id}/interrogation/extract-clue-from-actor")
+async def extract_clue_from_actor(game_id: str, request: ExtractClueFromActorRequest):
+    """从证人/专家对话片段生成线索"""
+    logger.info(
+        f"[API] 从{request.actor_type}提取线索: {game_id} actor_id={request.actor_id}"
+    )
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    clue = game_service.add_user_clue(
+        game_id=game_id,
+        user_label=request.user_label,
+        description=request.quoted_text,
+        source_type=request.actor_type,
+        source_ref=request.actor_id,
+        quoted_text=request.quoted_text,
+    )
+    logger.info(f"[API] {request.actor_type}线索提取成功: {game_id} clue_id={clue.id}")
+    return clue
+
+
+@router.post("/{game_id}/interrogation/witness/watson-tips")
+async def watson_witness_interrogation_tips(
+    game_id: str, request: WitnessWatsonTipsRequest
+):
+    """华生证人审讯实时提示：提示侦探追问关键目击事实"""
+    logger.info(f"[API] 获取华生证人提示: {game_id} witness_id={request.witness_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game or not game.case:
+        raise HTTPException(status_code=404, detail="game/case 不存在")
+
+    witness = next(
+        (w for w in game.case.witnesses if w.id == request.witness_id), None
+    )
+    if not witness:
+        raise HTTPException(status_code=404, detail="证人不存在")
+
+    watson = WatsonAgent.from_difficulty(game.difficulty.value)
+    tips = await watson.offer_witness_interrogation_tips(
+        case=game.case,
+        witness=witness,
+        conversation_history=request.conversation_history,
+        clues=[c for c in game.case.clues if c.discovered or c.user_generated],
+    )
+    logger.info(f"[API] 华生证人提示生成成功: {game_id} tips_count={len(tips)}")
     return {"tips": tips}
 
 

@@ -137,9 +137,14 @@ class TestWatsonProactiveRate:
         with patch.object(WatsonAgent, "__init__", lambda self, proactive_rate=0.5: setattr(self, "proactive_rate", proactive_rate) or None):
             agent = WatsonAgent(proactive_rate=1.0)
 
-        obs = Observation(id="obs-1", description="测试", location="书房", timestamp=datetime.utcnow())
-        result = await agent.share_observation(obs)
-        assert result is not None
+        with patch("app.agents.watson_agent.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.openai_api_key = None
+            mock_settings.return_value = settings
+
+            obs = Observation(id="obs-1", description="测试", location="书房", timestamp=datetime.utcnow())
+            result = await agent.share_observation(obs)
+            assert result is not None
 
 
 # ─── 章节 8.4 Scene 生成测试 ────────────────────────────────────
@@ -184,4 +189,46 @@ class TestSceneGeneration:
             assert case.investigation_locations == expected, (
                 f"{difficulty}: investigation_locations={case.investigation_locations} "
                 f"与 scene 名称 {expected} 不一致"
+            )
+
+
+# ─── 证人难度分布测试 ──────────────────────────────────────────
+
+class TestWitnessDifficultyDistribution:
+    """验证不同难度下证人的可信度与撒谎分布"""
+
+    def test_easy_no_lying_witnesses(self):
+        case = _make_mock_case("easy")
+        lying = [w for w in case.witnesses if w.is_lying_for_someone]
+        assert len(lying) == 0, f"Easy 难度不应有撒谎证人，实际 {len(lying)}"
+
+    def test_easy_witness_credibility_high(self):
+        case = _make_mock_case("easy")
+        for w in case.witnesses:
+            assert w.credibility >= 0.8, (
+                f"Easy 证人可信度应 >= 0.8，{w.id}={w.credibility}"
+            )
+
+    def test_classic_at_most_one_lying_witness(self):
+        case = _make_mock_case("classic")
+        lying = [w for w in case.witnesses if w.is_lying_for_someone]
+        assert len(lying) <= 1, f"Classic 难度至多 1 名撒谎证人，实际 {len(lying)}"
+
+    def test_classic_witness_credibility_range(self):
+        case = _make_mock_case("classic")
+        for w in case.witnesses:
+            assert 0.5 <= w.credibility <= 0.8, (
+                f"Classic 证人可信度应在 0.5~0.8，{w.id}={w.credibility}"
+            )
+
+    def test_hardcore_at_most_two_lying_witnesses(self):
+        case = _make_mock_case("hardcore")
+        lying = [w for w in case.witnesses if w.is_lying_for_someone]
+        assert len(lying) <= 2, f"Hardcore 难度至多 2 名撒谎证人，实际 {len(lying)}"
+
+    def test_hardcore_witness_credibility_low(self):
+        case = _make_mock_case("hardcore")
+        for w in case.witnesses:
+            assert 0.3 <= w.credibility <= 0.6, (
+                f"Hardcore 证人可信度应在 0.3~0.6，{w.id}={w.credibility}"
             )

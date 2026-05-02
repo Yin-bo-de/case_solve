@@ -1,12 +1,21 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import type { Suspect } from '@/types/game'
+import type { Suspect, Witness, Expert } from '@/types/game'
 import {
   gameApi,
   type ConversationMessage,
   type GroupControlAction,
 } from '@/services/api'
-import { useWatsonChatStore, useInterrogationStore, useCluesStore, useGameStore, type GroupMessage, type MentionedSuspect, type InterrogationMode } from '@/store'
+import {
+  useWatsonChatStore,
+  useInterrogationStore,
+  useCluesStore,
+  useGameStore,
+  type GroupMessage,
+  type MentionedSuspect,
+  type InterrogationMode,
+} from '@/store'
+import type { SelectedTab, ActorMessage } from '@/store/interrogationStore'
 import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 import { SelectableMessage } from '@/components/SelectableMessage'
@@ -24,6 +33,8 @@ export default function InterrogationPage() {
   const {
     mode,
     setMode,
+    selectedTab,
+    setSelectedTab,
     conversationHistoryBySuspect,
     selectedSuspectId,
     getCurrentConversationHistory,
@@ -48,18 +59,37 @@ export default function InterrogationPage() {
     watsonTipsLoading,
     fetchTips,
     extractClue,
+    // witness
+    selectedWitnessId,
+    setSelectedWitnessId,
+    witnessConversationsByWitnessId,
+    addWitnessConversationMessage,
+    witnessCredibilityCheck,
+    setWitnessCredibilityCheck,
+    witnessWatsonTips,
+    witnessWatsonTipsLoading,
+    fetchWitnessTips,
+    // expert
+    selectedExpertId,
+    setSelectedExpertId,
+    expertConversationsByExpertId,
+    addExpertConversationMessage,
+    expertReportLoadedById,
+    markExpertReportLoaded,
+    extractClueFromActor,
   } = useInterrogationStore()
 
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
+  const [selectedWitness, setSelectedWitness] = useState<Witness | null>(null)
+  const [selectedExpert, setSelectedExpert] = useState<Expert | null>(null)
   const [question, setQuestion] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
-  // 记录当前正在生成回复的嫌疑人ID，防止切换嫌疑人后看到错误的打字动画
-  const [processingSuspectId, setProcessingSuspectId] = useState<string | null>(null)
-  // 待提取线索的引用文本
+  // 记录当前正在生成回复的角色ID，防止切换角色后看到错误的打字动画
+  const [processingActorId, setProcessingActorId] = useState<string | null>(null)
   const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
 
-  // 全体质询相关状态（UI状态不需要持久化）
+  // 全体质询相关UI状态（不需要持久化）
   const [showMentionMenu, setShowMentionMenu] = useState(false)
   const [mentionMenuPosition, setMentionMenuPosition] = useState({ x: 0, y: 0 })
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
@@ -67,9 +97,94 @@ export default function InterrogationPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const questionInputRef = useRef<HTMLTextAreaElement>(null)
 
-  console.debug('[InterrogationPage] 渲染审讯页面', { gameId, mode })
+  console.debug('[InterrogationPage] 渲染审讯页面', { gameId, mode, selectedTab })
 
-  // 切换审讯模式
+  // ---------- 初始化与恢复 ----------
+
+  // gameState 就绪时初始化默认选中嫌疑人
+  useEffect(() => {
+    if (gameState?.case?.suspects && gameState.case.suspects.length > 0 && !selectedSuspect) {
+      setSelectedSuspect(gameState.case.suspects[0])
+      setSelectedSuspectId(gameState.case.suspects[0].id)
+    }
+  }, [gameState?.case?.suspects, selectedSuspect])
+
+  // 从持久化的 selectedWitnessId 恢复 selectedWitness 对象
+  useEffect(() => {
+    if (selectedWitnessId && gameState?.case?.witnesses) {
+      const found = gameState.case.witnesses.find(w => w.id === selectedWitnessId)
+      if (found) setSelectedWitness(found)
+    }
+  }, [selectedWitnessId, gameState?.case?.witnesses])
+
+  // 从持久化的 selectedExpertId 恢复 selectedExpert 对象
+  useEffect(() => {
+    if (selectedExpertId && gameState?.case?.experts) {
+      const found = gameState.case.experts.find(e => e.id === selectedExpertId)
+      if (found) setSelectedExpert(found)
+    }
+  }, [selectedExpertId, gameState?.case?.experts])
+
+  // 切换到证人/专家 Tab 时自动选中第一个
+  useEffect(() => {
+    if (selectedTab === 'witnesses' && gameState?.case?.witnesses?.length) {
+      const first = gameState.case.witnesses[0]
+      setSelectedWitness(first)
+      setSelectedWitnessId(first.id)
+    } else if (selectedTab === 'experts' && gameState?.case?.experts?.length) {
+      const first = gameState.case.experts[0]
+      setSelectedExpert(first)
+      setSelectedExpertId(first.id)
+    }
+  }, [selectedTab]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 专家 Tab 进入时自动加载初步法医报告
+  useEffect(() => {
+    if (selectedTab !== 'experts' || !selectedExpert || !gameId) return
+    if (expertReportLoadedById[selectedExpert.id]) return
+
+    const expertId = selectedExpert.id
+    console.info('[InterrogationPage] 自动加载专家初步报告', { gameId, expertId })
+
+    gameApi.getExpertPreliminaryReport(gameId, expertId)
+      .then(data => {
+        const reportMsg: ActorMessage = {
+          role: 'expert',
+          content: data.preliminaryReport,
+          timestamp: new Date().toISOString(),
+        }
+        addExpertConversationMessage(reportMsg, expertId)
+        markExpertReportLoaded(expertId)
+        console.info('[InterrogationPage] 专家初步报告已加载', { expertId })
+      })
+      .catch(err => console.error('[InterrogationPage] 加载专家初步报告失败', err))
+  }, [selectedTab, selectedExpert?.id, gameId, expertReportLoadedById]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [conversationHistoryBySuspect, selectedSuspectId, groupMessages, witnessConversationsByWitnessId, expertConversationsByExpertId])
+
+  // 重置 @ 菜单索引
+  useEffect(() => {
+    if (!showMentionMenu) setSelectedMentionIndex(0)
+  }, [showMentionMenu])
+
+  useGameSessionSync(gameId)
+
+  // ---------- Tab 切换 ----------
+
+  const handleTabChange = (tab: SelectedTab) => {
+    // 切换到证人/专家时强制锁定为 private 模式
+    if (tab !== 'suspects' && mode === 'group') {
+      setMode('private')
+      console.info('[InterrogationPage] 切换至非嫌疑人 Tab，强制锁定 private 模式')
+    }
+    setSelectedTab(tab)
+  }
+
+  // ---------- 审讯模式切换 ----------
+
   const handleModeChange = (newMode: InterrogationMode) => {
     console.info('[InterrogationPage] 切换审讯模式', { from: mode, to: newMode })
     setMode(newMode)
@@ -84,53 +199,47 @@ export default function InterrogationPage() {
     }
   }
 
-  // 滚动到底部
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [conversationHistoryBySuspect, selectedSuspectId, groupMessages, addWatsonMessage])
+  // ---------- 嫌疑人选择 ----------
 
-  // 重置选中索引
-  useEffect(() => {
-    if (!showMentionMenu) {
-      setSelectedMentionIndex(0)
-    }
-  }, [showMentionMenu])
-
-  useGameSessionSync(gameId)
-
-  // 当 gameState 首次就绪时初始化默认选中的嫌疑人
-  useEffect(() => {
-    if (gameState?.case?.suspects && gameState.case.suspects.length > 0 && !selectedSuspect) {
-      setSelectedSuspect(gameState.case.suspects[0])
-      setSelectedSuspectId(gameState.case.suspects[0].id)
-    }
-  }, [gameState?.case?.suspects, selectedSuspect])
-
-  // 切换嫌疑人
   const handleSuspectSelect = (suspect: Suspect) => {
-    console.debug('[InterrogationPage] 选择嫌疑人', { suspectId: suspect.id, suspectName: suspect.name })
+    console.debug('[InterrogationPage] 选择嫌疑人', { suspectId: suspect.id })
     setSelectedSuspect(suspect)
     setSelectedSuspectId(suspect.id)
     setLieDetection(null)
 
-    // 华生主动提问
     if (Math.random() > 0.3) {
-      const questions = [
+      const comments = [
         `让我们问问${suspect.name}昨晚在哪里。`,
         `或许我们应该了解一下${suspect.name}和死者的关系。`,
         `我很好奇${suspect.name}对这起案件有什么看法。`,
       ]
-      const randomIndex = Math.floor(Math.random() * questions.length)
-      addWatsonMessage(questions[randomIndex], "suspect_analysis")
+      addWatsonMessage(comments[Math.floor(Math.random() * comments.length)], 'suspect_analysis')
     }
   }
 
-  // 处理@提及
+  // ---------- 证人选择 ----------
+
+  const handleWitnessSelect = (witness: Witness) => {
+    console.debug('[InterrogationPage] 选择证人', { witnessId: witness.id })
+    setSelectedWitness(witness)
+    setSelectedWitnessId(witness.id)
+    setWitnessCredibilityCheck(null)
+  }
+
+  // ---------- 专家选择 ----------
+
+  const handleExpertSelect = (expert: Expert) => {
+    console.debug('[InterrogationPage] 选择专家', { expertId: expert.id })
+    setSelectedExpert(expert)
+    setSelectedExpertId(expert.id)
+  }
+
+  // ---------- @提及处理 ----------
+
   const handleQuestionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value
     setQuestion(value)
 
-    // 检查是否输入了@
     const lastAtIndex = value.lastIndexOf('@')
     if (lastAtIndex !== -1 && lastAtIndex > value.lastIndexOf(' ')) {
       const searchText = value.substring(lastAtIndex + 1).toLowerCase()
@@ -142,7 +251,6 @@ export default function InterrogationPage() {
         setMentionedSuspects(matchingSuspects.map(s => ({ id: s.id, name: s.name })))
         setShowMentionMenu(true)
         setSelectedMentionIndex(0)
-        // 计算菜单位置
         if (questionInputRef.current) {
           const rect = questionInputRef.current.getBoundingClientRect()
           setMentionMenuPosition({ x: 10, y: rect.height - 100 })
@@ -155,22 +263,18 @@ export default function InterrogationPage() {
     }
   }
 
-  // 选择@的嫌疑人
   const handleMentionSelect = (suspect: MentionedSuspect) => {
     const lastAtIndex = question.lastIndexOf('@')
     const newQuestion = question.substring(0, lastAtIndex) + `@${suspect.name} `
     setQuestion(newQuestion)
     setShowMentionMenu(false)
     setSelectedMentionIndex(0)
-
-    // 添加到提及列表（用于发送时）
     addMentionedSuspect(suspect)
-
-    // 聚焦输入框
     setTimeout(() => questionInputRef.current?.focus(), 0)
   }
 
-  // 添加全体质询消息
+  // ---------- 全体质询辅助 ----------
+
   const createAndAddGroupMessage = (
     role: GroupMessage['role'],
     content: string,
@@ -185,28 +289,16 @@ export default function InterrogationPage() {
       suspectName,
       timestamp: new Date().toISOString(),
     }
-    console.info('[InterrogationPage] 全体质询消息', { role, content, suspectName })
     addGroupMessage(message)
   }
 
-  // 记录嫌疑人陈述
-  const recordSuspectStatement = (suspectId: string, statement: string) => {
-    addSuspectStatement(suspectId, statement)
-  }
-
-  // 检查矛盾
   const checkForContradictions = useCallback(async () => {
     if (!gameId) return
-
     try {
-      console.info('[InterrogationPage] 检查证词矛盾')
       const result = await gameApi.checkContradictions(gameId, [], suspectStatements)
       if (result.count > 0) {
         setContradictions(result.contradictions)
         setShowContradictionAlert(true)
-        console.info('[InterrogationPage] 发现矛盾', result.contradictions)
-
-        // 华生指出矛盾
         setTimeout(() => {
           addWatsonMessage(
             `等等！我发现了一个矛盾！${result.contradictions[0].description}`,
@@ -219,34 +311,20 @@ export default function InterrogationPage() {
     }
   }, [gameId, suspectStatements, addWatsonMessage])
 
-  // 嫌疑人插话
   const triggerSuspectInterjection = useCallback(async (
     respondingSuspectId: string,
     otherSuspectId: string,
     context: string
   ) => {
     if (!gameId) return
-
-    // 检查插话次数
     const currentCount = interjectionCounts[respondingSuspectId] || 0
-    if (currentCount >= 2) {
-      console.debug('[InterrogationPage] 嫌疑人插话次数已达上限', { respondingSuspectId })
-      return
-    }
+    if (currentCount >= 2) return
 
     try {
-      const result = await gameApi.getSuspectInterjection(
-        gameId,
-        respondingSuspectId,
-        otherSuspectId,
-        context
-      )
-
+      const result = await gameApi.getSuspectInterjection(gameId, respondingSuspectId, otherSuspectId, context)
       if (result.interjection) {
         const respondingSuspect = gameState?.case?.suspects?.find(s => s.id === respondingSuspectId)
         createAndAddGroupMessage('interjection', result.interjection, respondingSuspectId, respondingSuspect?.name)
-
-        // 更新插话计数
         updateInterjectionCount(respondingSuspectId, 1)
       }
     } catch (err) {
@@ -254,12 +332,9 @@ export default function InterrogationPage() {
     }
   }, [gameId, interjectionCounts, gameState])
 
-  // 控场操作
   const handleGroupControl = async (action: GroupControlAction, targetSuspectId?: string) => {
     if (!gameId) return
-
     try {
-      console.info('[InterrogationPage] 控场操作', { action, targetSuspectId })
       const result = await gameApi.groupControl(gameId, action, targetSuspectId)
       createAndAddGroupMessage('system', result.message)
     } catch (err) {
@@ -267,43 +342,14 @@ export default function InterrogationPage() {
     }
   }
 
-  // 发送问题（支持单独审讯和全体质询）
-  const handleSendQuestion = async () => {
-    if (!gameId || !question.trim() || isProcessing) return
+  // ---------- 发送问题：嫌疑人（单独） ----------
 
-    // 单独审讯模式需要选择嫌疑人
-    if (mode === 'private' && !selectedSuspect) return
-
-    console.info('[InterrogationPage] 发送问题', { mode, question: question.substring(0, 50) })
-    setIsProcessing(true)
-
-    try {
-      if (mode === 'private') {
-        // 单独审讯模式
-        await sendPrivateQuestion()
-      } else {
-        // 全体质询模式
-        await sendGroupQuestion()
-      }
-    } catch (err) {
-      console.error('[InterrogationPage] 发送问题失败', err)
-      setError(err instanceof Error ? err.message : '发送问题失败')
-    } finally {
-      setIsProcessing(false)
-      setProcessingSuspectId(null)
-    }
-  }
-
-  // 发送单独审讯问题
   const sendPrivateQuestion = async () => {
     if (!gameId || !selectedSuspect) return
-
-    // 缓存目标嫌疑人ID，防止异步请求期间用户切换导致消息错乱
     const targetSuspectId = selectedSuspect.id
     const targetSuspectName = selectedSuspect.name
-    setProcessingSuspectId(targetSuspectId)
+    setProcessingActorId(targetSuspectId)
 
-    // 添加用户问题到对话历史
     const userMessage: ConversationMessage = {
       role: 'user',
       content: question,
@@ -311,7 +357,6 @@ export default function InterrogationPage() {
     }
     addConversationMessage(userMessage, targetSuspectId)
 
-    // 调用API（使用缓存的嫌疑人ID和历史，避免切换后读取错误）
     const historyBeforeApi = getCurrentConversationHistory(targetSuspectId)
     const response = await gameApi.askSuspectQuestion(
       gameId,
@@ -322,20 +367,15 @@ export default function InterrogationPage() {
       []
     )
 
-    // 添加嫌疑人回复到对话历史（仍使用缓存的嫌疑人ID）
-    const suspectMessage: ConversationMessage = {
-      role: 'suspect',
-      content: response.response,
-      timestamp: new Date().toISOString(),
-    }
-    addConversationMessage(suspectMessage, targetSuspectId)
+    addConversationMessage(
+      { role: 'suspect', content: response.response, timestamp: new Date().toISOString() },
+      targetSuspectId
+    )
 
-    // 设置谎言检测结果（响应拦截器已转换为 camelCase）
     const newLieDetection = response.lieDetection ?? null
     setLieDetection(newLieDetection)
 
-    // 华生评论（使用缓存的嫌疑人信息）
-    if (newLieDetection && newLieDetection.lieDetected && newLieDetection.microexpression) {
+    if (newLieDetection?.lieDetected && newLieDetection.microexpression) {
       setTimeout(() => {
         addWatsonMessage(
           `你注意到了吗？${targetSuspectName}${newLieDetection.microexpression}。我觉得${newLieDetection.notes || '这里有点可疑'}。`,
@@ -344,56 +384,25 @@ export default function InterrogationPage() {
       }, 800)
     } else if (Math.random() > 0.5) {
       setTimeout(() => {
-        const comments = [
-          '这回答有点意思。你怎么看？',
-          '我不确定是否完全相信这个说法。',
-          '我们应该继续追问这个话题。',
-          '让我想想...这和我们知道的其他信息一致吗？',
-        ]
-        const randomIndex = Math.floor(Math.random() * comments.length)
-        addWatsonMessage(comments[randomIndex], 'guidance')
+        const comments = ['这回答有点意思。你怎么看？', '我不确定是否完全相信这个说法。', '我们应该继续追问这个话题。', '让我想想...这和我们知道的其他信息一致吗？']
+        addWatsonMessage(comments[Math.floor(Math.random() * comments.length)], 'guidance')
       }, 1000)
     }
 
-    // 清空输入
     setQuestion('')
 
-    // 每轮问答后请求华生提示（异步，不阻塞 UI）
     const currentHistory = getCurrentConversationHistory(targetSuspectId)
-    fetchTips(gameId, targetSuspectId, [...currentHistory, {
-      role: 'user', content: question,
-    }, { role: 'suspect', content: response.response }])
+    fetchTips(gameId, targetSuspectId, [...currentHistory, { role: 'user', content: question }, { role: 'suspect', content: response.response }])
   }
 
-  // 处理从嫌疑人消息中提取线索
-  const handleExtractConfirm = async (userLabel: string) => {
-    if (!gameId || !selectedSuspect || !pendingExtractText) return
-    // 缓存目标嫌疑人，防止模态框打开期间切换导致上下文错乱
-    const targetSuspectId = selectedSuspect.id
-    try {
-      const clue = await extractClue(gameId, {
-        suspectId: targetSuspectId,
-        quotedText: pendingExtractText,
-        contextMessages: getCurrentConversationHistory(targetSuspectId),
-        userLabel,
-      })
-      addClueFromBackend(clue)
-      setShowToast(true)
-    } catch (err) {
-      console.error('[InterrogationPage] 提取线索失败', err)
-    } finally {
-      setPendingExtractText(null)
-    }
-  }
+  // ---------- 发送问题：嫌疑人（全体） ----------
 
-  // 发送全体质询问题
   const sendGroupQuestion = async () => {
     if (!gameId || !gameState?.case?.suspects) return
-    setProcessingSuspectId('group')
+    setProcessingActorId('group')
 
-    // 解析@提及的嫌疑人
     const mentionedSuspectIds: string[] = []
-    let targetSuspect = gameState.case.suspects[0] // 默认第一个
+    let targetSuspect = gameState.case.suspects[0]
 
     for (const suspect of gameState.case.suspects) {
       if (question.includes(`@${suspect.name}`)) {
@@ -402,67 +411,205 @@ export default function InterrogationPage() {
       }
     }
 
-    // 添加用户消息
     createAndAddGroupMessage('user', question)
 
-    // 调用API获取回复
-    const otherSuspectIds = gameState.case.suspects
-      .map(s => s.id)
-      .filter(id => id !== targetSuspect.id)
+    const otherSuspectIds = gameState.case.suspects.map(s => s.id).filter(id => id !== targetSuspect.id)
+    const response = await gameApi.askSuspectQuestion(gameId, targetSuspect.id, question, [], false, otherSuspectIds)
 
-    const response = await gameApi.askSuspectQuestion(
-      gameId,
-      targetSuspect.id,
-      question,
-      [], // 全体质询使用新的对话历史
-      false,
-      otherSuspectIds
-    )
-
-    // 添加嫌疑人回复
     createAndAddGroupMessage('suspect', response.response, targetSuspect.id, targetSuspect.name)
+    addSuspectStatement(targetSuspect.id, response.response)
 
-    // 记录陈述
-    recordSuspectStatement(targetSuspect.id, response.response)
+    setTimeout(() => checkForContradictions(), 500)
 
-    // 检查矛盾
-    setTimeout(() => {
-      checkForContradictions()
-    }, 500)
-
-    // 随机触发其他嫌疑人插话
     if (otherSuspectIds.length > 0 && Math.random() > 0.4) {
       const randomSuspectId = otherSuspectIds[Math.floor(Math.random() * otherSuspectIds.length)]
-      setTimeout(() => {
-        triggerSuspectInterjection(randomSuspectId, targetSuspect.id, response.response)
-      }, 1500)
+      setTimeout(() => triggerSuspectInterjection(randomSuspectId, targetSuspect.id, response.response), 1500)
     }
 
-    // 华生评论
     if (Math.random() > 0.5) {
       setTimeout(() => {
-        const comments = [
-          '很好，继续观察他们的反应。',
-          '注意他们之间的互动，这很有趣。',
-          '我们来听听其他人怎么说。',
-          '你觉得这个回答可信吗？',
-        ]
-        const randomIndex = Math.floor(Math.random() * comments.length)
-        addWatsonMessage(comments[randomIndex], 'guidance')
+        const comments = ['很好，继续观察他们的反应。', '注意他们之间的互动，这很有趣。', '我们来听听其他人怎么说。', '你觉得这个回答可信吗？']
+        addWatsonMessage(comments[Math.floor(Math.random() * comments.length)], 'guidance')
       }, 2000)
     }
 
-    // 清空输入
     setQuestion('')
     setMentionedSuspects([])
   }
 
+  // ---------- 发送问题：证人 ----------
+
+  const sendWitnessQuestion = async () => {
+    if (!gameId || !selectedWitness) return
+    const witnessId = selectedWitness.id
+    setProcessingActorId(witnessId)
+
+    const userMsg: ActorMessage = { role: 'user', content: question, timestamp: new Date().toISOString() }
+    addWitnessConversationMessage(userMsg, witnessId)
+
+    const historyForApi = (witnessConversationsByWitnessId[witnessId] || []).map(m => ({
+      role: m.role,
+      content: m.content,
+    })) as ConversationMessage[]
+
+    const result = await gameApi.askWitnessQuestion(gameId, witnessId, question, historyForApi)
+
+    addWitnessConversationMessage(
+      { role: 'witness', content: result.response, timestamp: new Date().toISOString() },
+      witnessId
+    )
+    setWitnessCredibilityCheck(result.credibilityCheck)
+
+    // 获取证人审讯华生提示
+    const updatedHistory = [
+      ...(witnessConversationsByWitnessId[witnessId] || []),
+      userMsg,
+      { role: 'witness' as const, content: result.response },
+    ]
+    fetchWitnessTips(gameId, witnessId, updatedHistory)
+
+    setQuestion('')
+  }
+
+  // ---------- 发送问题：专家 ----------
+
+  const sendExpertQuestion = async () => {
+    if (!gameId || !selectedExpert) return
+    const expertId = selectedExpert.id
+    setProcessingActorId(expertId)
+
+    const userMsg: ActorMessage = { role: 'user', content: question, timestamp: new Date().toISOString() }
+    addExpertConversationMessage(userMsg, expertId)
+
+    const historyForApi = (expertConversationsByExpertId[expertId] || []).map(m => ({
+      role: m.role,
+      content: m.content,
+    })) as ConversationMessage[]
+
+    const result = await gameApi.askExpertQuestion(gameId, expertId, question, historyForApi)
+
+    addExpertConversationMessage(
+      { role: 'expert', content: result.response, timestamp: new Date().toISOString() },
+      expertId
+    )
+
+    setQuestion('')
+  }
+
+  // ---------- 统一发送入口 ----------
+
+  const handleSendQuestion = async () => {
+    if (!gameId || !question.trim() || isProcessing) return
+    if (selectedTab === 'suspects' && mode === 'private' && !selectedSuspect) return
+
+    console.info('[InterrogationPage] 发送问题', { selectedTab, mode, question: question.substring(0, 50) })
+    setIsProcessing(true)
+
+    try {
+      if (selectedTab === 'witnesses') {
+        await sendWitnessQuestion()
+      } else if (selectedTab === 'experts') {
+        await sendExpertQuestion()
+      } else if (mode === 'private') {
+        await sendPrivateQuestion()
+      } else {
+        await sendGroupQuestion()
+      }
+    } catch (err) {
+      console.error('[InterrogationPage] 发送问题失败', err)
+      setError(err instanceof Error ? err.message : '发送问题失败')
+    } finally {
+      setIsProcessing(false)
+      setProcessingActorId(null)
+    }
+  }
+
+  // ---------- 提取线索（嫌疑人） ----------
+
+  const handleExtractConfirm = async (userLabel: string) => {
+    if (!gameId || !pendingExtractText) return
+    try {
+      let clue
+      if (selectedTab === 'witnesses' && selectedWitness) {
+        clue = await extractClueFromActor(gameId, {
+          actorType: 'witness',
+          actorId: selectedWitness.id,
+          quotedText: pendingExtractText,
+          contextMessages: witnessConversationsByWitnessId[selectedWitness.id] || [],
+          userLabel,
+        })
+      } else if (selectedTab === 'experts' && selectedExpert) {
+        clue = await extractClueFromActor(gameId, {
+          actorType: 'expert',
+          actorId: selectedExpert.id,
+          quotedText: pendingExtractText,
+          contextMessages: expertConversationsByExpertId[selectedExpert.id] || [],
+          userLabel,
+        })
+      } else if (selectedSuspect) {
+        clue = await extractClue(gameId, {
+          suspectId: selectedSuspect.id,
+          quotedText: pendingExtractText,
+          contextMessages: getCurrentConversationHistory(selectedSuspect.id),
+          userLabel,
+        })
+      }
+
+      if (clue) {
+        addClueFromBackend(clue)
+        setShowToast(true)
+      }
+    } catch (err) {
+      console.error('[InterrogationPage] 提取线索失败', err)
+    } finally {
+      setPendingExtractText(null)
+    }
+  }
+
+  // ---------- 动态文案 ----------
+
+  const headerTitle =
+    selectedTab === 'experts' ? '法医咨询' :
+    selectedTab === 'witnesses' ? '证人问询' :
+    mode === 'private' ? '单独审讯' : '全体质询'
+
+  const inputPlaceholder =
+    selectedTab === 'witnesses' ? '询问目击者...' :
+    selectedTab === 'experts' ? '询问法医...' :
+    selectedSuspect ? `询问${selectedSuspect.name}...` : '请先选择嫌疑人...'
+
+  // ---------- 可信度卡片（证人专用） ----------
+
+  const renderCredibilityCard = () => {
+    if (!witnessCredibilityCheck) return null
+    const { credibilityConcern, concernType, confidence, microexpression, notes } = witnessCredibilityCheck
+    const icon = concernType === 'bribery' ? '⚠️' : concernType === 'memory_gap' ? '🤔' : credibilityConcern ? '⚠️' : '✓'
+    const title = !credibilityConcern ? '证词前后一致' :
+      concernType === 'bribery' ? '证人有所保留' :
+      concernType === 'fear' ? '证人流露出迟疑' : '证人存在记忆偏差'
+    const variantClass = credibilityConcern ? 'credibility-check--warning' : 'credibility-check--ok'
+
+    return (
+      <div className={`credibility-check ${variantClass}`}>
+        <div className="credibility-check__icon">{icon}</div>
+        <div className="credibility-check__content">
+          <div className="credibility-check__title">{title}</div>
+          {microexpression && (
+            <div className="credibility-check__microexpression">观察: {microexpression}</div>
+          )}
+          <div className="credibility-check__confidence">可信度参考: {(confidence * 100).toFixed(0)}%</div>
+          {notes && <div className="credibility-check__notes">{notes}</div>}
+        </div>
+      </div>
+    )
+  }
+
+  // ---------- 加载与错误状态 ----------
+
   if (isLoading) {
     return (
       <div className="interrogation-page interrogation-page--loading">
-        <div className="loading-spinner">
-          <p>正在进入审讯室...</p>
-        </div>
+        <div className="loading-spinner"><p>正在进入审讯室...</p></div>
       </div>
     )
   }
@@ -473,27 +620,30 @@ export default function InterrogationPage() {
         <div className="error-message">
           <h2>出错了</h2>
           <p>{error || '无法加载游戏'}</p>
-          <button onClick={() => navigate('/')} type="button">
-            返回贝克街
-          </button>
+          <button onClick={() => navigate('/')} type="button">返回贝克街</button>
         </div>
       </div>
     )
   }
+
+  const witnesses = gameState.case?.witnesses || []
+  const experts = gameState.case?.experts || []
+  const suspects = gameState.case?.suspects || []
+
+  // ---------- JSX ----------
 
   return (
     <div className="interrogation-page">
       {/* 顶部导航栏 */}
       <header className="interrogation-header">
         <div className="header-content">
-          <h1 className="header-title">
-            {mode === 'private' ? '单独审讯' : '全体质询'}
-          </h1>
+          <h1 className="header-title">{headerTitle}</h1>
           <div className="header-info">
             <span className="mode-toggle">
               <button
                 className={`mode-button ${mode === 'private' ? 'mode-button--active' : ''}`}
                 onClick={() => setMode('private')}
+                disabled={selectedTab !== 'suspects'}
                 type="button"
               >
                 密室问话
@@ -501,6 +651,8 @@ export default function InterrogationPage() {
               <button
                 className={`mode-button ${mode === 'group' ? 'mode-button--active' : ''}`}
                 onClick={() => handleModeChange('group')}
+                disabled={selectedTab !== 'suspects'}
+                title={selectedTab !== 'suspects' ? '圆桌对峙仅限嫌疑人参与' : undefined}
                 type="button"
               >
                 圆桌对峙
@@ -512,344 +664,576 @@ export default function InterrogationPage() {
 
       {/* 主内容区 */}
       <main className="interrogation-main">
-        {/* 嫌疑人列表 */}
-        <aside className="suspects-panel">
-          <div className="panel-header">
-            <h3>嫌疑人</h3>
+        {/* 左栏：3 Tab 角色面板 */}
+        <aside className="actors-panel">
+          {/* Tab 切换 */}
+          <div className="actor-tabs">
+            <button
+              className={`actor-tab ${selectedTab === 'suspects' ? 'actor-tab--active' : ''}`}
+              onClick={() => handleTabChange('suspects')}
+              type="button"
+            >
+              嫌疑人<span className="actor-tab__count">{suspects.length}</span>
+            </button>
+            <button
+              className={`actor-tab ${selectedTab === 'witnesses' ? 'actor-tab--active' : ''}`}
+              onClick={() => handleTabChange('witnesses')}
+              type="button"
+            >
+              证人<span className="actor-tab__count">{witnesses.length}</span>
+            </button>
+            <button
+              className={`actor-tab ${selectedTab === 'experts' ? 'actor-tab--active' : ''}`}
+              onClick={() => handleTabChange('experts')}
+              type="button"
+            >
+              专家<span className="actor-tab__count">{experts.length}</span>
+            </button>
           </div>
+
+          {/* 列表 */}
           <div className="panel-content">
-            <ul className="suspect-list">
-              {gameState.case?.suspects?.map(suspect => (
-                <li
-                  key={suspect.id}
-                  className={`suspect-item ${selectedSuspect?.id === suspect.id ? 'suspect-item--selected' : ''}`}
-                  onClick={() => handleSuspectSelect(suspect)}
-                >
-                  <div className="suspect-avatar">
-                    {suspect.isGuilty ? '🔪' : '👤'}
-                  </div>
-                  <div className="suspect-info">
-                    <div className="suspect-name">{suspect.name}</div>
-                    <div className="suspect-age">{suspect.age}岁</div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {/* 嫌疑人列表 */}
+            {selectedTab === 'suspects' && (
+              <ul className="suspect-list">
+                {suspects.map(suspect => (
+                  <li
+                    key={suspect.id}
+                    className={`suspect-item ${selectedSuspect?.id === suspect.id ? 'suspect-item--selected' : ''}`}
+                    onClick={() => handleSuspectSelect(suspect)}
+                  >
+                    <div className="suspect-avatar">{suspect.isGuilty ? '🔪' : '👤'}</div>
+                    <div className="suspect-info">
+                      <div className="suspect-name">{suspect.name}</div>
+                      <div className="suspect-age">{suspect.age}岁</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* 证人列表 */}
+            {selectedTab === 'witnesses' && (
+              <ul className="suspect-list">
+                {witnesses.length === 0 && (
+                  <li className="actor-list-empty">暂无证人</li>
+                )}
+                {witnesses.map(witness => (
+                  <li
+                    key={witness.id}
+                    className={`suspect-item ${selectedWitness?.id === witness.id ? 'suspect-item--selected' : ''}`}
+                    onClick={() => handleWitnessSelect(witness)}
+                  >
+                    <div className="suspect-avatar witness-badge">👁️</div>
+                    <div className="suspect-info">
+                      <div className="suspect-name">{witness.name}</div>
+                      <div className="suspect-age">{witness.occupation}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* 专家列表 */}
+            {selectedTab === 'experts' && (
+              <ul className="suspect-list">
+                {experts.length === 0 && (
+                  <li className="actor-list-empty">暂无专家</li>
+                )}
+                {experts.map(expert => (
+                  <li
+                    key={expert.id}
+                    className={`suspect-item ${selectedExpert?.id === expert.id ? 'suspect-item--selected' : ''}`}
+                    onClick={() => handleExpertSelect(expert)}
+                  >
+                    <div className="suspect-avatar expert-badge">🔬</div>
+                    <div className="suspect-info">
+                      <div className="suspect-name">{expert.name}</div>
+                      <div className="suspect-age">{expert.title}</div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </aside>
 
         {/* 审讯对话区 */}
         <section className="interrogation-room">
-          {/* 模式：单独审讯 */}
-          {mode === 'private' && selectedSuspect && (
+
+          {/* === 嫌疑人 Tab === */}
+          {selectedTab === 'suspects' && (
             <>
-              {/* 嫌疑人信息 */}
-              <div className="current-suspect">
-                <div className="suspect-header">
-                  <div className="suspect-avatar-large">
-                    {selectedSuspect.isGuilty ? '🔪' : '👤'}
+              {/* 模式：单独审讯 */}
+              {mode === 'private' && selectedSuspect && (
+                <>
+                  <div className="current-suspect">
+                    <div className="suspect-header">
+                      <div className="suspect-avatar-large">{selectedSuspect.isGuilty ? '🔪' : '👤'}</div>
+                      <div className="suspect-details">
+                        <h2>{selectedSuspect.name}</h2>
+                        <p className="suspect-background">{selectedSuspect.background}</p>
+                        <div className="suspect-tags">
+                          {selectedSuspect.personalityTraits?.map((trait: string, i: number) => (
+                            <span key={i} className="personality-tag">{trait}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="suspect-details">
-                    <h2>{selectedSuspect.name}</h2>
-                    <p className="suspect-background">{selectedSuspect.background}</p>
-                    <div className="suspect-tags">
-                      {selectedSuspect.personalityTraits?.map((trait: string, i: number) => (
-                        <span key={i} className="personality-tag">{trait}</span>
+
+                  <div className="conversation-area conversation-area--with-tips">
+                    <div className="conversation-messages">
+                      {(() => {
+                        const currentHistory = getCurrentConversationHistory()
+                        return currentHistory.length === 0 ? (
+                          <div className="no-messages"><p>开始询问{selectedSuspect.name}吧。</p></div>
+                        ) : (
+                          currentHistory.map((msg, idx) => (
+                            <div key={idx} className={`message message--${msg.role}`}>
+                              <div className="message-avatar">
+                                {msg.role === 'user' ? '🔍' : selectedSuspect.isGuilty ? '🔪' : '👤'}
+                              </div>
+                              <div className="message-content">
+                                {msg.role === 'suspect' ? (
+                                  <SelectableMessage
+                                    text={msg.content}
+                                    senderName={selectedSuspect.name}
+                                    onExtract={(text) => setPendingExtractText(text)}
+                                  />
+                                ) : (
+                                  <>
+                                    <div className="message-sender">你</div>
+                                    <div className="message-text">{msg.content}</div>
+                                  </>
+                                )}
+                                {msg.timestamp && (
+                                  <div className="message-time">{new Date(msg.timestamp).toLocaleTimeString()}</div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )
+                      })()}
+                      {lieDetection && (
+                        <div className={`lie-detection lie-detection--${lieDetection.lie_detected ? 'warning' : 'ok'}`}>
+                          <div className="lie-detection-icon">{lieDetection.lie_detected ? '⚠️' : '✓'}</div>
+                          <div className="lie-detection-content">
+                            <div className="lie-detection-title">
+                              {lieDetection.lie_detected ? '检测到可能的谎言' : '言辞一致'}
+                            </div>
+                            {lieDetection.microexpression && (
+                              <div className="lie-detection-microexpression">微表情: {lieDetection.microexpression}</div>
+                            )}
+                            <div className="lie-detection-confidence">置信度: {(lieDetection.confidence * 100).toFixed(0)}%</div>
+                            <div className="lie-detection-notes">{lieDetection.notes}</div>
+                          </div>
+                        </div>
+                      )}
+                      {isProcessing && processingActorId === selectedSuspect?.id && (
+                        <div className="message message--suspect">
+                          <div className="message-avatar">{selectedSuspect.isGuilty ? '🔪' : '👤'}</div>
+                          <div className="message-content">
+                            <div className="suspect-typing">
+                              <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="question-input-area">
+                      <input
+                        type="text"
+                        className="question-input"
+                        placeholder={inputPlaceholder}
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuestion() }
+                        }}
+                        disabled={isProcessing}
+                      />
+                      <button
+                        className="send-button"
+                        onClick={handleSendQuestion}
+                        disabled={!question.trim() || isProcessing}
+                        type="button"
+                      >
+                        发送
+                      </button>
+                    </div>
+                  </div>
+
+                  <WatsonTipsPanel tips={watsonTips} isLoading={watsonTipsLoading} />
+                </>
+              )}
+
+              {/* 模式：全体质询 */}
+              {mode === 'group' && (
+                <>
+                  <div className="group-suspects-panel">
+                    <div className="panel-header">
+                      <h3>在场嫌疑人</h3>
+                      <span className="atmosphere-indicator">🌫️ 气氛紧张</span>
+                    </div>
+                    <div className="group-suspects-list">
+                      {suspects.map(suspect => (
+                        <div
+                          key={suspect.id}
+                          className={`group-suspect-item ${interjectionCounts[suspect.id] >= 2 ? 'group-suspect-item--quiet' : ''}`}
+                        >
+                          <div className="group-suspect-avatar">{suspect.isGuilty ? '🔪' : '👤'}</div>
+                          <div className="group-suspect-info">
+                            <div className="group-suspect-name">{suspect.name}</div>
+                            <div className="group-suspect-status">
+                              {interjectionCounts[suspect.id] >= 2 ? '（已安静）' : '（可插话）'}
+                            </div>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* 对话历史 + 华生提示并排 */}
-              <div className="conversation-area conversation-area--with-tips">
-                <div className="conversation-messages">
-                  {(() => {
-                    const currentHistory = getCurrentConversationHistory()
-                    return currentHistory.length === 0 ? (
-                      <div className="no-messages">
-                        <p>开始询问{selectedSuspect.name}吧。</p>
+                  {showContradictionAlert && contradictions.length > 0 && (
+                    <div className="contradiction-alert" onClick={() => setShowContradictionAlert(false)}>
+                      <div className="contradiction-alert__icon">⚠️</div>
+                      <div className="contradiction-alert__content">
+                        <div className="contradiction-alert__title">检测到证词矛盾！</div>
+                        <div className="contradiction-alert__desc">{contradictions[0].description}</div>
                       </div>
-                    ) : (
-                      currentHistory.map((msg, idx) => (
-                        <div key={idx} className={`message message--${msg.role}`}>
-                          <div className="message-avatar">
-                            {msg.role === 'user' ? '🔍' : selectedSuspect.isGuilty ? '🔪' : '👤'}
-                          </div>
-                          <div className="message-content">
-                            {msg.role === 'suspect' ? (
-                              <SelectableMessage
-                                text={msg.content}
-                                senderName={selectedSuspect.name}
-                                onExtract={(text) => setPendingExtractText(text)}
-                              />
-                            ) : (
-                              <>
-                                <div className="message-sender">你</div>
-                                <div className="message-text">{msg.content}</div>
-                              </>
-                            )}
-                            {msg.timestamp && (
-                              <div className="message-time">
-                                {new Date(msg.timestamp).toLocaleTimeString()}
+                      <div className="contradiction-alert__close">×</div>
+                    </div>
+                  )}
+
+                  <div className="group-control-bar">
+                    <button className="group-control-btn" onClick={() => handleGroupControl('quiet')} type="button">安静</button>
+                    <button className="group-control-btn" onClick={() => handleGroupControl('continue')} type="button">继续</button>
+                  </div>
+
+                  <div className="conversation-area">
+                    <div className="conversation-messages">
+                      {groupMessages.length === 0 ? (
+                        <div className="no-messages"><p>开始质询所有人吧！输入 @ 来提及特定嫌疑人。</p></div>
+                      ) : (
+                        groupMessages.map((msg) => (
+                          <div key={msg.id} className={`message message--${msg.role}`}>
+                            <div className="message-avatar">
+                              {msg.role === 'user' ? '🔍' :
+                               msg.role === 'watson' ? '👨‍⚕️' :
+                               msg.role === 'system' ? '⚖️' :
+                               msg.role === 'interjection' ? '💬' :
+                               suspects.find(s => s.id === msg.suspectId)?.isGuilty ? '🔪' : '👤'}
+                            </div>
+                            <div className="message-content">
+                              <div className="message-sender">
+                                {msg.role === 'user' ? '你' :
+                                 msg.role === 'watson' ? '华生' :
+                                 msg.role === 'system' ? '系统' :
+                                 msg.role === 'interjection' ? `（${msg.suspectName}插话）` :
+                                 msg.suspectName}
                               </div>
-                            )}
+                              <div className={`message-text ${msg.role === 'interjection' ? 'message-text--interjection' : ''}`}>
+                                {msg.content}
+                              </div>
+                              <div className="message-time">{new Date(msg.timestamp).toLocaleTimeString()}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {isProcessing && processingActorId === 'group' && (
+                        <div className="message message--suspect">
+                          <div className="message-avatar">👤</div>
+                          <div className="message-content">
+                            <div className="suspect-typing">
+                              <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                            </div>
                           </div>
                         </div>
-                      ))
-                    )
-                  })()}
-                  {lieDetection && (
-                    <div className={`lie-detection lie-detection--${lieDetection.lie_detected ? 'warning' : 'ok'}`}>
-                      <div className="lie-detection-icon">
-                        {lieDetection.lie_detected ? '⚠️' : '✓'}
-                      </div>
-                      <div className="lie-detection-content">
-                        <div className="lie-detection-title">
-                          {lieDetection.lie_detected ? '检测到可能的谎言' : '言辞一致'}
-                        </div>
-                        {lieDetection.microexpression && (
-                          <div className="lie-detection-microexpression">
-                            微表情: {lieDetection.microexpression}
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="question-input-area question-input-area--group">
+                      <div className="mention-input-wrapper">
+                        <textarea
+                          ref={questionInputRef}
+                          className="question-input question-input--textarea"
+                          placeholder="输入 @ 来提及嫌疑人，例如：@玛莎·佩恩 昨晚你在哪里？"
+                          value={question}
+                          onChange={handleQuestionChange}
+                          onKeyDown={(e) => {
+                            if (showMentionMenu && mentionedSuspects.length > 0) {
+                              if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedMentionIndex((prev) => (prev + 1) % mentionedSuspects.length) }
+                              else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedMentionIndex((prev) => (prev - 1 + mentionedSuspects.length) % mentionedSuspects.length) }
+                              else if (e.key === 'Enter') { e.preventDefault(); handleMentionSelect(mentionedSuspects[selectedMentionIndex]) }
+                            } else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuestion() }
+                          }}
+                          disabled={isProcessing}
+                          rows={2}
+                        />
+                        {showMentionMenu && mentionedSuspects.length > 0 && (
+                          <div className="mention-menu" style={{ position: 'absolute', bottom: mentionMenuPosition.y, left: mentionMenuPosition.x }}>
+                            {mentionedSuspects.map((suspect, index) => (
+                              <div
+                                key={suspect.id}
+                                className={`mention-menu-item ${index === selectedMentionIndex ? 'mention-menu-item--active' : ''}`}
+                                onClick={() => handleMentionSelect(suspect)}
+                              >
+                                👤 {suspect.name}
+                              </div>
+                            ))}
                           </div>
                         )}
-                        <div className="lie-detection-confidence">
-                          置信度: {(lieDetection.confidence * 100).toFixed(0)}%
-                        </div>
-                        <div className="lie-detection-notes">{lieDetection.notes}</div>
                       </div>
-                    </div>
-                  )}
-                  {isProcessing && processingSuspectId === selectedSuspect?.id && (
-                    <div className="message message--suspect">
-                      <div className="message-avatar">
-                        {selectedSuspect.isGuilty ? '🔪' : '👤'}
-                      </div>
-                      <div className="message-content">
-                        <div className="suspect-typing">
-                          <span className="typing-dot"></span>
-                          <span className="typing-dot"></span>
-                          <span className="typing-dot"></span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* 输入区 */}
-                <div className="question-input-area">
-                  <input
-                    type="text"
-                    className="question-input"
-                    placeholder={`询问${selectedSuspect.name}...`}
-                    value={question}
-                    onChange={(e) => setQuestion(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault()
-                        handleSendQuestion()
-                      }
-                    }}
-                    disabled={isProcessing}
-                  />
-                  <button
-                    className="send-button"
-                    onClick={handleSendQuestion}
-                    disabled={!question.trim() || isProcessing}
-                    type="button"
-                  >
-                    发送
-                  </button>
-                </div>
-              </div>
-
-              {/* 华生实时提示面板 */}
-              <WatsonTipsPanel tips={watsonTips} isLoading={watsonTipsLoading} />
-            </>
-          )}
-
-          {/* 模式：全体质询 */}
-          {mode === 'group' && (
-            <>
-              {/* 全体嫌疑人展示 */}
-              <div className="group-suspects-panel">
-                <div className="panel-header">
-                  <h3>在场嫌疑人</h3>
-                  <span className="atmosphere-indicator">🌫️ 气氛紧张</span>
-                </div>
-                <div className="group-suspects-list">
-                  {gameState.case?.suspects?.map(suspect => (
-                    <div
-                      key={suspect.id}
-                      className={`group-suspect-item ${interjectionCounts[suspect.id] >= 2 ? 'group-suspect-item--quiet' : ''}`}
-                    >
-                      <div className="group-suspect-avatar">
-                        {suspect.isGuilty ? '🔪' : '👤'}
-                      </div>
-                      <div className="group-suspect-info">
-                        <div className="group-suspect-name">{suspect.name}</div>
-                        <div className="group-suspect-status">
-                          {interjectionCounts[suspect.id] >= 2 ? '（已安静）' : '（可插话）'}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 矛盾检测警告 */}
-              {showContradictionAlert && contradictions.length > 0 && (
-                <div className="contradiction-alert" onClick={() => setShowContradictionAlert(false)}>
-                  <div className="contradiction-alert__icon">⚠️</div>
-                  <div className="contradiction-alert__content">
-                    <div className="contradiction-alert__title">检测到证词矛盾！</div>
-                    <div className="contradiction-alert__desc">
-                      {contradictions[0].description}
+                      <button
+                        className="send-button"
+                        onClick={handleSendQuestion}
+                        disabled={!question.trim() || isProcessing}
+                        type="button"
+                      >
+                        发送
+                      </button>
                     </div>
                   </div>
-                  <div className="contradiction-alert__close">×</div>
-                </div>
+                </>
               )}
 
-              {/* 控场按钮 */}
-              <div className="group-control-bar">
-                <button
-                  className="group-control-btn"
-                  onClick={() => handleGroupControl('quiet')}
-                  type="button"
-                >
-                  安静
-                </button>
-                <button
-                  className="group-control-btn"
-                  onClick={() => handleGroupControl('continue')}
-                  type="button"
-                >
-                  继续
-                </button>
-              </div>
-
-              {/* 全体质询对话区 */}
-              <div className="conversation-area">
-                <div className="conversation-messages">
-                  {groupMessages.length === 0 ? (
-                    <div className="no-messages">
-                      <p>开始质询所有人吧！输入 @ 来提及特定嫌疑人。</p>
-                    </div>
-                  ) : (
-                    groupMessages.map((msg) => (
-                      <div key={msg.id} className={`message message--${msg.role}`}>
-                        <div className="message-avatar">
-                          {msg.role === 'user' ? '🔍' :
-                           msg.role === 'watson' ? '👨‍⚕️' :
-                           msg.role === 'system' ? '⚖️' :
-                           msg.role === 'interjection' ? '💬' :
-                           gameState.case?.suspects?.find(s => s.id === msg.suspectId)?.isGuilty ? '🔪' : '👤'}
-                        </div>
-                        <div className="message-content">
-                          <div className="message-sender">
-                            {msg.role === 'user' ? '你' :
-                             msg.role === 'watson' ? '华生' :
-                             msg.role === 'system' ? '系统' :
-                             msg.role === 'interjection' ? `（${msg.suspectName}插话）` :
-                             msg.suspectName}
-                          </div>
-                          <div className={`message-text ${msg.role === 'interjection' ? 'message-text--interjection' : ''}`}>
-                            {msg.content}
-                          </div>
-                          <div className="message-time">
-                            {new Date(msg.timestamp).toLocaleTimeString()}
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                  {isProcessing && processingSuspectId === 'group' && (
-                    <div className="message message--suspect">
-                      <div className="message-avatar">👤</div>
-                      <div className="message-content">
-                        <div className="suspect-typing">
-                          <span className="typing-dot"></span>
-                          <span className="typing-dot"></span>
-                          <span className="typing-dot"></span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* 输入区 - 支持@提及 */}
-                <div className="question-input-area question-input-area--group">
-                  <div className="mention-input-wrapper">
-                    <textarea
-                      ref={questionInputRef}
-                      className="question-input question-input--textarea"
-                      placeholder="输入 @ 来提及嫌疑人，例如：@玛莎·佩恩 昨晚你在哪里？"
-                      value={question}
-                      onChange={handleQuestionChange}
-                      onKeyDown={(e) => {
-                        if (showMentionMenu && mentionedSuspects.length > 0) {
-                          if (e.key === 'ArrowDown') {
-                            e.preventDefault()
-                            setSelectedMentionIndex((prev) => (prev + 1) % mentionedSuspects.length)
-                          } else if (e.key === 'ArrowUp') {
-                            e.preventDefault()
-                            setSelectedMentionIndex((prev) => (prev - 1 + mentionedSuspects.length) % mentionedSuspects.length)
-                          } else if (e.key === 'Enter') {
-                            e.preventDefault()
-                            handleMentionSelect(mentionedSuspects[selectedMentionIndex])
-                          }
-                        } else if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          handleSendQuestion()
-                        }
-                      }}
-                      disabled={isProcessing}
-                      rows={2}
-                    />
-                    {/* @提及菜单 */}
-                    {showMentionMenu && mentionedSuspects.length > 0 && (
-                      <div
-                        className="mention-menu"
-                        style={{
-                          position: 'absolute',
-                          bottom: mentionMenuPosition.y,
-                          left: mentionMenuPosition.x,
-                        }}
-                      >
-                        {mentionedSuspects.map((suspect, index) => (
-                          <div
-                            key={suspect.id}
-                            className={`mention-menu-item ${index === selectedMentionIndex ? 'mention-menu-item--active' : ''}`}
-                            onClick={() => handleMentionSelect(suspect)}
-                          >
-                            👤 {suspect.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    className="send-button"
-                    onClick={handleSendQuestion}
-                    disabled={!question.trim() || isProcessing}
-                    type="button"
-                  >
-                    发送
-                  </button>
-                </div>
-              </div>
+              {mode === 'private' && !selectedSuspect && (
+                <div className="no-suspect-selected"><p>请选择一个嫌疑人开始审讯</p></div>
+              )}
             </>
           )}
 
-          {/* 未选择嫌疑人（仅单独审讯模式） */}
-          {mode === 'private' && !selectedSuspect && (
-            <div className="no-suspect-selected">
-              <p>请选择一个嫌疑人开始审讯</p>
-            </div>
+          {/* === 证人 Tab === */}
+          {selectedTab === 'witnesses' && (
+            <>
+              {selectedWitness ? (
+                <>
+                  <div className="current-suspect">
+                    <div className="suspect-header">
+                      <div className="suspect-avatar-large witness-badge">👁️</div>
+                      <div className="suspect-details">
+                        <h2>{selectedWitness.name}</h2>
+                        <p className="suspect-background">{selectedWitness.relationshipToCase}</p>
+                        <div className="suspect-tags">
+                          <span className="personality-tag">{selectedWitness.occupation}</span>
+                          {selectedWitness.personalityTraits?.map((trait, i) => (
+                            <span key={i} className="personality-tag">{trait}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="conversation-area conversation-area--with-tips">
+                    <div className="conversation-messages">
+                      {(witnessConversationsByWitnessId[selectedWitness.id] || []).length === 0 ? (
+                        <div className="no-messages"><p>开始询问证人{selectedWitness.name}。</p></div>
+                      ) : (
+                        (witnessConversationsByWitnessId[selectedWitness.id] || []).map((msg, idx) => (
+                          <div key={idx} className={`message message--${msg.role === 'witness' ? 'suspect' : msg.role}`}>
+                            <div className="message-avatar">
+                              {msg.role === 'user' ? '🔍' : '👁️'}
+                            </div>
+                            <div className="message-content">
+                              {msg.role === 'witness' ? (
+                                <SelectableMessage
+                                  text={msg.content}
+                                  senderName={selectedWitness.name}
+                                  onExtract={(text) => setPendingExtractText(text)}
+                                />
+                              ) : (
+                                <>
+                                  <div className="message-sender">你</div>
+                                  <div className="message-text">{msg.content}</div>
+                                </>
+                              )}
+                              {msg.timestamp && (
+                                <div className="message-time">{new Date(msg.timestamp).toLocaleTimeString()}</div>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {renderCredibilityCard()}
+                      {isProcessing && processingActorId === selectedWitness.id && (
+                        <div className="message message--suspect">
+                          <div className="message-avatar">👁️</div>
+                          <div className="message-content">
+                            <div className="suspect-typing">
+                              <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="question-input-area">
+                      <input
+                        type="text"
+                        className="question-input"
+                        placeholder={inputPlaceholder}
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuestion() }
+                        }}
+                        disabled={isProcessing}
+                      />
+                      <button
+                        className="send-button"
+                        onClick={handleSendQuestion}
+                        disabled={!question.trim() || isProcessing}
+                        type="button"
+                      >
+                        发送
+                      </button>
+                    </div>
+                  </div>
+
+                  <WatsonTipsPanel tips={witnessWatsonTips} isLoading={witnessWatsonTipsLoading} />
+                </>
+              ) : (
+                <div className="no-suspect-selected">
+                  <p>{witnesses.length === 0 ? '本案暂无证人' : '请选择一位证人开始询问'}</p>
+                </div>
+              )}
+            </>
           )}
+
+          {/* === 专家 Tab === */}
+          {selectedTab === 'experts' && (
+            <>
+              {selectedExpert ? (
+                <>
+                  {/* 专家信息栏 */}
+                  <div className="current-suspect">
+                    <div className="suspect-header">
+                      <div className="suspect-avatar-large expert-badge">🔬</div>
+                      <div className="suspect-details">
+                        <h2>{selectedExpert.name}</h2>
+                        <p className="suspect-background">{selectedExpert.title}</p>
+                        <div className="suspect-tags">
+                          {selectedExpert.expertise?.map((item, i) => (
+                            <span key={i} className="personality-tag">{item}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 专家初步报告卡片 */}
+                  {expertReportLoadedById[selectedExpert.id] && selectedExpert.preliminaryReport && (
+                    <div className="expert-report-card">
+                      <div className="expert-report-card__header">
+                        <span className="expert-report-card__icon">📋</span>
+                        <div>
+                          <div className="expert-report-card__name">{selectedExpert.name}·初步报告</div>
+                          <div className="expert-report-card__title">{selectedExpert.title}</div>
+                        </div>
+                      </div>
+                      <div className="expert-report-card__body">{selectedExpert.preliminaryReport}</div>
+                      {selectedExpert.keyFindings?.length > 0 && (
+                        <div className="expert-report-card__findings">
+                          {selectedExpert.keyFindings.map((f, i) => (
+                            <div key={i} className="expert-report-card__finding-item">
+                              <span className="finding-topic">{f.topic}：</span>
+                              <span>{f.finding}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {selectedExpert.relatedClueIds?.length > 0 && (
+                        <div className="expert-report-card__sources">
+                          依据: {selectedExpert.relatedClueIds.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="conversation-area">
+                    <div className="conversation-messages">
+                      {(expertConversationsByExpertId[selectedExpert.id] || []).length === 0 && !expertReportLoadedById[selectedExpert.id] ? (
+                        <div className="no-messages"><p>正在加载法医初步报告，请稍候...</p></div>
+                      ) : (expertConversationsByExpertId[selectedExpert.id] || []).length === 0 ? (
+                        <div className="no-messages"><p>向{selectedExpert.name}提出你的问题。</p></div>
+                      ) : (
+                        (expertConversationsByExpertId[selectedExpert.id] || []).map((msg, idx) => {
+                          // 首条专家消息（初步报告）不再重复显示
+                          if (idx === 0 && msg.role === 'expert' && expertReportLoadedById[selectedExpert.id]) return null
+                          return (
+                            <div key={idx} className={`message message--${msg.role === 'expert' ? 'suspect' : msg.role}`}>
+                              <div className="message-avatar">
+                                {msg.role === 'user' ? '🔍' : '🔬'}
+                              </div>
+                              <div className="message-content">
+                                {msg.role === 'expert' ? (
+                                  <SelectableMessage
+                                    text={msg.content}
+                                    senderName={selectedExpert.name}
+                                    onExtract={(text) => setPendingExtractText(text)}
+                                  />
+                                ) : (
+                                  <>
+                                    <div className="message-sender">你</div>
+                                    <div className="message-text">{msg.content}</div>
+                                  </>
+                                )}
+                                {msg.timestamp && (
+                                  <div className="message-time">{new Date(msg.timestamp).toLocaleTimeString()}</div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                      {isProcessing && processingActorId === selectedExpert.id && (
+                        <div className="message message--suspect">
+                          <div className="message-avatar">🔬</div>
+                          <div className="message-content">
+                            <div className="suspect-typing">
+                              <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="question-input-area">
+                      <input
+                        type="text"
+                        className="question-input"
+                        placeholder={inputPlaceholder}
+                        value={question}
+                        onChange={(e) => setQuestion(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuestion() }
+                        }}
+                        disabled={isProcessing}
+                      />
+                      <button
+                        className="send-button"
+                        onClick={handleSendQuestion}
+                        disabled={!question.trim() || isProcessing}
+                        type="button"
+                      >
+                        发送
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="no-suspect-selected">
+                  <p>{experts.length === 0 ? '本案暂无专家' : '请选择专家开始咨询'}</p>
+                </div>
+              )}
+            </>
+          )}
+
         </section>
       </main>
 
@@ -863,26 +1247,19 @@ export default function InterrogationPage() {
           返回勘查现场
         </button>
         <div className="footer-progress">
-          <span>已审讯: {gameState.interviewedSuspectIds?.length || 0} / {gameState.case?.suspects?.length || 0}</span>
+          <span>已审讯: {gameState.interviewedSuspectIds?.length || 0} / {suspects.length}</span>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Link
-            to={`/deduction/${gameId}`}
-            className="footer-button footer-button--secondary"
-          >
+          <Link to={`/deduction/${gameId}`} className="footer-button footer-button--secondary">
             推理板
           </Link>
-          <button
-            className="footer-button footer-button--next"
-            disabled={true}
-            type="button"
-          >
-            下一步: 结案 (开发中)
-          </button>
+          <Link to={`/conclusion/${gameId}`} className="footer-button footer-button--next">
+            下一步: 结案
+          </Link>
         </div>
       </footer>
 
-      {/* 从审讯提取线索 Modal */}
+      {/* 提取线索 Modal */}
       {pendingExtractText && (
         <ExtractClueModal
           quotedText={pendingExtractText}
@@ -992,8 +1369,8 @@ export default function InterrogationPage() {
           margin: 0 auto;
         }
 
-        /* 嫌疑人面板 */
-        .suspects-panel {
+        /* 角色面板（左栏，含 Tab） */
+        .actors-panel {
           width: 280px;
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid #333;
@@ -1002,20 +1379,61 @@ export default function InterrogationPage() {
           flex-direction: column;
         }
 
-        .panel-header {
-          padding: 1rem 1.25rem;
+        /* Tab 切换 */
+        .actor-tabs {
+          display: flex;
           border-bottom: 1px solid #333;
         }
 
-        .panel-header h3 {
+        .actor-tab {
+          flex: 1;
+          padding: 0.65rem 0.25rem;
+          background: transparent;
+          border: none;
+          color: #a0a0a0;
+          cursor: pointer;
+          font-family: 'Georgia', serif;
+          font-size: 0.85rem;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.3rem;
+        }
+
+        .actor-tab:hover {
           color: #d4af37;
-          font-size: 1.1rem;
+          background: rgba(212, 175, 55, 0.06);
+        }
+
+        .actor-tab--active {
+          color: #d4af37;
+          border-bottom: 2px solid #d4af37;
+          background: rgba(212, 175, 55, 0.08);
+        }
+
+        .actor-tab__count {
+          font-size: 0.75rem;
+          background: rgba(212, 175, 55, 0.2);
+          color: #d4af37;
+          border-radius: 8px;
+          padding: 0.1rem 0.4rem;
+          min-width: 18px;
+          text-align: center;
         }
 
         .panel-content {
           flex: 1;
           padding: 1rem;
           overflow-y: auto;
+        }
+
+        .actor-list-empty {
+          color: #555;
+          font-size: 0.9rem;
+          text-align: center;
+          padding: 1rem 0;
+          list-style: none;
         }
 
         .suspect-list {
@@ -1058,19 +1476,36 @@ export default function InterrogationPage() {
           font-size: 1.25rem;
         }
 
+        /* 证人头像：蓝色系 */
+        .witness-badge {
+          background: linear-gradient(135deg, #6495ed 0%, #4169e1 100%) !important;
+        }
+
+        /* 专家头像：绿色系 */
+        .expert-badge {
+          background: linear-gradient(135deg, #3cb371 0%, #2e8b57 100%) !important;
+        }
+
         .suspect-info {
           flex: 1;
+          min-width: 0;
         }
 
         .suspect-name {
           color: #d4af37;
           font-weight: bold;
           font-size: 0.95rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .suspect-age {
           color: #666;
           font-size: 0.85rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         /* 审讯室 */
@@ -1079,6 +1514,7 @@ export default function InterrogationPage() {
           display: flex;
           flex-direction: column;
           gap: 1rem;
+          min-width: 0;
         }
 
         .no-suspect-selected {
@@ -1090,7 +1526,7 @@ export default function InterrogationPage() {
           font-size: 1.2rem;
         }
 
-        /* 当前嫌疑人 */
+        /* 当前角色信息卡 */
         .current-suspect {
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid #333;
@@ -1145,6 +1581,69 @@ export default function InterrogationPage() {
           border-radius: 12px;
           color: #d4af37;
           font-size: 0.85rem;
+        }
+
+        /* 专家初步报告卡片 */
+        .expert-report-card {
+          background: rgba(46, 139, 87, 0.08);
+          border: 1px solid rgba(46, 139, 87, 0.4);
+          border-radius: 8px;
+          padding: 1.25rem;
+          animation: messageSlideIn 0.3s ease;
+        }
+
+        .expert-report-card__header {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .expert-report-card__icon {
+          font-size: 1.5rem;
+        }
+
+        .expert-report-card__name {
+          color: #3cb371;
+          font-weight: bold;
+          font-size: 0.95rem;
+        }
+
+        .expert-report-card__title {
+          color: #666;
+          font-size: 0.8rem;
+        }
+
+        .expert-report-card__body {
+          color: #c8e6c9;
+          line-height: 1.7;
+          font-size: 0.95rem;
+          margin-bottom: 0.75rem;
+        }
+
+        .expert-report-card__findings {
+          border-top: 1px solid rgba(46, 139, 87, 0.3);
+          padding-top: 0.75rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+        }
+
+        .expert-report-card__finding-item {
+          font-size: 0.9rem;
+          color: #a5d6a7;
+        }
+
+        .finding-topic {
+          color: #3cb371;
+          font-weight: bold;
+        }
+
+        .expert-report-card__sources {
+          margin-top: 0.5rem;
+          font-size: 0.75rem;
+          color: #555;
+          font-style: italic;
         }
 
         /* 对话区 */
@@ -1244,7 +1743,7 @@ export default function InterrogationPage() {
           text-align: right;
         }
 
-        /* 嫌疑人流打字 */
+        /* 打字动画 */
         .suspect-typing {
           display: flex;
           align-items: center;
@@ -1288,13 +1787,8 @@ export default function InterrogationPage() {
           border: 1px solid rgba(76, 175, 80, 0.3);
         }
 
-        .lie-detection-icon {
-          font-size: 1.5rem;
-        }
-
-        .lie-detection-content {
-          flex: 1;
-        }
+        .lie-detection-icon { font-size: 1.5rem; }
+        .lie-detection-content { flex: 1; }
 
         .lie-detection-title {
           color: #ff9800;
@@ -1302,9 +1796,7 @@ export default function InterrogationPage() {
           margin-bottom: 0.5rem;
         }
 
-        .lie-detection--ok .lie-detection-title {
-          color: #4caf50;
-        }
+        .lie-detection--ok .lie-detection-title { color: #4caf50; }
 
         .lie-detection-microexpression {
           color: #a0a0a0;
@@ -1318,10 +1810,51 @@ export default function InterrogationPage() {
           margin-bottom: 0.25rem;
         }
 
-        .lie-detection-notes {
-          color: #a0a0a0;
-          font-size: 0.9rem;
+        .lie-detection-notes { color: #a0a0a0; font-size: 0.9rem; }
+
+        /* 证人可信度检测 */
+        .credibility-check {
+          display: flex;
+          gap: 1rem;
+          padding: 1rem;
+          border-radius: 8px;
+          margin-top: 0.5rem;
         }
+
+        .credibility-check--warning {
+          background: rgba(255, 152, 0, 0.1);
+          border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+
+        .credibility-check--ok {
+          background: rgba(100, 149, 237, 0.1);
+          border: 1px solid rgba(100, 149, 237, 0.3);
+        }
+
+        .credibility-check__icon { font-size: 1.5rem; }
+        .credibility-check__content { flex: 1; }
+
+        .credibility-check__title {
+          color: #6495ed;
+          font-weight: bold;
+          margin-bottom: 0.5rem;
+        }
+
+        .credibility-check--warning .credibility-check__title { color: #ff9800; }
+
+        .credibility-check__microexpression {
+          color: #a0a0a0;
+          font-style: italic;
+          margin-bottom: 0.25rem;
+        }
+
+        .credibility-check__confidence {
+          color: #888;
+          font-size: 0.9rem;
+          margin-bottom: 0.25rem;
+        }
+
+        .credibility-check__notes { color: #a0a0a0; font-size: 0.9rem; }
 
         /* 输入区 */
         .question-input-area {
@@ -1350,9 +1883,7 @@ export default function InterrogationPage() {
           background: rgba(255, 255, 255, 0.08);
         }
 
-        .question-input::placeholder {
-          color: #666;
-        }
+        .question-input::placeholder { color: #666; }
 
         .send-button {
           padding: 0.75rem 1.5rem;
@@ -1372,11 +1903,7 @@ export default function InterrogationPage() {
           box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
         }
 
-        .send-button:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
-
+        .send-button:disabled { opacity: 0.4; cursor: not-allowed; }
 
         /* 底部导航 */
         .interrogation-footer {
@@ -1403,10 +1930,7 @@ export default function InterrogationPage() {
           color: #a0a0a0;
         }
 
-        .footer-button--back:hover {
-          border-color: #888;
-          color: #fff;
-        }
+        .footer-button--back:hover { border-color: #888; color: #fff; }
 
         .footer-button--next {
           background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
@@ -1433,17 +1957,11 @@ export default function InterrogationPage() {
           transform: translateY(-1px);
         }
 
-        .footer-button:disabled {
-          opacity: 0.4;
-          cursor: not-allowed;
-        }
+        .footer-button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        .footer-progress {
-          color: #a0a0a0;
-          font-size: 1rem;
-        }
+        .footer-progress { color: #a0a0a0; font-size: 1rem; }
 
-        /* 全体质询 - 嫌疑人面板 */
+        /* 全体质询 */
         .group-suspects-panel {
           background: rgba(0, 0, 0, 0.4);
           border: 1px solid #333;
@@ -1460,21 +1978,10 @@ export default function InterrogationPage() {
           border-bottom: 1px solid #333;
         }
 
-        .group-suspects-panel .panel-header h3 {
-          color: #d4af37;
-          font-size: 1.1rem;
-        }
+        .group-suspects-panel .panel-header h3 { color: #d4af37; font-size: 1.1rem; }
+        .atmosphere-indicator { color: #ff9800; font-size: 0.9rem; }
 
-        .atmosphere-indicator {
-          color: #ff9800;
-          font-size: 0.9rem;
-        }
-
-        .group-suspects-list {
-          display: flex;
-          gap: 1rem;
-          flex-wrap: wrap;
-        }
+        .group-suspects-list { display: flex; gap: 1rem; flex-wrap: wrap; }
 
         .group-suspect-item {
           display: flex;
@@ -1487,9 +1994,7 @@ export default function InterrogationPage() {
           transition: all 0.3s ease;
         }
 
-        .group-suspect-item--quiet {
-          opacity: 0.5;
-        }
+        .group-suspect-item--quiet { opacity: 0.5; }
 
         .group-suspect-avatar {
           width: 36px;
@@ -1502,21 +2007,9 @@ export default function InterrogationPage() {
           font-size: 1.1rem;
         }
 
-        .group-suspect-info {
-          display: flex;
-          flex-direction: column;
-        }
-
-        .group-suspect-name {
-          color: #d4af37;
-          font-weight: bold;
-          font-size: 0.9rem;
-        }
-
-        .group-suspect-status {
-          color: #666;
-          font-size: 0.75rem;
-        }
+        .group-suspect-info { display: flex; flex-direction: column; }
+        .group-suspect-name { color: #d4af37; font-weight: bold; font-size: 0.9rem; }
+        .group-suspect-status { color: #666; font-size: 0.75rem; }
 
         /* 矛盾检测警告 */
         .contradiction-alert {
@@ -1531,17 +2024,9 @@ export default function InterrogationPage() {
           transition: all 0.3s ease;
         }
 
-        .contradiction-alert:hover {
-          background: rgba(255, 152, 0, 0.2);
-        }
-
-        .contradiction-alert__icon {
-          font-size: 1.5rem;
-        }
-
-        .contradiction-alert__content {
-          flex: 1;
-        }
+        .contradiction-alert:hover { background: rgba(255, 152, 0, 0.2); }
+        .contradiction-alert__icon { font-size: 1.5rem; }
+        .contradiction-alert__content { flex: 1; }
 
         .contradiction-alert__title {
           color: #ff9800;
@@ -1556,17 +2041,10 @@ export default function InterrogationPage() {
           line-height: 1.5;
         }
 
-        .contradiction-alert__close {
-          color: #666;
-          font-size: 1.25rem;
-          cursor: pointer;
-        }
+        .contradiction-alert__close { color: #666; font-size: 1.25rem; cursor: pointer; }
 
         /* 控场按钮栏 */
-        .group-control-bar {
-          display: flex;
-          gap: 0.75rem;
-        }
+        .group-control-bar { display: flex; gap: 0.75rem; }
 
         .group-control-btn {
           padding: 0.5rem 1rem;
@@ -1580,15 +2058,10 @@ export default function InterrogationPage() {
           transition: all 0.3s ease;
         }
 
-        .group-control-btn:hover {
-          background: rgba(212, 175, 55, 0.2);
-          border-color: #d4af37;
-        }
+        .group-control-btn:hover { background: rgba(212, 175, 55, 0.2); border-color: #d4af37; }
 
-        /* 插话消息样式 */
-        .message--interjection {
-          opacity: 0.9;
-        }
+        /* 插话消息 */
+        .message--interjection { opacity: 0.9; }
 
         .message-text--interjection {
           background: rgba(156, 39, 176, 0.1) !important;
@@ -1597,21 +2070,11 @@ export default function InterrogationPage() {
         }
 
         /* 全体质询输入区 */
-        .question-input-area--group {
-          position: relative;
-        }
+        .question-input-area--group { position: relative; }
 
-        .mention-input-wrapper {
-          flex: 1;
-          position: relative;
-        }
+        .mention-input-wrapper { flex: 1; position: relative; }
 
-        .question-input--textarea {
-          width: 100%;
-          resize: none;
-          min-height: 60px;
-          line-height: 1.5;
-        }
+        .question-input--textarea { width: 100%; resize: none; min-height: 60px; line-height: 1.5; }
 
         /* @提及菜单 */
         .mention-menu {
@@ -1631,22 +2094,10 @@ export default function InterrogationPage() {
           transition: background 0.2s ease;
         }
 
-        .mention-menu-item:first-child {
-          border-radius: 8px 8px 0 0;
-        }
-
-        .mention-menu-item:last-child {
-          border-radius: 0 0 8px 8px;
-        }
-
-        .mention-menu-item:hover {
-          background: rgba(212, 175, 55, 0.15);
-        }
-
-        .mention-menu-item--active {
-          background: rgba(212, 175, 55, 0.2);
-          border-left: 3px solid #d4af37;
-        }
+        .mention-menu-item:first-child { border-radius: 8px 8px 0 0; }
+        .mention-menu-item:last-child { border-radius: 0 0 8px 8px; }
+        .mention-menu-item:hover { background: rgba(212, 175, 55, 0.15); }
+        .mention-menu-item--active { background: rgba(212, 175, 55, 0.2); border-left: 3px solid #d4af37; }
 
         .message--system .message-text {
           background: rgba(103, 58, 183, 0.1) !important;
@@ -1654,9 +2105,7 @@ export default function InterrogationPage() {
           text-align: center;
         }
 
-        .message--system .message-sender {
-          display: none;
-        }
+        .message--system .message-sender { display: none; }
       `}</style>
 
       {/* 华生对话框 */}

@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.config import get_settings
-from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain, Case, Suspect
+from app.models.case import Observation, Inference, Hypothesis, Clue, DeductionChain, Case, Suspect, Witness
 from app.models.game import WatsonChatContext
 from app.agents.prompts.watson_prompts import (
     watson_observation_prompt,
@@ -23,6 +23,7 @@ from app.agents.prompts.watson_prompts import (
     watson_deduction_hint_prompt,
     watson_contradiction_prompt,
 )
+from app.agents.prompts.expert_prompts import watson_witness_tips_prompt
 from app.agents._llm_helpers import invoke_with_retry
 
 
@@ -49,6 +50,7 @@ class WatsonAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=0.7,
+            extra_body={"enable_thinking": False},
         )
         self.proactive_rate = proactive_rate
         logger.info(f"[WatsonAgent] 初始化华生NPC Agent (proactive_rate={proactive_rate})")
@@ -690,6 +692,76 @@ class WatsonAgent:
         )
         if isinstance(result, dict) and "tips" in result:
             logger.info(f"[WatsonAgent] offer_interrogation_tips 完成 tips={len(result['tips'])}")
+            return result["tips"]
+        return fallback_tips
+
+    async def offer_witness_interrogation_tips(
+        self,
+        case: Case,
+        witness: Witness,
+        conversation_history: List[Dict[str, str]],
+        clues: List[Clue],
+    ) -> List[Dict[str, Any]]:
+        """
+        在问询证人过程中实时给出追问建议（提示追问 observation 而非测谎）。
+
+        Args:
+            case: 当前案件
+            witness: 被问询的证人
+            conversation_history: 问询对话历史
+            clues: 已发现的线索列表
+        Returns:
+            tips 数组，每项含 type / text / related_clue_ids
+        """
+        logger.info(
+            f"[WatsonAgent] offer_witness_interrogation_tips witness={witness.id} "
+            f"clues={len(clues)}"
+        )
+
+        fallback_tips = [
+            {
+                "type": "suggestion",
+                "text": f"不妨问问{witness.name}案发当晚确切看到了什么。",
+                "related_clue_ids": [],
+            },
+        ]
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return fallback_tips
+
+        clues_block = "\n".join(
+            [f"  - id={c.id} {c.user_label or c.description[:40]}" for c in clues]
+        ) or "（尚无线索）"
+        recent_history = conversation_history[-6:]
+        conversation_block = "\n".join(
+            [f"{m['role']}: {m['content']}" for m in recent_history]
+        ) or "（尚未开始）"
+
+        key_observations_block = "\n".join(
+            f"- {obs}" for obs in witness.key_observations
+        ) if witness.key_observations else "（无特别目击记录）"
+
+        from langchain_core.output_parsers import StrOutputParser
+        chain = watson_witness_tips_prompt | self.llm | StrOutputParser()
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "clues_block": clues_block,
+                "witness_name": witness.name,
+                "occupation": witness.occupation,
+                "relationship_to_case": witness.relationship_to_case,
+                "conversation_block": conversation_block,
+                "key_observations_block": key_observations_block,
+            },
+            fallback_fn=lambda: f'{{"tips": {fallback_tips}}}',
+            parse_json=True,
+        )
+        if isinstance(result, dict) and "tips" in result:
+            logger.info(
+                f"[WatsonAgent] offer_witness_interrogation_tips 完成 "
+                f"tips={len(result['tips'])}"
+            )
             return result["tips"]
         return fallback_tips
 

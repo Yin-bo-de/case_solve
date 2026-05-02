@@ -12,7 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 
 from app.config import get_settings
-from app.models.case import Case, Suspect, Clue, Scene, SceneObject
+from app.models.case import Case, Suspect, Clue, Scene, SceneObject, Witness, Expert, ExpertKeyFinding
 from app.agents.prompts.case_prompts import case_generation_prompt
 from app.agents._llm_helpers import invoke_with_retry
 
@@ -28,6 +28,7 @@ class CaseGeneratorAgent:
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
             temperature=0.8,  # 较高温度增加创造性
+            max_tokens=settings.case_generator_max_output_tokens,  # 防止大型案件 JSON 被截断
         )
         logger.info("[CaseGeneratorAgent] 初始化案件生成Agent")
 
@@ -62,7 +63,7 @@ class CaseGeneratorAgent:
             inputs={"difficulty": difficulty},
             fallback_fn=lambda: None,  # None 时走下面的降级逻辑
             max_retries=2,
-            timeout=45.0,
+            timeout=120.0,
             parse_json=True,
         )
 
@@ -122,14 +123,19 @@ class CaseGeneratorAgent:
         # red_herring_count: 难度越高，误导线索越多
         # obviousness_range: 难度越高，线索越隐蔽
         difficulty_config = {
-            "easy":     {"red_herring_count": 1, "real_range": (0.7, 1.0), "decoy_range": (0.3, 0.5)},
-            "classic":  {"red_herring_count": 2, "real_range": (0.4, 0.8), "decoy_range": (0.2, 0.4)},
-            "hardcore": {"red_herring_count": 3, "real_range": (0.1, 0.4), "decoy_range": (0.1, 0.3)},
+            "easy":     {"red_herring_count": 1, "real_range": (0.7, 1.0), "decoy_range": (0.3, 0.5),
+                         "witness_credibilities": [0.85, 0.9], "witness_lying": [False, False]},
+            "classic":  {"red_herring_count": 2, "real_range": (0.4, 0.8), "decoy_range": (0.2, 0.4),
+                         "witness_credibilities": [0.75, 0.6], "witness_lying": [False, True]},
+            "hardcore": {"red_herring_count": 3, "real_range": (0.1, 0.4), "decoy_range": (0.1, 0.3),
+                         "witness_credibilities": [0.5, 0.4], "witness_lying": [True, False]},
         }
         config = difficulty_config.get(difficulty, difficulty_config["classic"])
         red_herring_count = config["red_herring_count"]
         real_lo, real_hi = config["real_range"]
         decoy_lo, decoy_hi = config["decoy_range"]
+        witness_creds = config["witness_credibilities"]
+        witness_lying = config["witness_lying"]
 
         # 5条预定义线索原型（不含 is_red_herring / obviousness，由难度决定）
         clue_templates = [
@@ -281,6 +287,79 @@ class CaseGeneratorAgent:
             ),
         ]
 
+        # 集中维护交叉引用关系，便于单点修改
+        _MOCK_WITNESS_OBS = {
+            "witness-1": "昨晚 9:30 看见杰克·哈里森（suspect-2）从公寓后门匆匆离开，神色慌张",
+            "witness-2": "昨晚约 10 点，有一个穿深色斗篷的人进过那栋楼，背影与伊丽莎白·克莱尔（suspect-3）身形相似",
+        }
+
+        witnesses = [
+            Witness(
+                id="witness-1",
+                name="莉莉·哈丁",
+                age=34,
+                occupation="洗衣女工",
+                relationship_to_case="死者公寓隔壁的住户",
+                timeline="昨晚 8 点到 10 点一直在自家阳台晾衣服，之后回屋睡觉",
+                personality_traits=["热心", "好奇", "健谈"],
+                secrets=[],
+                key_observations=[_MOCK_WITNESS_OBS["witness-1"]],
+                is_lying_for_someone=witness_lying[0],
+                bribed_by_suspect_id=None,
+                related_suspect_ids=["suspect-2"],
+                credibility=witness_creds[0],
+            ),
+            Witness(
+                id="witness-2",
+                name="老汤姆",
+                age=11,
+                occupation="街角报童",
+                relationship_to_case="在案发楼栋附近卖报，昨晚有所目击",
+                timeline="昨晚 9:30 到 10:30 在街角卖晚报，约 10 点 15 分收摊回家",
+                personality_traits=["机灵", "胆小", "记性好"],
+                secrets=[],
+                key_observations=[_MOCK_WITNESS_OBS["witness-2"]],
+                is_lying_for_someone=witness_lying[1],
+                bribed_by_suspect_id=("suspect-3" if witness_lying[1] else None),
+                related_suspect_ids=["suspect-3"],
+                credibility=witness_creds[1],
+            ),
+        ]
+
+        experts = [
+            Expert(
+                id="expert-1",
+                name="塞西尔·哈罗德医生",
+                title="皇家法医、苏格兰场顾问",
+                expertise=["法医病理", "钝器伤分析", "死亡时间推断"],
+                preliminary_report=(
+                    "经本人现场初步检验，死者埃德蒙·布莱克伍德头部右侧太阳穴处存在明显钝器伤，"
+                    "创口形态呈圆弧状，与直径约 5 厘米的金属物体吻合。"
+                    "根据尸体僵硬程度及体温推算，死亡时间约为昨晚 9 点 45 分至 10 点 30 分，"
+                    "误差在 30 分钟以内。"
+                    "现场采集到的黄铜碎屑样品疑与书房角落的烛台架残件成分相符，"
+                    "化验结果将在两日内出具。"
+                ),
+                key_findings=[
+                    ExpertKeyFinding(
+                        topic="凶器特征",
+                        finding="创口形态与黄铜烛台匹配，烛台上血迹经初步鉴定为死者血型",
+                        related_clue_ids=["clue-5"],
+                    ),
+                    ExpertKeyFinding(
+                        topic="死亡时间",
+                        finding="死亡时间窗口约为昨晚 9:45 至 10:30，误差 ±30 分钟",
+                        related_clue_ids=["clue-5"],
+                    ),
+                ],
+                methodology_notes=[
+                    "死亡时间推断基于尸体僵硬度与体温，误差约 ±30 分钟",
+                    "黄铜碎屑成分比对结果为初步判断，正式化验尚未完成",
+                ],
+                related_clue_ids=["clue-5"],
+            ),
+        ]
+
         return Case(
             id=case_id,
             victim_name="埃德蒙·布莱克伍德",
@@ -296,6 +375,8 @@ class CaseGeneratorAgent:
             true_murderer_id=true_murderer_id,
             scenes=scenes,
             investigation_locations=[s.name for s in scenes],
+            witnesses=witnesses,
+            experts=experts,
         )
 
     def _build_case_from_llm_output(self, case_id: str, difficulty: str, data: dict) -> Case:
@@ -341,6 +422,10 @@ class CaseGeneratorAgent:
         # 解析 scenes（若 LLM 未返回则生成简单的占位 scenes）
         scenes = self._parse_scenes_from_data(data, clues)
 
+        # 解析证人和专家
+        witnesses = self._parse_witnesses_from_data(data, suspects)
+        experts = self._parse_experts_from_data(data, clues)
+
         return Case(
             id=case_id,
             victim_name=data["victim_name"],
@@ -357,6 +442,8 @@ class CaseGeneratorAgent:
             scenes=scenes,
             # investigation_locations 作为 scenes.name 的镜像
             investigation_locations=[s.name for s in scenes],
+            witnesses=witnesses,
+            experts=experts,
         )
 
     def _parse_scenes_from_data(self, data: dict, clues: list) -> list:
@@ -449,6 +536,175 @@ class CaseGeneratorAgent:
                     SceneObject(id="obj-kitchen-3", name="茶具柜", description="存放茶具的橱柜", hidden_clue_ids=[], search_hints=[]),
                 ],
             ),
+        ]
+
+
+    def _parse_witnesses_from_data(self, data: dict, suspects: list) -> list:
+        """
+        将 LLM 返回的 witnesses JSON 转换为 Witness 对象列表。
+        若 LLM 未返回或解析失败，生成 fallback 证人。
+        """
+        raw_witnesses = data.get("witnesses", [])
+        if not raw_witnesses:
+            logger.warning("[CaseGeneratorAgent] LLM 未返回 witnesses，使用 fallback")
+            return self._build_fallback_witnesses(suspects)
+
+        try:
+            witnesses = []
+            for i, w in enumerate(raw_witnesses):
+                # related_suspect_indices → related_suspect_ids
+                related_ids = [
+                    suspects[idx].id
+                    for idx in w.get("related_suspect_indices", [])
+                    if idx < len(suspects)
+                ]
+                # 若关联嫌疑人为空，注入第一个非真凶作为兜底
+                if not related_ids and suspects:
+                    non_guilty = [s for s in suspects if not s.is_guilty]
+                    related_ids = [non_guilty[0].id] if non_guilty else [suspects[0].id]
+                    logger.warning(
+                        f"[CaseGeneratorAgent] witness-{i+1} 关联嫌疑人为空，注入兜底: {related_ids}"
+                    )
+
+                # bribed_by_suspect_index → bribed_by_suspect_id
+                bribed_idx = w.get("bribed_by_suspect_index")
+                bribed_id = suspects[bribed_idx].id if (bribed_idx is not None and bribed_idx < len(suspects)) else None
+
+                witness = Witness(
+                    id=f"witness-{i+1}",
+                    name=w["name"],
+                    age=w.get("age", 30),
+                    occupation=w.get("occupation", "市民"),
+                    relationship_to_case=w.get("relationship_to_case", "案件相关人员"),
+                    timeline=w.get("timeline", ""),
+                    personality_traits=w.get("personality_traits", []),
+                    secrets=w.get("secrets", []),
+                    key_observations=w.get("key_observations", []),
+                    is_lying_for_someone=w.get("is_lying_for_someone", False),
+                    bribed_by_suspect_id=bribed_id,
+                    related_suspect_ids=related_ids,
+                    credibility=w.get("credibility", 0.7),
+                )
+                witnesses.append(witness)
+
+            logger.info(f"[CaseGeneratorAgent] 解析 witnesses 成功 count={len(witnesses)}")
+            return witnesses
+        except Exception as e:
+            logger.warning(f"[CaseGeneratorAgent] witnesses 解析异常，使用 fallback: {e}")
+            return self._build_fallback_witnesses(suspects)
+
+    def _parse_experts_from_data(self, data: dict, clues: list) -> list:
+        """
+        将 LLM 返回的 experts JSON 转换为 Expert 对象列表。
+        若 LLM 未返回或解析失败，生成 fallback 专家。
+        """
+        raw_experts = data.get("experts", [])
+        if not raw_experts:
+            logger.warning("[CaseGeneratorAgent] LLM 未返回 experts，使用 fallback")
+            return self._build_fallback_expert(clues)
+
+        try:
+            experts = []
+            for i, e in enumerate(raw_experts):
+                # related_clue_indices → related_clue_ids
+                related_clue_ids = [
+                    clues[idx].id
+                    for idx in e.get("related_clue_indices", [])
+                    if idx < len(clues)
+                ]
+                if not related_clue_ids and clues:
+                    # 找第一条非红鲱鱼物证线索
+                    real_clue = next(
+                        (c for c in clues if not c.is_red_herring and c.clue_type in ("physical", "forensic")),
+                        clues[0]
+                    )
+                    related_clue_ids = [real_clue.id]
+                    logger.warning(
+                        f"[CaseGeneratorAgent] expert-{i+1} 关联线索为空，注入兜底: {related_clue_ids}"
+                    )
+
+                # key_findings 中的 related_clue_indices → related_clue_ids
+                key_findings = []
+                for kf in e.get("key_findings", []):
+                    kf_clue_ids = [
+                        clues[idx].id
+                        for idx in kf.get("related_clue_indices", [])
+                        if idx < len(clues)
+                    ]
+                    key_findings.append(ExpertKeyFinding(
+                        topic=kf.get("topic", ""),
+                        finding=kf.get("finding", ""),
+                        related_clue_ids=kf_clue_ids,
+                    ))
+
+                expert = Expert(
+                    id=f"expert-{i+1}",
+                    name=e["name"],
+                    title=e.get("title", "法医"),
+                    expertise=e.get("expertise", []),
+                    preliminary_report=e.get("preliminary_report", ""),
+                    key_findings=key_findings,
+                    methodology_notes=e.get("methodology_notes", []),
+                    related_clue_ids=related_clue_ids,
+                )
+                experts.append(expert)
+
+            logger.info(f"[CaseGeneratorAgent] 解析 experts 成功 count={len(experts)}")
+            return experts
+        except Exception as e:
+            logger.warning(f"[CaseGeneratorAgent] experts 解析异常，使用 fallback: {e}")
+            return self._build_fallback_expert(clues)
+
+    def _build_fallback_witnesses(self, suspects: list) -> list:
+        """当 LLM 未返回 witnesses 时，生成 1 个泛用证人"""
+        non_guilty = [s for s in suspects if not s.is_guilty]
+        ref_suspect = non_guilty[0] if non_guilty else (suspects[0] if suspects else None)
+        related_ids = [ref_suspect.id] if ref_suspect else []
+        obs = f"案发当晚在案发地点附近看到过可疑人员" if not ref_suspect else \
+              f"案发当晚看到过 {ref_suspect.name} 在附近活动"
+        return [
+            Witness(
+                id="witness-1",
+                name="无名目击者",
+                age=35,
+                occupation="附近居民",
+                relationship_to_case="案发地点附近居住",
+                timeline="案发当晚在附近活动",
+                personality_traits=["谨慎"],
+                secrets=[],
+                key_observations=[obs],
+                is_lying_for_someone=False,
+                bribed_by_suspect_id=None,
+                related_suspect_ids=related_ids,
+                credibility=0.65,
+            )
+        ]
+
+    def _build_fallback_expert(self, clues: list) -> list:
+        """当 LLM 未返回 experts 时，生成 1 个基于物证的法医"""
+        real_clue = next(
+            (c for c in clues if not c.is_red_herring and c.clue_type in ("physical", "forensic")),
+            clues[0] if clues else None
+        )
+        related_ids = [real_clue.id] if real_clue else []
+        report = "经初步法医检验，死者系遭外力侵害致死。死亡时间估计为案发当晚，具体时间窗口待进一步分析确认。"
+        return [
+            Expert(
+                id="expert-1",
+                name="法医检验员",
+                title="法医",
+                expertise=["法医病理"],
+                preliminary_report=report,
+                key_findings=[
+                    ExpertKeyFinding(
+                        topic="死因",
+                        finding="外力侵害致死，具体凶器待确认",
+                        related_clue_ids=related_ids,
+                    )
+                ] if related_ids else [],
+                methodology_notes=["死亡时间推断存在误差，完整报告尚待出具"],
+                related_clue_ids=related_ids,
+            )
         ]
 
 

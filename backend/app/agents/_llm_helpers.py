@@ -128,7 +128,7 @@ async def invoke_with_retry(
             result = await asyncio.wait_for(chain.ainvoke(inputs), timeout=timeout)
             elapsed = time.perf_counter() - t0
             logger.info(f"[LLMHelper] 调用成功 (attempt={attempt+1}, elapsed={elapsed:.2f}s, estimated_tokens={estimated_tokens})")
-
+            logger.info(f"result: {result}")
             if parse_json and isinstance(result, str):
                 # 去除 markdown 代码块
                 cleaned = result.strip()
@@ -136,7 +136,17 @@ async def invoke_with_retry(
                     cleaned = cleaned.split("```")[1]
                     if cleaned.startswith("json"):
                         cleaned = cleaned[4:]
-                return json.loads(cleaned.strip())
+                try:
+                    return json.loads(cleaned.strip())
+                except json.JSONDecodeError as json_err:
+                    elapsed = time.perf_counter() - t0
+                    logger.warning(
+                        f"[LLMHelper] JSON 解析失败，输出可能被截断 "
+                        f"(attempt={attempt+1}, elapsed={elapsed:.2f}s, output_len={len(result)}, err={json_err})"
+                    )
+                    # JSON 截断不会因重试而改善，直接跳出循环进 fallback
+                    last_error = json_err
+                    break
             return result
 
         except asyncio.TimeoutError:

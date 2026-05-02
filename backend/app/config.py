@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     scene_agent_max_history_messages: int = 6
     scene_agent_max_history_tokens: int = 4000
     oracle_agent_max_context_tokens: int = 10000
+    witness_agent_max_history_messages: int = 8
+    expert_agent_max_history_messages: int = 6
+    case_generator_max_output_tokens: int = 8000
 
     class Config:
         env_file = ".env"

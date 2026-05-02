@@ -6,6 +6,42 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
+class Witness(BaseModel):
+    """证人模型 - 目击者/邻居/相关人员，可能因恐惧或利益隐瞒部分事实"""
+    id: str                                                          # witness-{n}
+    name: str
+    age: int
+    occupation: str                                                  # 职业，如「街角报童」
+    relationship_to_case: str                                        # 与案件的关系
+    timeline: str                                                    # 案发时段轨迹（应与某嫌疑人有交集）
+    personality_traits: List[str] = Field(default_factory=list)
+    secrets: List[str] = Field(default_factory=list, exclude=True)  # 服务端专用，不下发
+    key_observations: List[str] = Field(default_factory=list)       # 真实目击事实（LLM 回答知识库）
+    is_lying_for_someone: bool = Field(default=False, exclude=True)  # 服务端专用，不下发
+    bribed_by_suspect_id: Optional[str] = Field(default=None, exclude=True)  # 服务端专用
+    related_suspect_ids: List[str] = Field(default_factory=list)
+    credibility: float = Field(default=0.7, ge=0.0, le=1.0)        # 基础可信度
+
+
+class ExpertKeyFinding(BaseModel):
+    """专家关键发现条目"""
+    topic: str
+    finding: str
+    related_clue_ids: List[str] = Field(default_factory=list)
+
+
+class Expert(BaseModel):
+    """专家模型 - 皇家法医等技术专家，完全可信，基于物证提供客观分析"""
+    id: str                                                          # expert-{n}
+    name: str
+    title: str                                                       # 职称，如「皇家法医」
+    expertise: List[str] = Field(default_factory=list)
+    preliminary_report: str = ""                                     # 首次开场报告，80-150 字
+    key_findings: List[ExpertKeyFinding] = Field(default_factory=list)
+    methodology_notes: List[str] = Field(default_factory=list)      # 技术不确定性说明（防过度自信）
+    related_clue_ids: List[str] = Field(default_factory=list)       # 仅可基于这些线索发言（反幻觉约束）
+
+
 class Suspect(BaseModel):
     """嫌疑人模型"""
     id: str
@@ -52,7 +88,7 @@ class Clue(BaseModel):
     discovery_notes: Optional[str] = None
     obviousness: float = Field(default=0.5, ge=0.0, le=1.0)  # 0.0=隐蔽, 1.0=明显
     user_label: Optional[str] = None                  # 用户自定义命名
-    source_type: str = "initial"                      # initial | scene | interrogation
+    source_type: str = "initial"                      # initial | scene | interrogation | witness | expert
     source_ref: Optional[str] = None                  # scene_id 或 suspect_id
     quoted_text: Optional[str] = None                 # 来源原文（审讯片段）
     user_generated: bool = False                      # 是否用户主动创建
@@ -76,6 +112,8 @@ class Case(BaseModel):
     true_murderer_id: Optional[str] = None
     investigation_locations: List[str] = Field(default_factory=list)
     scenes: List[Scene] = Field(default_factory=list)
+    witnesses: List[Witness] = Field(default_factory=list)
+    experts: List[Expert] = Field(default_factory=list)
 
 
 class Observation(BaseModel):

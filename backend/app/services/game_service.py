@@ -621,6 +621,19 @@ class GameService:
         if game.case:
             current_suspect_ids = [s.id for s in game.case.suspects]
 
+        # 证人、专家摘要（供华生对话引用）
+        witnesses = []
+        experts = []
+        if game.case:
+            witnesses = [
+                {"id": w.id, "name": w.name, "occupation": w.occupation}
+                for w in game.case.witnesses
+            ]
+            experts = [
+                {"id": e.id, "name": e.name, "title": e.title}
+                for e in game.case.experts
+            ]
+
         return WatsonChatContext(
             game_phase=game.phase,
             observations_count=len(chain.observations),
@@ -633,6 +646,8 @@ class GameService:
             current_clues=current_clues,
             available_scenes=available_scenes,
             suspects=suspects,
+            witnesses=witnesses,
+            experts=experts,
         )
 
 

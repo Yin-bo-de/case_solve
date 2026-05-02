@@ -5,6 +5,7 @@ import type {
   ConclusionReadiness, AccusationResult, CaseReveal,
   WatsonChatMessage, WatsonMessageType,
   Clue, SceneSearchResponse, ReasoningRecord, WatsonTip,
+  CredibilityCheckResult, ActorType,
 } from '@/types/game'
 import type { RedemptionVerifyResponse, RedemptionGenerateResponse } from '@/types/redemption'
 
@@ -463,6 +464,101 @@ export const gameApi = {
     const response = await apiClient.post<{ tips: WatsonTip[] }>(
       `/api/game/${gameId}/interrogation/watson-tips`,
       { suspect_id: suspectId, conversation_history: history }
+    )
+    return response.data
+  },
+
+  /** 向证人提问 */
+  async askWitnessQuestion(
+    gameId: string,
+    witnessId: string,
+    question: string,
+    conversationHistory: ConversationMessage[] = []
+  ): Promise<{
+    witnessId: string
+    witnessName: string
+    response: string
+    credibilityCheck: CredibilityCheckResult
+  }> {
+    validateGameId(gameId, 'askWitnessQuestion')
+    console.info('[gameApi] 向证人提问', { gameId, witnessId, question: question.substring(0, 50) })
+    const response = await apiClient.post(
+      `/api/game/${gameId}/interrogation/witness/question`,
+      { witness_id: witnessId, question, conversation_history: conversationHistory }
+    )
+    return response.data
+  },
+
+  /** 向专家提问 */
+  async askExpertQuestion(
+    gameId: string,
+    expertId: string,
+    question: string,
+    conversationHistory: ConversationMessage[] = []
+  ): Promise<{
+    expertId: string
+    expertName: string
+    response: string
+  }> {
+    validateGameId(gameId, 'askExpertQuestion')
+    console.info('[gameApi] 向专家提问', { gameId, expertId, question: question.substring(0, 50) })
+    const response = await apiClient.post(
+      `/api/game/${gameId}/interrogation/expert/question`,
+      { expert_id: expertId, question, conversation_history: conversationHistory }
+    )
+    return response.data
+  },
+
+  /** 获取专家初步法医报告 */
+  async getExpertPreliminaryReport(
+    gameId: string,
+    expertId: string
+  ): Promise<{
+    expertId: string
+    expertName: string
+    title: string
+    preliminaryReport: string
+    keyFindingsSummary: string
+  }> {
+    validateGameId(gameId, 'getExpertPreliminaryReport')
+    console.info('[gameApi] 获取专家初步报告', { gameId, expertId })
+    const response = await apiClient.get(
+      `/api/game/${gameId}/interrogation/expert/${expertId}/preliminary-report`
+    )
+    return response.data
+  },
+
+  /** 从证人/专家对话中提取线索 */
+  async extractClueFromActor(
+    gameId: string,
+    payload: {
+      actorType: Exclude<ActorType, 'suspect'>
+      actorId: string
+      quotedText: string
+      contextMessages: Array<{ role: string; content: string }>
+      userLabel: string
+    }
+  ): Promise<Clue> {
+    validateGameId(gameId, 'extractClueFromActor')
+    console.info('[gameApi] 从角色对话提取线索', { gameId, actorType: payload.actorType, actorId: payload.actorId })
+    const response = await apiClient.post<Clue>(
+      `/api/game/${gameId}/interrogation/extract-clue-from-actor`,
+      payload
+    )
+    return response.data
+  },
+
+  /** 获取华生对证人审讯的实时提示 */
+  async getWitnessInterrogationTips(
+    gameId: string,
+    witnessId: string,
+    history: Array<{ role: string; content: string }> = []
+  ): Promise<{ tips: WatsonTip[] }> {
+    validateGameId(gameId, 'getWitnessInterrogationTips')
+    console.info('[gameApi] 获取证人审讯华生提示', { gameId, witnessId })
+    const response = await apiClient.post<{ tips: WatsonTip[] }>(
+      `/api/game/${gameId}/interrogation/witness/watson-tips`,
+      { witness_id: witnessId, conversation_history: history }
     )
     return response.data
   },

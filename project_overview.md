@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-04-29（新增全局背景音乐播放器）
+**更新日期**: 2026-05-02（场景搜索接口新增 dialog_options 字段 — 前后端全部完成）
 **当前分支**: releaes/1.0.0
 **项目状态**: 开发中
 
@@ -73,6 +73,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   ├── agents/                   # LangChain Agents
 │   │   │   ├── case_generator_agent.py   # 案件生成
 │   │   │   ├── suspect_agent.py          # 嫌疑人对话
+│   │   │   ├── witness_agent.py          # 证人对话（新增）
+│   │   │   ├── expert_agent.py           # 专家对话（新增）
 │   │   │   ├── watson_agent.py           # 华生NPC
 │   │   │   ├── oracle_agent.py           # 裁决官（推理/指控验证）
 │   │   │   ├── scene_agent.py            # 场景NPC（自然语言场景探索）
@@ -81,6 +83,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │       ├── __init__.py
 │   │   │       ├── case_prompts.py       # 案件生成Prompt
 │   │   │       ├── suspect_prompts.py    # 嫌疑人Prompt
+│   │   │       ├── witness_prompts.py    # 证人Prompt（新增）
+│   │   │       ├── expert_prompts.py     # 专家Prompt（新增）
 │   │   │       ├── watson_prompts.py     # 华生Prompt
 │   │   │       ├── oracle_prompts.py     # 裁决官Prompt
 │   │   │       └── scene_prompts.py      # 场景NPC Prompt
@@ -194,6 +198,142 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-02（场景搜索接口新增对话选项字段 dialog_options — 前后端全部完成）
+
+**背景**: 玩家拿到 NPC 回应后不知道下一步该问什么，新增 `dialog_options` 字段由 SceneAgent 生成 2–3 条第一人称侦探口吻的追问选项，前端渲染为可点击胶囊按钮，点击后直接发送，不填入输入框，不剥夺自由输入。
+
+#### 前端改动
+- ✅ **`frontend/src/types/game.ts`**：`SceneSearchResponse` 新增 `dialogOptions?: string[]`
+- ✅ **`frontend/src/store/sceneChatStore.ts`**：`SceneChatMessage` 新增 `dialogOptions?: string[]`，持久化自动兼容（老数据缺字段为 `undefined`）
+- ✅ **`frontend/src/components/ScenePanel/SceneChat.tsx`**：
+  - 抽取 `sendQuery(text)` 函数，`handleSend` 和选项点击共用同一发送逻辑
+  - 计算 `lastNpcIndex`，仅在最新 NPC 消息下渲染对话选项区
+  - 选项按钮 `disabled={isLoading}` 防并发；点击不填入 input
+- ✅ **`frontend/src/index.css`**：新增 `.scene-chat__dialog-options`（flex-wrap 横排）和 `.scene-chat__dialog-option-btn`（胶囊型，蓝灰色调区别于线索按钮的金色调）
+
+### 2026-05-02（场景搜索接口新增对话选项字段 dialog_options — 后端）
+
+**背景**: `/{game_id}/scene/{scene_id}/search` 接口仅返回 narrative 与 clue_candidates，玩家拿到 NPC 回应后不知道下一步该问什么，对话节奏容易断档。
+
+**改动**
+- ✅ **`backend/app/agents/prompts/scene_prompts.py`**：
+  - `SCENE_SYSTEM` 新增第 6 条规则，规范 `dialog_options` 的语气（第一人称侦探口吻、≤18 字、与 narrative 异常细节联动、方向差异化、narrative 不以问句结尾）
+  - `SCENE_SEARCH_USER` JSON schema 末尾新增 `dialog_options` 字段，并强约束"必须 2–3 条"
+- ✅ **`backend/app/agents/scene_agent.py`**：
+  - `_KEY_ALIASES` 新增 5 个缩写归一化：`options`、`suggestions`、`next_actions`、`follow_ups`、`dialog_option` → `dialog_options`
+  - `fallback_fn` 字典新增 `"dialog_options": []`
+  - `search()` 末尾追加安全填充 + 清洗逻辑：非 list 补 `[]`、过滤非字符串/空白、超长截断到 24 字、长度截断到 3、精确去重
+  - 日志新增 `dialog_options_count=N`
+- ✅ **`backend/app/routers/game.py`**：
+  - 新增 `SceneClueCandidate`、`SceneSearchResponse` Pydantic 响应模型
+  - `scene_search` 路由签名改为 `response_model=SceneSearchResponse`，FastAPI 自动按模型校验/序列化
+
+### 2026-05-01（修复 SceneAgent LLM 返回 JSON key 缩写问题）
+
+**背景**: SceneAgent 调用 LLM 后，返回的 JSON 中 `narrative` 被模型缩写为 `narr`，导致前端无法正确读取叙述文本字段。即使 prompt 中明确要求"不要随意修改key"，LLM 仍倾向缩写长 key，这是 LLM 输出格式的固有问题。
+
+**改动**
+- ✅ **`backend/app/agents/scene_agent.py`**：新增 `_KEY_ALIASES` 映射表（`narr→narrative`、`narration→narrative`、`text→narrative`、`matched_objects→matched_object_ids`、`clues→clue_candidates`）和 `_normalize_keys()` 归一化函数，在 `search()` 方法返回前对 LLM 结果做 key 校正
+
+### 2026-05-01（修复勘查页面已发现线索面板宽度不稳定）
+
+**背景**: `.discovered-clues-panel` 组件宽度随线索内容变化而变化，每次渲染宽度不一致。根因是该面板位于 `flex-direction: row` 的父容器 `.investigation-main` 中，且未设置任何宽度约束，宽度完全由内容撑开。
+
+**改动**
+- ✅ **`frontend/src/index.css`**：`.discovered-clues-panel` 新增 `width: 100%; max-width: 100%`，面板宽度固定为父容器满宽，不再随内容变化
+
+### 2026-05-01（修复案件生成 JSON 截断报错）
+
+**背景**: 生成案件时报错 `Unterminated string starting at: line 161 column 28 (char 5108)`，LLM 输出的案件 JSON 在约 5100 字符处被截断，导致 `json.loads` 失败。
+
+**根因**: `CaseGeneratorAgent` 的 `ChatOpenAI` 未设置 `max_tokens`，模型默认输出上限（通常 4096 tokens）不足以装下完整案件 JSON（3 嫌疑人 + 5 线索 + 3 场景 + 证人 + 专家），输出在中途被截断。
+
+**改动**
+- ✅ **`backend/app/config.py`**：新增 `case_generator_max_output_tokens: int = 8000` 配置项
+- ✅ **`backend/app/agents/case_generator_agent.py`**：`ChatOpenAI` 构造时传入 `max_tokens=settings.case_generator_max_output_tokens`
+- ✅ **`backend/app/agents/_llm_helpers.py`**：`invoke_with_retry` 的 JSON 解析逻辑优化——截断导致的 `JSONDecodeError` 不再无意义重试，直接 `break` 跳出循环进入 fallback，避免浪费时间等待同样的截断结果
+
+**验收**
+- 41/41 后端测试全绿，无回归
+- 三处修改均通过导入验证
+
+### 2026-05-01（新增证人 Witness / 专家 Expert 角色与后端审讯互动）
+
+**背景**: 当前案件中仅有 3 名嫌疑人可对话，缺乏真实推理小说中的目击证人和法医专家角色。为增强维多利亚时代探案的真实感，新增两类角色并扩展后端审讯 API。
+
+**角色设计**
+- **证人（Witness）**: 1-3 名/案，提供目击证词。可能因恐惧或被收买而隐瞒事实，保留「可信度提示」（区别于嫌疑人的战术性谎言）。不参与圆桌对峙。
+- **专家（Expert）**: 固定 1 名/案（皇家法医），首次进入即给出「初步法医报告」，完全可信，可被追问技术细节。不检测谎言。
+
+**后端改动**
+- ✅ **数据模型扩展** (`backend/app/models/case.py`):
+  - 新增 `Witness` 模型（含 `key_observations`、`is_lying_for_someone`、`bribed_by_suspect_id`、`credibility` 等字段，敏感字段 `exclude=True`）
+  - 新增 `ExpertKeyFinding`、`Expert` 模型（含 `preliminary_report`、`methodology_notes`、`related_clue_ids`）
+  - 扩展 `Case` 新增 `witnesses: List[Witness]`、`experts: List[Expert]`
+  - `Clue.source_type` 语义扩展为 `"initial" | "scene" | "interrogation" | "witness" | "expert"`
+- ✅ **Prompt 模板新建/扩展**:
+  - 新建 `backend/app/agents/prompts/witness_prompts.py`：`witness_response_prompt`（基于 `key_observations` 发言、维多利亚口吻、动态注入撒谎上下文）、`witness_credibility_prompt`（JSON 模式返回可信度评估）
+  - 新建 `backend/app/agents/prompts/expert_prompts.py`：`expert_response_prompt`（反幻觉策略——显式列出 `related_clue_descriptions` 作为唯一可引用物证池，拒绝动机/心理类问题）、`watson_witness_tips_prompt`（提示侦探追问 observation 而非测谎）
+  - 扩展 `backend/app/agents/prompts/case_prompts.py`：JSON Schema 追加 `witnesses`/`experts` 数组定义及数量/难度约束（easy 0 撒谎 credibility≥0.8；classic ≤1 撒谎；hardcore ≤2 撒谎 0.3-0.6）
+- ✅ **新建 Agent**:
+  - 新建 `backend/app/agents/witness_agent.py`：`WitnessAgent`（`generate_response`、`detect_credibility`、`_build_lying_context`、mock 降级）
+  - 新建 `backend/app/agents/expert_agent.py`：`ExpertAgent`（`get_preliminary_report`、`answer_question`、`_build_related_clue_descriptions` 反幻觉、mock 降级，temperature=0.4）
+- ✅ **案件生成扩展** (`backend/app/agents/case_generator_agent.py`):
+  - `_generate_mock_case` 按难度动态配置证人可信度与撒谎状态，新增 2 名证人 + 1 名法医专家
+  - 新增 `_parse_witnesses_from_data`、`_parse_experts_from_data`、`_build_fallback_witnesses`、`_build_fallback_expert` 解析/兜底方法
+- ✅ **API 路由扩展** (`backend/app/routers/game.py`):
+  - 新增 4 个请求模型：`WitnessQuestionRequest`、`ExpertQuestionRequest`、`ExtractClueFromActorRequest`、`WitnessWatsonTipsRequest`
+  - 新增 5 个端点：`POST /interrogation/witness/question`、`POST /interrogation/expert/question`、`GET /interrogation/expert/{id}/preliminary-report`、`POST /interrogation/extract-clue-from-actor`、`POST /interrogation/witness/watson-tips`
+  - 旧端点 `/interrogation/extract-clue` 与 `/interrogation/watson-tips` 完全不变，保持兼容
+- ✅ **Service 层扩展** (`backend/app/services/game_service.py`):
+  - `build_watson_chat_context` 新增填充 `witnesses`（id/name/occupation）与 `experts`（id/name/title）摘要
+- ✅ **华生 Agent 扩展** (`backend/app/agents/watson_agent.py`):
+  - 新增 `offer_witness_interrogation_tips(case, witness, conversation_history, clues)` 方法，提示追问关键目击事实
+- ✅ **配置扩展** (`backend/app/config.py`):
+  - 新增 `witness_agent_max_history_messages: int = 8`、`expert_agent_max_history_messages: int = 6`
+- ✅ **测试覆盖**:
+  - 新建 `backend/tests/test_witness_expert.py`：20 个 pytest 用例（mock 案件结构、交叉引用一致性、Agent mock 回退、Service 层 source_type 兼容、WatsonChatContext 包含证人专家），全绿
+  - 扩展 `backend/tests/test_difficulty.py`：新增 `TestWitnessDifficultyDistribution`（6 个用例：三难度下证人撒谎数与可信度范围验证），全绿
+
+**前端改动（Commit 5+6 已完成）**
+- ✅ **类型扩展** (`frontend/src/types/game.ts`)：新增 `Witness`、`Expert`、`ExpertKeyFinding`、`ActorType`、`CredibilityCheckResult`，`Case` 新增 `witnesses/experts`，`Clue.sourceType` 扩展 `witness/expert`
+- ✅ **API 客户端** (`frontend/src/services/api.ts`)：新增 `askWitnessQuestion`、`askExpertQuestion`、`getExpertPreliminaryReport`、`extractClueFromActor`、`getWitnessInterrogationTips` 5 个方法
+- ✅ **Store 改造** (`frontend/src/store/interrogationStore.ts`)：
+  - 新增 `SelectedTab` / `ActorMessage` 类型（并存，不重构旧字段）
+  - 新增 10 个状态字段：`selectedTab`、证人相关 5 个、专家相关 3 个、`extractedActorClues`
+  - 新增 9 个 actions：`setSelectedTab`、`setSelectedWitnessId`、`addWitnessConversationMessage`、`setWitnessCredibilityCheck`、`fetchWitnessTips`、`setSelectedExpertId`、`addExpertConversationMessage`、`markExpertReportLoaded`、`extractClueFromActor`
+  - persist `version: 1` + `migrate` 兼容旧存档（旧版本 v0 自动补齐新字段默认值）
+  - `partialize` 追加新字段，旧字段完全不变
+
+**前端改动（Commit 7 已完成）**
+- ✅ **页面改造** (`frontend/src/pages/InterrogationPage.tsx`)：
+  - 左栏重构为 `actors-panel`，顶部 3 个 Tab（嫌疑人 N / 证人 N / 专家 N），切换后自动选中第一个角色
+  - 切换到证人/专家 Tab 时强制锁定 `private` 模式，圆桌对峙按钮在非嫌疑人 Tab 下 disabled
+  - 标题动态：suspects→单独审讯/全体质询，witnesses→证人问询，experts→法医咨询
+  - 证人对话区：`SelectableMessage` 提取 + 可信度检测卡（`证人迟疑/有所保留/记忆偏差` 文案）+ 华生提示面板
+  - 专家对话区：自动加载 `.expert-report-card`（初步报告 + 关键发现 + 依据 clue ids）+ 对话区（无谎言检测/无华生提示）
+  - 统一 `handleSendQuestion` dispatcher，按 `selectedTab` 分发到 `sendWitnessQuestion` / `sendExpertQuestion` / `sendPrivateQuestion` / `sendGroupQuestion`
+  - `handleExtractConfirm` 按 Tab 分支：嫌疑人→旧 `extractClue`，证人/专家→`extractClueFromActor`
+  - 新增内联样式：`.actor-tabs`、`.actor-tab`、`.actor-tab__count`、`.witness-badge`（蓝色系）、`.expert-badge`（绿色系）、`.expert-report-card`、`.credibility-check` 系列
+
+**端到端联调（Commit 8 已完成）**
+- ✅ 全量回归测试：`pytest tests/ -v` → 77/77 全绿（无回归）
+- ✅ 冒烟测试 1：`POST /api/game/new` → case 含 `witnesses: 2, experts: 1`
+- ✅ 冒烟测试 2：`POST /interrogation/witness/question` → 返回 `response` + `credibility_check`（含 `credibility_concern`, `confidence`）
+- ✅ 冒烟测试 3：`POST /interrogation/expert/question` → 返回 `response`（无 `credibility_check` 字段）
+- ✅ 冒烟测试 4：`GET /interrogation/expert/{id}/preliminary-report` → `preliminary_report` 159 字非空
+- ✅ 冒烟测试 5：`POST /interrogation/extract-clue-from-actor` → `source_type: "witness"` 正确
+- ✅ 冒烟测试 6：`POST /interrogation/witness/watson-tips` → 返回 3 条 `suggestion` 类型提示
+- ✅ 前端 TypeScript 检查：`npm run typecheck` → 零错误
+- ✅ 前端构建：`npm run build` → 128 modules，构建成功
+
+**验收**
+- 后端 `pytest tests/test_witness_expert.py tests/test_difficulty.py -v` ✅ 41/41 全绿
+- 后端全量 `pytest tests/ -v` ✅ 77/77 全绿
+- 前端 `npm run typecheck && npm run build` ✅ 零错误，构建成功
+
+---
 
 ### 2026-04-29（新增全局背景音乐播放器）
 
@@ -642,6 +782,9 @@ POST /{game_id}/watson/hint
 ### 待解决的问题
 - [P2] watson-tips-panel__header的提示内容，需要重新考虑是在华生npc中还是保持单独弄一个提示组件
 - 华生当前没有获取到用户在当前游戏中审讯的聊天记录（自由对话 prompt 中未注入审讯历史，未来可按需扩展）
+- [P1] 在每一条scene_page的消息下方，新增一个选项框，供用户选择接下来的对话内容，选项内容由scene_agent生成
+- [P1] 前端页面适配移动端
+- [P2] 为scene_agent之外的其他agent的invoke_with_retry 返回后，添加一个 _normalize_keys 辅助函数，映射已知别名，避免llm返回缩写导致的字段命名不一致问题
 ---
 
 ## MVP版本待办事项
