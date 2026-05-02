@@ -9,6 +9,7 @@ export interface SceneChatMessage {
   role: 'user' | 'npc'
   content: string
   candidates?: SceneSearchResponse['clueCandidates']
+  dialogOptions?: string[]
 }
 
 interface SceneChatStore {

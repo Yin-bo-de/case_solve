@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-01（修复 SceneAgent LLM 返回 JSON key 缩写问题）
+**更新日期**: 2026-05-02（场景搜索接口新增 dialog_options 字段 — 前后端全部完成）
 **当前分支**: releaes/1.0.0
 **项目状态**: 开发中
 
@@ -198,6 +198,36 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-02（场景搜索接口新增对话选项字段 dialog_options — 前后端全部完成）
+
+**背景**: 玩家拿到 NPC 回应后不知道下一步该问什么，新增 `dialog_options` 字段由 SceneAgent 生成 2–3 条第一人称侦探口吻的追问选项，前端渲染为可点击胶囊按钮，点击后直接发送，不填入输入框，不剥夺自由输入。
+
+#### 前端改动
+- ✅ **`frontend/src/types/game.ts`**：`SceneSearchResponse` 新增 `dialogOptions?: string[]`
+- ✅ **`frontend/src/store/sceneChatStore.ts`**：`SceneChatMessage` 新增 `dialogOptions?: string[]`，持久化自动兼容（老数据缺字段为 `undefined`）
+- ✅ **`frontend/src/components/ScenePanel/SceneChat.tsx`**：
+  - 抽取 `sendQuery(text)` 函数，`handleSend` 和选项点击共用同一发送逻辑
+  - 计算 `lastNpcIndex`，仅在最新 NPC 消息下渲染对话选项区
+  - 选项按钮 `disabled={isLoading}` 防并发；点击不填入 input
+- ✅ **`frontend/src/index.css`**：新增 `.scene-chat__dialog-options`（flex-wrap 横排）和 `.scene-chat__dialog-option-btn`（胶囊型，蓝灰色调区别于线索按钮的金色调）
+
+### 2026-05-02（场景搜索接口新增对话选项字段 dialog_options — 后端）
+
+**背景**: `/{game_id}/scene/{scene_id}/search` 接口仅返回 narrative 与 clue_candidates，玩家拿到 NPC 回应后不知道下一步该问什么，对话节奏容易断档。
+
+**改动**
+- ✅ **`backend/app/agents/prompts/scene_prompts.py`**：
+  - `SCENE_SYSTEM` 新增第 6 条规则，规范 `dialog_options` 的语气（第一人称侦探口吻、≤18 字、与 narrative 异常细节联动、方向差异化、narrative 不以问句结尾）
+  - `SCENE_SEARCH_USER` JSON schema 末尾新增 `dialog_options` 字段，并强约束"必须 2–3 条"
+- ✅ **`backend/app/agents/scene_agent.py`**：
+  - `_KEY_ALIASES` 新增 5 个缩写归一化：`options`、`suggestions`、`next_actions`、`follow_ups`、`dialog_option` → `dialog_options`
+  - `fallback_fn` 字典新增 `"dialog_options": []`
+  - `search()` 末尾追加安全填充 + 清洗逻辑：非 list 补 `[]`、过滤非字符串/空白、超长截断到 24 字、长度截断到 3、精确去重
+  - 日志新增 `dialog_options_count=N`
+- ✅ **`backend/app/routers/game.py`**：
+  - 新增 `SceneClueCandidate`、`SceneSearchResponse` Pydantic 响应模型
+  - `scene_search` 路由签名改为 `response_model=SceneSearchResponse`，FastAPI 自动按模型校验/序列化
 
 ### 2026-05-01（修复 SceneAgent LLM 返回 JSON key 缩写问题）
 

@@ -106,6 +106,7 @@ export interface SceneSearchResponse {
     suggestedClueId?: string
     hint: string
   }>
+  dialogOptions?: string[]
 }
 
 export interface ReasoningRecord {

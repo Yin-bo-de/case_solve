@@ -94,6 +94,21 @@ class SceneSearchRequest(BaseModel):
     history: List[Dict[str, str]] = []
 
 
+class SceneClueCandidate(BaseModel):
+    """场景线索候选项"""
+    object_id: str
+    suggested_clue_id: Optional[str] = None
+    hint: str
+
+
+class SceneSearchResponse(BaseModel):
+    """场景搜查响应"""
+    narrative: str
+    matched_object_ids: List[str] = []
+    clue_candidates: List[SceneClueCandidate] = []
+    dialog_options: List[str] = []
+
+
 class AddClueRequest(BaseModel):
     """添加自定义线索请求"""
     user_label: str
@@ -497,7 +512,7 @@ async def group_control(game_id: str, request: GroupControlRequest):
     return {"success": True, "message": response_message}
 
 
-@router.post("/{game_id}/scene/{scene_id}/search")
+@router.post("/{game_id}/scene/{scene_id}/search", response_model=SceneSearchResponse)
 async def scene_search(game_id: str, scene_id: str, request: SceneSearchRequest):
     """场景 NPC 搜查：自然语言探索场景对象"""
     logger.info(f"[API] 场景搜查: {game_id} scene_id={scene_id} query_len={len(request.query)}")

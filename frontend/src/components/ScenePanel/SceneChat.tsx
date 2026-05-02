@@ -36,14 +36,12 @@ export default function SceneChat({ gameId, sceneId }: Props) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = async () => {
-    const query = input.trim()
+  const sendQuery = async (query: string) => {
     if (!query || isLoading) return
 
     console.info('[SceneChat] 发送搜查请求', { sceneId, query })
     const userMsg: SceneChatMessage = { role: 'user', content: query }
     addMessage(sceneId, userMsg)
-    setInput('')
     setIsLoading(true)
 
     try {
@@ -54,12 +52,16 @@ export default function SceneChat({ gameId, sceneId }: Props) {
           content: m.content,
         }))
       const result = await gameApi.sceneSearch(gameId, sceneId, query, history)
-      console.info('[SceneChat] 收到场景回应', { candidates: result.clueCandidates.length })
+      console.info('[SceneChat] 收到场景回应', {
+        candidates: result.clueCandidates.length,
+        dialogOptions: result.dialogOptions?.length ?? 0,
+      })
 
       const npcMsg: SceneChatMessage = {
         role: 'npc',
         content: result.narrative,
         candidates: result.clueCandidates.length > 0 ? result.clueCandidates : undefined,
+        dialogOptions: result.dialogOptions ?? [],
       }
       addMessage(sceneId, npcMsg)
     } catch (err) {
@@ -68,6 +70,12 @@ export default function SceneChat({ gameId, sceneId }: Props) {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSend = () => {
+    const query = input.trim()
+    setInput('')
+    sendQuery(query)
   }
 
   const handleExtractConfirm = async (userLabel: string) => {
@@ -120,6 +128,11 @@ export default function SceneChat({ gameId, sceneId }: Props) {
     }
   }
 
+  const lastNpcIndex = messages.reduceRight(
+    (found, m, i) => (found === -1 && m.role === 'npc' ? i : found),
+    -1
+  )
+
   return (
     <div className="scene-chat">
       <div className="scene-chat__messages">
@@ -146,6 +159,21 @@ export default function SceneChat({ gameId, sceneId }: Props) {
                     type="button"
                   >
                     📎 添加为线索：{c.hint.substring(0, 30)}…
+                  </button>
+                ))}
+              </div>
+            )}
+            {msg.role === 'npc' && i === lastNpcIndex && msg.dialogOptions && msg.dialogOptions.length > 0 && (
+              <div className="scene-chat__dialog-options">
+                {msg.dialogOptions.map((option, oi) => (
+                  <button
+                    key={oi}
+                    className="scene-chat__dialog-option-btn"
+                    onClick={() => sendQuery(option)}
+                    disabled={isLoading}
+                    type="button"
+                  >
+                    {option}
                   </button>
                 ))}
               </div>

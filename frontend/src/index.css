@@ -3010,6 +3010,15 @@ body {
   cursor: pointer; font-size: 0.8rem; text-align: left;
 }
 .scene-chat__add-clue-btn:hover { background: rgba(201,160,92,0.2); }
+.scene-chat__dialog-options { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
+.scene-chat__dialog-option-btn {
+  background: rgba(120,160,200,0.08); border: 1px solid rgba(120,160,200,0.35);
+  color: #90b8d8; padding: 0.3rem 0.7rem; border-radius: 14px;
+  cursor: pointer; font-size: 0.8rem; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.scene-chat__dialog-option-btn:hover:not(:disabled) { background: rgba(120,160,200,0.18); border-color: rgba(120,160,200,0.6); }
+.scene-chat__dialog-option-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .scene-chat__input-area { display: flex; gap: 0.5rem; flex-shrink: 0; }
 .scene-chat__input {
   flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(201,160,92,0.2);

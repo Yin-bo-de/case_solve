@@ -19,6 +19,11 @@ _KEY_ALIASES: Dict[str, str] = {
     "text": "narrative",
     "matched_objects": "matched_object_ids",
     "clues": "clue_candidates",
+    "options": "dialog_options",
+    "suggestions": "dialog_options",
+    "next_actions": "dialog_options",
+    "follow_ups": "dialog_options",
+    "dialog_option": "dialog_options",
 }
 
 
@@ -92,11 +97,35 @@ class SceneAgent:
                 "narrative": "（场景陷入寂静，似乎暂时听不到任何回应）",
                 "matched_object_ids": [],
                 "clue_candidates": [],
+                "dialog_options": [],
             },
             parse_json=True,
         )
         result = _normalize_keys(result)
-        logger.info(f"[SceneAgent] search 完成 candidates={len(result.get('clue_candidates', []))}")
+
+        # 安全填充 + 清洗 dialog_options
+        raw_options = result.get("dialog_options")
+        if not isinstance(raw_options, list):
+            raw_options = []
+        # 过滤非字符串和空白项
+        cleaned = [s for s in raw_options if isinstance(s, str) and s.strip()]
+        # 截断超长选项（硬限 24 字，留余量）
+        truncated = [s[:24] + "…" if len(s) > 24 else s for s in cleaned]
+        # 列表长度截断到 3
+        truncated = truncated[:3]
+        # 去重（精确匹配）
+        seen: set = set()
+        deduped = []
+        for s in truncated:
+            if s not in seen:
+                seen.add(s)
+                deduped.append(s)
+        result["dialog_options"] = deduped
+
+        logger.info(
+            f"[SceneAgent] search 完成 candidates={len(result.get('clue_candidates', []))} "
+            f"dialog_options_count={len(deduped)}"
+        )
         return result
 
 
