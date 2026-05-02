@@ -9,7 +9,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - .env
+      - ./backend/.env
     # 生产环境不挂载代码卷
     # 使用 Dockerfile 中定义的启动命令（无 --reload）
     healthcheck:
@@ -29,7 +29,6 @@ services:
     volumes:
       - ./log:/app/logs
       - ./backend/data:/app/data
-      - ./backend/.env:/app/.env
     networks:
       - sherlock-network-prod
 
