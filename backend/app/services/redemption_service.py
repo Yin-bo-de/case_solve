@@ -39,7 +39,7 @@ class RedemptionService:
     # 公开方法
     # ------------------------------------------------------------------
 
-    def generate_code(self) -> RedemptionGenerateResponse:
+    def generate_code(self, max_uses: int = 10) -> RedemptionGenerateResponse:
         """生成一个新兑换码，快照当前 settings 的 OpenAI 配置"""
         settings = get_settings()
         code = self._make_code()
@@ -47,7 +47,7 @@ class RedemptionService:
 
         record = RedemptionCode(
             code=code,
-            max_uses=10,
+            max_uses=max_uses,
             used_count=0,
             openai_api_key=settings.openai_api_key,
             openai_base_url=settings.openai_base_url,
@@ -60,7 +60,7 @@ class RedemptionService:
             data["codes"].append(record.model_dump(mode="json"))
             self._save(data)
 
-        logger.info(f"[RedemptionService] 生成兑换码: {code}")
+        logger.info(f"[RedemptionService] 生成兑换码: {code}, max_uses={max_uses}")
         return RedemptionGenerateResponse(
             code=code,
             max_uses=record.max_uses,
