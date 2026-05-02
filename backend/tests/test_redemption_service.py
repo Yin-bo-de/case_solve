@@ -69,6 +69,28 @@ class TestGenerateCode:
         response_dict = response.model_dump()
         assert "openai_api_key" not in response_dict, "响应不应包含 apikey"
 
+    def test_generate_with_custom_max_uses(self, service, clean_codes_file):
+        """传入自定义 max_uses，持久化记录与响应应一致"""
+        with patch("app.services.redemption_service.get_settings") as mock_settings:
+            mock_settings.return_value.openai_api_key = "sk-test"
+            mock_settings.return_value.openai_base_url = "https://api.openai.com/v1"
+            response = service.generate_code(max_uses=25)
+
+        assert response.max_uses == 25
+        data = json.loads(clean_codes_file.read_text())
+        assert data["codes"][0]["max_uses"] == 25
+
+    def test_generate_max_uses_default(self, service, clean_codes_file):
+        """不传 max_uses 时默认值应为 10（向后兼容）"""
+        with patch("app.services.redemption_service.get_settings") as mock_settings:
+            mock_settings.return_value.openai_api_key = "sk-test"
+            mock_settings.return_value.openai_base_url = "https://api.openai.com/v1"
+            response = service.generate_code()
+
+        assert response.max_uses == 10
+        data = json.loads(clean_codes_file.read_text())
+        assert data["codes"][0]["max_uses"] == 10
+
 
 # ─── 验证测试 ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +125,22 @@ class TestValidateCode:
         code = response.code
 
         for _ in range(10):
+            success, _, _ = service.validate_and_consume(code)
+            assert success is True
+
+        success, record, msg = service.validate_and_consume(code)
+        assert success is False
+        assert "上限" in msg
+
+    def test_exhausted_with_custom_max_uses(self, service):
+        """自定义 max_uses=3，第 4 次调用应失败"""
+        with patch("app.services.redemption_service.get_settings") as mock_settings:
+            mock_settings.return_value.openai_api_key = "sk-test"
+            mock_settings.return_value.openai_base_url = "https://api.openai.com/v1"
+            response = service.generate_code(max_uses=3)
+        code = response.code
+
+        for _ in range(3):
             success, _, _ = service.validate_and_consume(code)
             assert success is True
 

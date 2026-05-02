@@ -1,10 +1,11 @@
 """
 兑换码相关 API 路由
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Body
 from loguru import logger
 
 from app.models.redemption import (
+    RedemptionGenerateRequest,
     RedemptionGenerateResponse,
     RedemptionVerifyRequest,
     RedemptionVerifyResponse,
@@ -17,11 +18,13 @@ router = APIRouter()
 
 
 @router.post("/generate", response_model=RedemptionGenerateResponse)
-async def generate_code():
+async def generate_code(
+    request: RedemptionGenerateRequest = Body(default_factory=RedemptionGenerateRequest),
+):
     """生成兑换码（绑定当前 settings 的 OpenAI 配置，响应不含 apikey）"""
-    logger.info("[API] 生成兑换码请求")
+    logger.info(f"[API] 生成兑换码请求 max_uses={request.max_uses}")
     service = get_redemption_service()
-    result = service.generate_code()
+    result = service.generate_code(max_uses=request.max_uses)
     return result
 
 

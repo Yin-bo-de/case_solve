@@ -3,7 +3,7 @@
 """
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RedemptionCode(BaseModel):
@@ -15,6 +15,11 @@ class RedemptionCode(BaseModel):
     openai_base_url: str
     created_at: datetime
     last_used_at: Optional[datetime] = None
+
+
+class RedemptionGenerateRequest(BaseModel):
+    """生成兑换码请求（可选参数，未传时使用默认值）"""
+    max_uses: int = Field(default=10, ge=1, le=1000, description="兑换码最大可用次数，范围 1-1000")
 
 
 class RedemptionGenerateResponse(BaseModel):
