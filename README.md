@@ -81,7 +81,7 @@ docker compose down
 
 ```bash
 # 使用生产环境配置
-docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml up -d --build --no-cache 
 
 # 查看服务健康状态
 docker compose -f docker-compose.prod.yml ps
