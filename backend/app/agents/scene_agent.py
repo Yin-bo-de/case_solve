@@ -55,6 +55,13 @@ def _format_clues_for_scene(case: Case, scene: Scene) -> str:
     return "\n".join([f"  - id={c.id} type={c.clue_type} desc={c.description}" for c in related]) or "（无）"
 
 
+def _format_discovered_clues_for_scene(case: Case, scene: Scene) -> str:
+    """提取该场景对象相关的、且已被玩家发现的线索"""
+    related_ids = {cid for o in scene.objects for cid in o.hidden_clue_ids}
+    discovered = [c for c in case.clues if c.id in related_ids and c.discovered]
+    return "\n".join([f"  - id={c.id} type={c.clue_type} desc={c.description}" for c in discovered]) or "（无）"
+
+
 class SceneAgent:
     def __init__(self, temperature: float = 0.5) -> None:
         settings = get_settings()
@@ -90,6 +97,7 @@ class SceneAgent:
             inputs={
                 "scene_block": _format_scene(scene),
                 "clue_block": _format_clues_for_scene(case, scene),
+                "discovered_clues_block": _format_discovered_clues_for_scene(case, scene),
                 "history_block": _format_history(history),
                 "query": query,
             },

@@ -420,7 +420,7 @@ class WatsonAgent:
             # 走原有 mock 分支
             return await self._mock_generate_response(message, message_type, context)
 
-        # 格式化线索、场景、嫌疑人信息块
+        # 格式化线索、场景、嫌疑人、证人信息块
         clues_block = "\n".join(
             f"- {c['label']}：{c['description']}" for c in context.current_clues
         ) if context.current_clues else "（尚无线索）"
@@ -430,8 +430,13 @@ class WatsonAgent:
         ) if context.available_scenes else "（暂无场景信息）"
 
         suspects_block = "\n".join(
-            f"- {s['name']}" for s in context.suspects
+            f"- {s['name']}：{s.get('background', '背景未知')}" for s in context.suspects
         ) if context.suspects else "（暂无嫌疑人信息）"
+
+        witnesses_block = "\n".join(
+            f"- {w['name']}（{w.get('occupation', '职业未知')}）：{w.get('relationship_to_case', '关系未知')}"
+            for w in context.witnesses
+        ) if context.witnesses else "（暂无证人信息）"
 
         # 统一走 watson_chat_prompt + LLM
         chain = watson_chat_prompt | self.llm
@@ -448,6 +453,7 @@ class WatsonAgent:
                 "current_clues_block": clues_block,
                 "available_scenes_block": scenes_block,
                 "suspects_block": suspects_block,
+                "witnesses_block": witnesses_block,
                 "case_summary": "正在进行中的谋杀案调查",
                 "user_message": message,
             },
@@ -677,14 +683,43 @@ class WatsonAgent:
         recent_history = conversation_history[-8:]
         conversation_block = "\n".join([f"{m['role']}: {m['content']}" for m in recent_history]) or "（尚未开始）"
 
+        # 构建其他嫌疑人信息（排除当前审讯对象）
+        other_suspects = [s for s in case.suspects if s.id != suspect.id]
+        if other_suspects:
+            other_suspects_lines = []
+            for s in other_suspects:
+                other_suspects_lines.append(
+                    f"- {s.name} (id={s.id}): 年龄 {s.age}, 背景: {s.background}, "
+                    f"动机: {s.motive}, 时间线: {s.timeline}, 性格: {', '.join(s.personality_traits)}"
+                )
+            other_suspects_block = "\n".join(other_suspects_lines)
+        else:
+            other_suspects_block = "（暂无其他嫌疑人）"
+
+        # 构建证人信息
+        if case.witnesses:
+            witnesses_lines = []
+            for w in case.witnesses:
+                observations = "; ".join(w.key_observations) if w.key_observations else "无"
+                witnesses_lines.append(
+                    f"- {w.name} (年龄 {w.age}, 职业: {w.occupation}): "
+                    f"与案件关系: {w.relationship_to_case}, 时间线: {w.timeline}, 关键目击: {observations}"
+                )
+            witnesses_block = "\n".join(witnesses_lines)
+        else:
+            witnesses_block = "（暂无证人信息）"
+
         from langchain_core.output_parsers import StrOutputParser
         chain = watson_interrogation_tips_prompt | self.llm | StrOutputParser()
         result = await invoke_with_retry(
             chain=chain,
             inputs={
+                "case_summary": case.summary or "（暂无概要）",
                 "clues_block": clues_block,
                 "suspect_name": suspect.name,
                 "suspect_id": suspect.id,
+                "other_suspects_block": other_suspects_block,
+                "witnesses_block": witnesses_block,
                 "conversation_block": conversation_block,
             },
             fallback_fn=lambda: f'{{"tips": {fallback_tips}}}',
