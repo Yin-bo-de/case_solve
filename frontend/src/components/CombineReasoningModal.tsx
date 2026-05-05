@@ -40,7 +40,21 @@ export default function CombineReasoningModal({ selectedClues, onClose, onSubmit
               <ul>
                 {selectedClues.map((c) => (
                   <li key={c.id} className="combine-reasoning-modal__clue-item">
-                    📎 {c.userLabel || c.description.substring(0, 40)}
+                    <div className="flex items-center justify-between">
+                      <span>📎 {c.userLabel || c.description.substring(0, 40)}</span>
+                      {/* P4: 未验证线索警告 */}
+                      {c.verificationStatus === 'unverified' && (
+                        <span className="text-xs text-yellow-700 font-semibold">⚠️ 未验证</span>
+                      )}
+                      {c.verificationStatus === 'verified' && (
+                        <span className="text-xs text-green-700 font-semibold">✓ 已验证</span>
+                      )}
+                    </div>
+                    {c.verificationStatus === 'unverified' && (
+                      <p className="mt-1 text-xs text-yellow-700 bg-yellow-50 p-2 rounded border border-yellow-200">
+                        此线索未经审讯验证，基于此线索的推理可能被评为 partial，降低可信度。
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

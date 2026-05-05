@@ -14,14 +14,27 @@ const VERDICT_BADGE: Record<string, { icon: string; label: string; className: st
   partial:  { icon: '⚠️', label: '部分正确', className: 'verdict-badge--partial' },
 }
 
+// P4: 推理节点类型
+const NODE_TYPE_BADGE: Record<string, { label: string; className: string }> = {
+  fact:          { label: '基于事实', className: 'node-type-badge--fact' },
+  interrogation: { label: '基于对质', className: 'node-type-badge--interrogation' },
+  mixed:         { label: '混合推理', className: 'node-type-badge--mixed' },
+}
+
 export default function ReasoningRecordCard({ index, record, clues, onMarkImportant, onDelete }: Props) {
   const badge = record.verificationResult ? VERDICT_BADGE[record.verificationResult] : null
+  const nodeTypeBadge = record.nodeType ? NODE_TYPE_BADGE[record.nodeType] : null
   const relatedClues = clues.filter((c) => record.clueIds?.includes(c.id))
 
   return (
     <div className={`reasoning-record-card ${record.userMarkedImportant ? 'reasoning-record-card--important' : ''}`}>
       <div className="reasoning-record-card__header">
         <span className="reasoning-record-card__index">#{index}</span>
+        {nodeTypeBadge && (
+          <span className={`node-type-badge ${nodeTypeBadge.className}`}>
+            {nodeTypeBadge.label}
+          </span>
+        )}
         {badge && (
           <span className={`verdict-badge ${badge.className}`}>
             {badge.icon} {badge.label}

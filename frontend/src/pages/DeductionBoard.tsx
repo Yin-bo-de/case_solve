@@ -153,6 +153,27 @@ export default function DeductionBoard() {
         <main className="deduction-board__records">
           <header className="deduction-board__records-header">
             <h2 className="deduction-board__section-title">📝 推理记录</h2>
+            {/* P4: 推理类型统计条 */}
+            <div className="stats-bar">
+              <div className="stat-item">
+                <span className="font-semibold text-blue-700">事实推理</span>
+                <span className="text-2xl font-bold text-blue-900">
+                  {reasoningRecords.filter((r) => r.nodeType === 'fact').length}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="font-semibold text-purple-700">对质推理</span>
+                <span className="text-2xl font-bold text-purple-900">
+                  {reasoningRecords.filter((r) => r.nodeType === 'interrogation').length}
+                </span>
+              </div>
+              <div className="stat-item">
+                <span className="font-semibold text-gray-700">混合推理</span>
+                <span className="text-2xl font-bold text-gray-900">
+                  {reasoningRecords.filter((r) => r.nodeType === 'mixed').length}
+                </span>
+              </div>
+            </div>
             <div className="filter-tabs">
               {(['all', 'correct', 'wrong'] as const).map((f) => (
                 <button
@@ -215,8 +236,9 @@ export default function DeductionBoard() {
         />
       )}
 
-      {showAccuseModal && gameState?.case && (
+      {showAccuseModal && gameState?.case && gameId && (
         <AccusationModal
+          gameId={gameId}
           suspects={gameState.case.suspects}
           records={correctRecords}
           onSubmit={handleAccuse}

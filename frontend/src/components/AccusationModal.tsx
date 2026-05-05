@@ -1,18 +1,34 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Suspect, ReasoningRecord } from '@/types/game'
+import { gameApi } from '@/services/api'
 
 interface Props {
+  gameId: string  // P4: 需要gameId来获取结案就绪状态
   suspects: Suspect[]
   records: ReasoningRecord[]  // 仅 correct 的推理记录
   onSubmit: (suspectId: string, recordIds: string[]) => Promise<void>
   onClose: () => void
 }
 
-export default function AccusationModal({ suspects, records, onSubmit, onClose }: Props) {
+export default function AccusationModal({ gameId, suspects, records, onSubmit, onClose }: Props) {
   const [suspectId, setSuspectId] = useState('')
   const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [readiness, setReadiness] = useState<any>(null)  // P4: 结案就绪状态
+
+  // P4: 获取结案就绪状态
+  useEffect(() => {
+    const fetchReadiness = async () => {
+      try {
+        const data = await gameApi.getConclusionReadiness(gameId)
+        setReadiness(data)
+      } catch (err) {
+        console.error('[AccusationModal] 获取就绪状态失败', err)
+      }
+    }
+    fetchReadiness()
+  }, [gameId])
 
   const toggleRecord = (id: string) => {
     setSelectedRecordIds((prev) =>
@@ -28,7 +44,8 @@ export default function AccusationModal({ suspects, records, onSubmit, onClose }
     suspectId &&
     selectedRecordIds.length >= 1 &&
     selectedRecordIds.length <= 3 &&
-    !isSubmitting
+    !isSubmitting &&
+    (readiness?.isReady ?? true)  // P4: 检查结案就绪状态
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,6 +70,29 @@ export default function AccusationModal({ suspects, records, onSubmit, onClose }
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {/* P4: 结案就绪状态显示 */}
+            {readiness && (
+              <div className={`readiness-box ${readiness.isReady ? 'readiness-box--ready' : 'readiness-box--notready'}`}>
+                <p className="font-semibold">
+                  {readiness.isReady ? '✓ 已满足指认条件' : '⚠️ 未满足指认条件'}
+                </p>
+                <p className="text-sm mt-2">{readiness.reason}</p>
+                <div className="grid grid-cols-3 gap-2 mt-3 text-sm">
+                  <div>
+                    <span className="font-semibold text-blue-700">事实推理</span>
+                    <p className="text-lg">{readiness.factCount}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-purple-700">对质推理</span>
+                    <p className="text-lg">{readiness.interrogationCount}</p>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-red-700">需要</span>
+                    <p className="text-lg">≥ {readiness.threshold}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="form-group">
               <label className="form-label" htmlFor="suspect-select">选择你要指认的嫌疑人</label>
               <select
