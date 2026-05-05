@@ -37,9 +37,16 @@ def _format_case_truth(case: Case) -> str:
 
 
 def _format_clues_block(clues: List[Clue]) -> str:
-    return "\n".join(
-        [f"  - id={c.id} label={c.user_label or c.description[:30]}" for c in clues]
-    )
+    """格式化线索，包含验证状态"""
+    clue_lines = []
+    for c in clues:
+        status = c.verification_status or "unverified"
+        verification_note = f" [Status: {status}]"
+        if c.verification_notes:
+            verification_note += f" ({c.verification_notes})"
+        line = f"  - id={c.id} label={c.user_label or c.description[:30]}{verification_note}"
+        clue_lines.append(line)
+    return "\n".join(clue_lines)
 
 
 class OracleAgent:
@@ -69,6 +76,7 @@ class OracleAgent:
         case: Case,
         clues: List[Clue],
         conclusion: str,
+        enable_strict_oracle: bool = False,
     ) -> Dict[str, Any]:
         logger.info(
             f"[OracleAgent] verify_inference 启动 clue_count={len(clues)} conclusion_len={len(conclusion)}"
@@ -87,10 +95,23 @@ class OracleAgent:
                 "explanation": "裁决官暂时不在，请稍后再试。",
                 "missing_links": [],
                 "misused_clues": [],
+                "node_type": "mixed",
             },
             parse_json=True,
         )
-        logger.info(f"[OracleAgent] verify_inference 完成 verdict={result.get('verdict')}")
+
+        # 确保返回值中有 node_type 字段
+        if "node_type" not in result:
+            result["node_type"] = "mixed"
+
+        # 硬规则：严格模式下，若推理依赖未验证线索，降级 verdict
+        if enable_strict_oracle and result.get("verdict") == "correct":
+            unverified_clue_ids = [c.id for c in clues if c.verification_status != "verified"]
+            if unverified_clue_ids:
+                result["verdict"] = "partial"
+                result["explanation"] += f"\n该推理依赖未经审讯验证的线索：{', '.join(unverified_clue_ids)}"
+
+        logger.info(f"[OracleAgent] verify_inference 完成 verdict={result.get('verdict')} node_type={result.get('node_type')}")
         return result
 
     async def verify_accusation(
