@@ -24,6 +24,7 @@ CASE_GENERATION_SYSTEM = """\
     {{
       "name": "string",
       "age": 30,
+      "relationship_to_victim": "string，与死者的具体关系（≤12字，如：私人女仆、商业合伙人、远房表亲）",
       "background": "string",
       "motive": "string",
       "timeline": "string",
@@ -96,6 +97,7 @@ CASE_GENERATION_SYSTEM = """\
   ]
 }}
 包含恰好 3 名嫌疑人和 5 条线索。true_murderer_index 必须是 0、1 或 2。
+每位嫌疑人的 relationship_to_victim 必须填写（≤12字），描述其与死者的具体关系，如「私人女仆」「商业合伙人」「远房表亲」。
 
 线索链条约束（关键）：
 - 所有非红鲱鱼线索必须通过 chain_next_clue_index 形成至少一条完整调查链

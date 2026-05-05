@@ -56,6 +56,7 @@ class Suspect(BaseModel):
     id: str
     name: str
     age: int
+    relationship_to_victim: str = ""  # 与死者的关系（如：女仆、合伙人、远房表亲）
     background: str
     motive: str
     timeline: str
