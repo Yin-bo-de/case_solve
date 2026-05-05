@@ -338,7 +338,7 @@ class GameService:
         threshold = settings.strict_accusation_threshold.get(difficulty_str.lower(), 0)
 
         # 计算有效的 interrogation 数量（mixed 计一半）
-        effective_interrogation = interrogation_count + (mixed_count // 2)
+        effective_interrogation = interrogation_count + (mixed_count / 2)
 
         # 最低要求：至少5条观察记录 + 满足推理类型门槛
         minimum_observations = 5
