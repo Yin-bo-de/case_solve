@@ -16,6 +16,7 @@ from app.agents.prompts.suspect_prompts import (
     suspect_response_prompt,
     suspect_lie_detection_prompt,
     suspect_interjection_prompt,
+    suspect_confront_clue_prompt,
 )
 from app.agents._llm_helpers import invoke_with_retry, truncate_messages_by_token, estimate_token_count
 
@@ -103,6 +104,17 @@ class SuspectAgent:
             else:
                 history.append(AIMessage(content=msg["content"]))
 
+        # 构建在场人员背景信息（其他嫌疑人、证人）
+        other_suspects = [s for s in case.suspects if s.id != suspect.id]
+        other_suspects_block = "\n".join(
+            f"- {s.name}：{s.background}" for s in other_suspects
+        ) if other_suspects else "（无其他嫌疑人）"
+
+        witnesses_block = "\n".join(
+            f"- {w.name}（{w.occupation}）：{w.relationship_to_case}"
+            for w in (case.witnesses or [])
+        ) if case.witnesses else "（无证人）"
+
         chain = suspect_response_prompt | self.llm
         result = await invoke_with_retry(
             chain=chain,
@@ -117,6 +129,8 @@ class SuspectAgent:
                 "victim_name": case.victim_name,
                 "victim_background": case.victim_background,
                 "case_summary": case.summary,
+                "other_suspects_block": other_suspects_block,
+                "witnesses_block": witnesses_block,
                 "interrogation_mode": "私下单独审讯" if is_private else "全体质询，其他嫌疑人在场",
                 "user_question": user_question,
                 "history": history,
@@ -204,6 +218,153 @@ class SuspectAgent:
         )
         content = result.content if hasattr(result, "content") else str(result)
         return None if content.strip().lower() == "null" else content
+
+    async def confront_with_clue(
+        self,
+        suspect: Suspect,
+        case: Case,
+        clue: Any,  # Clue 实例
+        conversation_history: List[Dict[str, str]] = None,
+        other_suspects_block: str = "",
+        witnesses_block: str = "",
+    ) -> Dict[str, Any]:
+        """
+        嫌疑人对出示线索的回应（对质）
+
+        Args:
+            suspect: 当前嫌疑人
+            case: 案件信息
+            clue: 出示的线索
+            conversation_history: 对话历史
+            other_suspects_block: 其他嫌疑人信息块
+            witnesses_block: 证人信息块
+
+        Returns:
+            {
+                response: str,
+                relevance: str (irrelevant|related|critical),
+                statement_refuted_id: Optional[str],
+                status_delta: Dict[str, str] | None,
+                suggested_verification: bool
+            }
+        """
+        logger.info(f"[SuspectAgent] 对质线索: {suspect.name}, clue={clue.id}")
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_confront_response(suspect, case, clue)
+
+        # 构建陈述块
+        statements_block = "\n".join(
+            f"- [{stmt.id}] {stmt.content}"
+            for stmt in suspect.statements
+        ) if suspect.statements else "（无已知陈述）"
+
+        # 构建对话历史
+        raw_history = conversation_history or []
+        history = []
+        for msg in raw_history:
+            if msg.get("role") == "user":
+                history.append(HumanMessage(content=msg["content"]))
+            else:
+                history.append(AIMessage(content=msg["content"]))
+
+        chain = suspect_confront_clue_prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={
+                "suspect_name": suspect.name,
+                "background": suspect.background,
+                "motive": suspect.motive,
+                "timeline": suspect.timeline,
+                "personality_traits": "、".join(suspect.personality_traits),
+                "secrets": "；".join(suspect.secrets),
+                "is_guilty": str(suspect.is_guilty),
+                "victim_name": case.victim_name,
+                "victim_background": case.victim_background,
+                "case_summary": case.summary,
+                "other_suspects_block": other_suspects_block or "（无其他嫌疑人）",
+                "witnesses_block": witnesses_block or "（无证人）",
+                "statements_block": statements_block,
+                "clue_label": getattr(clue, "user_label", None) or clue.description[:30],
+                "clue_description": clue.description,
+                "clue_quoted_text": getattr(clue, "quoted_text", None) or clue.description,
+                "history": history,
+            },
+            fallback_fn=lambda: self._generate_mock_confront_response(suspect, case, clue),
+            parse_json=True,
+        )
+
+        if isinstance(result, dict):
+            # 归一化 key 别名
+            normalized = self._normalize_confront_result(result)
+            return normalized
+        return self._generate_mock_confront_response(suspect, case, clue)
+
+    def _normalize_confront_result(self, raw: Dict[str, Any]) -> Dict[str, Any]:
+        """归一化 LLM 返回的对质结果，处理可能的 key 别名"""
+        relevance = raw.get("relevance", "irrelevant")
+        # 校验 relevance 合法性
+        if relevance not in ("irrelevant", "related", "critical"):
+            relevance = "irrelevant"
+
+        suggested = raw.get("suggested_verification", False)
+        if isinstance(suggested, str):
+            suggested = suggested.lower() in ("true", "yes", "1")
+
+        status_delta = raw.get("status_delta")
+        if status_delta and not isinstance(status_delta, dict):
+            status_delta = None
+
+        statement_refuted_id = raw.get("statement_refuted_id")
+        if statement_refuted_id is not None and not isinstance(statement_refuted_id, str):
+            statement_refuted_id = None
+
+        return {
+            "response": raw.get("response", "……（沉默）"),
+            "relevance": relevance,
+            "statement_refuted_id": statement_refuted_id,
+            "status_delta": status_delta,
+            "suggested_verification": suggested,
+        }
+
+    def _generate_mock_confront_response(
+        self,
+        suspect: Suspect,
+        case: Case,
+        clue: Any,
+    ) -> Dict[str, Any]:
+        """生成模拟的对质回复（API key 缺失时降级）"""
+        # 简单启发式：若 clue 的 related_suspect_ids 包含 suspect.id → critical
+        related_ids = getattr(clue, "related_suspect_ids", [])
+        if suspect.id in related_ids:
+            relevance = "critical"
+            response = f"这……这不可能！{clue.description[:20]}……我从未见过这个！请你相信我，{suspect.name}绝不会做这种事！"
+            status_delta = {"from": "calm", "to": "pressured"}
+            suggested = True
+        elif len(related_ids) == 0:
+            # 与嫌疑人完全无关的线索 → 固定 irrelevant，保证测试确定性
+            relevance = "irrelevant"
+            response = f"抱歉，我不明白这条线索与我有何关系。{suspect.name}对此一无所知。"
+            status_delta = None
+            suggested = False
+        elif random.random() < 0.4:
+            relevance = "related"
+            response = f"这确实让我有些不安。{clue.description[:20]}……我记得好像在哪里听说过，但具体细节我记不清了。"
+            status_delta = {"from": "calm", "to": "pressured"}
+            suggested = True
+        else:
+            relevance = "irrelevant"
+            response = f"抱歉，我不明白这条线索与我有何关系。{suspect.name}对此一无所知。"
+            status_delta = None
+            suggested = False
+
+        return {
+            "response": response,
+            "relevance": relevance,
+            "statement_refuted_id": None,
+            "status_delta": status_delta,
+            "suggested_verification": suggested,
+        }
 
     def _generate_mock_response(
         self,

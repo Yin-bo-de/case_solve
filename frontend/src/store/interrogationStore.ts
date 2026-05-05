@@ -138,6 +138,21 @@ interface InterrogationStore {
   ) => Promise<Clue>
   clearWatsonTips: () => void
 
+  // P2: 出示线索对质
+  confrontLoading: boolean
+  confrontSuspectWithClue: (
+    gameId: string,
+    suspectId: string,
+    clueId: string,
+    clueLabel: string,
+    conversationHistory: ConversationMessage[]
+  ) => Promise<{
+    response: string
+    relevance: string
+    clueAfter: Clue
+    conversationMessage: { role: string; content: string; timestamp: string }
+  } | null>
+
   // Actions - 通用
   resetAll: () => void
 }
@@ -176,6 +191,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
           watsonTips: [],
           watsonTipsLoading: false,
           extractedClues: [],
+          confrontLoading: false,
 
           // Actions - 模式与 Tab
           setMode: (mode) => {
@@ -446,6 +462,59 @@ export const useInterrogationStore = create<InterrogationStore>()(
             set({ watsonTips: [], watsonTipsLoading: false })
           },
 
+          // P2: 出示线索对质
+          confrontSuspectWithClue: async (gameId, suspectId, clueId, clueLabel, conversationHistory) => {
+            console.info('[interrogationStore] 出示线索对质', { gameId, suspectId, clueId })
+            set({ confrontLoading: true })
+            try {
+              // 先写入"侦探出示线索"消息
+              const confrontMessage: ConversationMessage = {
+                role: 'user',
+                content: `【出示线索】${clueLabel}`,
+                timestamp: new Date().toISOString(),
+              }
+              set((state) => ({
+                conversationHistoryBySuspect: {
+                  ...state.conversationHistoryBySuspect,
+                  [suspectId]: [...(state.conversationHistoryBySuspect[suspectId] || []), confrontMessage],
+                },
+              }))
+
+              const result = await gameApi.confrontWithClue(gameId, {
+                suspectId,
+                clueId,
+                conversationHistory,
+              })
+
+              // 写入嫌疑人回应
+              const suspectMsg: ConversationMessage = {
+                role: 'suspect',
+                content: result.response,
+                timestamp: result.conversationMessage?.timestamp || new Date().toISOString(),
+              }
+              set((state) => ({
+                conversationHistoryBySuspect: {
+                  ...state.conversationHistoryBySuspect,
+                  [suspectId]: [...(state.conversationHistoryBySuspect[suspectId] || []), suspectMsg],
+                },
+              }))
+
+              // 同步线索验证状态到 cluesStore
+              if (result.clueAfter) {
+                const { useCluesStore } = await import('./cluesStore')
+                useCluesStore.getState().addClueFromBackend(result.clueAfter)
+              }
+
+              console.info('[interrogationStore] 对质完成', { relevance: result.relevance, clueId })
+              set({ confrontLoading: false })
+              return result
+            } catch (err) {
+              console.error('[interrogationStore] 出示线索对质失败', err)
+              set({ confrontLoading: false })
+              return null
+            }
+          },
+
           // Actions - 通用
           resetAll: () => {
             set({
@@ -472,6 +541,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
               watsonTips: [],
               watsonTipsLoading: false,
               extractedClues: [],
+              confrontLoading: false,
             })
             console.info('[interrogationStore] 重置所有状态')
           },

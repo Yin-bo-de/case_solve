@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-05（P1 数据骨架完成）
+**更新日期**: 2026-05-05（P2 出示线索质询 MVP 完成）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1 已完成）
+**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1-P2 已完成）
 
 ---
 
@@ -223,6 +223,44 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 - `pytest tests/ -x -q` → **91 passed**（含新增 11 个兼容测试），无回归
 - `npm run typecheck` → **零错误**
 - 所有新增字段均为 Optional + 默认值，历史 GameState 反序列化无破坏
+
+---
+
+### 2026-05-05（P2 — 出示线索质询 MVP：confront_with_clue 端到端闭环）
+
+**背景**: 探案游戏「线索被使用」核心闭环改造的第二步，实现玩家可在审讯中向嫌疑人出示已发现线索，嫌疑人针对性回应，线索根据对质结果更新验证状态（unverified → verified / refuted）。
+
+**后端改动**
+- ✅ **`backend/app/agents/prompts/suspect_prompts.py`**：新增 `SUSPECT_CONFRONT_CLUE_SYSTEM` + `SUSPECT_CONFRONT_CLUE_HUMAN` prompt 模板，注入 clue/suspect/statements/在场人员信息，要求输出严格 JSON（response/relevance/statement_refuted_id/status_delta/suggested_verification）
+- ✅ **`backend/app/agents/suspect_agent.py`**：新增 `confront_with_clue()` 异步方法 + `_normalize_confront_result()` 归一化函数 + `_generate_mock_confront_response()` mock 降级（related_suspect_ids 启发式：含 suspect.id→critical，空→irrelevant，其余随机 related/irrelevant）
+- ✅ **`backend/app/services/game_service.py`**：新增 `update_clue_verification()` 单源更新 `Clue.verification_status` + 同步 `GameState.verified_clue_ids` 冗余索引；新增 `mark_clue_refuted()` 封装
+- ✅ **`backend/app/routers/game.py`**：新增 `ConfrontWithClueRequest` 请求模型 + `POST /interrogation/confront-with-clue` 端点，handler 校验 game/case/suspect/clue → 调 SuspectAgent → 根据 suggested_verification 更新线索状态 → 返回 clue_after + conversation_message
+
+**前端改动**
+- ✅ **`frontend/src/services/api.ts`**：新增 `confrontWithClue()` API 方法
+- ✅ **`frontend/src/store/interrogationStore.ts`**：新增 `confrontLoading` 状态 + `confrontSuspectWithClue()` action（先写入「出示线索」消息 → 调 API → 写入嫌疑人回应 → 同步 cluesStore.updateClue）
+- ✅ **`frontend/src/pages/InterrogationPage.tsx`**：密室问话输入区新增「出示线索」按钮 → 弹出 `ClueSelectorModal` → 选中后调 `confrontSuspectWithClue`；用户消息以 `【出示线索】` 前缀渲染 `message-text--clue-confront` 金色高亮气泡
+- ✅ **新建 `frontend/src/components/ClueSelectorModal.tsx`**：列出已发现线索，显示 verificationStatus 徽章（绿/灰/红），点击确认后回调
+- ✅ **`frontend/src/components/CluePreviewModal.tsx`**：新增「验证状态」字段展示 + `verificationNotes` + `verifiedBy`
+
+**样式**
+- ✅ `InterrogationPage.tsx` 内联样式新增：`.confront-clue-btn`、`.message-text--clue-confront`、`.clue-selector-modal` 系列、`.clue-status-badge` 系列
+
+**测试**
+- ✅ **新建 `backend/tests/test_confront_with_clue.py`**：8 个 pytest 用例
+  - `test_confront_critical`：相关线索 → critical + suggested_verification=True
+  - `test_confront_irrelevant`：无关线索 → irrelevant + suggested_verification=False
+  - `test_confront_result_normalization`：异常 relevance 兜底为 irrelevant
+  - `test_update_clue_to_verified`：verification_status 持久化 + verified_clue_ids 同步
+  - `test_update_clue_to_refuted`：refuted 后 verified_clue_ids 移除
+  - `test_update_nonexistent_clue`：不存在线索返回 False
+  - `test_update_clue_idempotent`：重复验证不重复追加
+  - `test_confront_with_clue_endpoint`：端点集成流程
+
+**验收**
+- `pytest tests/ -x -q` → **99 passed**（含新增 8 个对质测试），无回归
+- `npm run typecheck` → **零错误**
+- `npm run build` → **构建成功**（130 modules）
 
 ---
 

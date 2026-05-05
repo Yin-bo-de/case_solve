@@ -225,6 +225,32 @@ export const gameApi = {
     return response.data
   },
 
+  /** 向嫌疑人出示线索对质 */
+  async confrontWithClue(
+    gameId: string,
+    payload: {
+      suspectId: string
+      clueId: string
+      conversationHistory: ConversationMessage[]
+    }
+  ): Promise<{
+    response: string
+    relevance: string
+    statusDelta?: { from: string; to: string }
+    statementRefutedId?: string
+    clueAfter: Clue
+    conversationMessage: { role: string; content: string; timestamp: string }
+  }> {
+    validateGameId(gameId, 'confrontWithClue')
+    console.info('[gameApi] 出示线索对质', { gameId, suspectId: payload.suspectId, clueId: payload.clueId })
+    const response = await apiClient.post(`/api/game/${gameId}/interrogation/confront-with-clue`, {
+      suspect_id: payload.suspectId,
+      clue_id: payload.clueId,
+      conversation_history: payload.conversationHistory,
+    })
+    return response.data
+  },
+
   /** 获取嫌疑人插话 */
   async getSuspectInterjection(
     gameId: string,

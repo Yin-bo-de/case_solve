@@ -17,6 +17,12 @@ const SOURCE_TYPE_MAP: Record<string, string> = {
   initial: '📋 初始线索',
 }
 
+const VERIFICATION_STATUS_MAP: Record<string, { label: string; className: string }> = {
+  verified: { label: '✅ 已验证', className: 'clue-preview-badge--verified' },
+  refuted: { label: '❌ 已被驳斥', className: 'clue-preview-badge--refuted' },
+  unverified: { label: '⚪ 未验证', className: 'clue-preview-badge--unverified' },
+}
+
 export default function CluePreviewModal({ clue, onClose }: Props) {
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -31,6 +37,16 @@ export default function CluePreviewModal({ clue, onClose }: Props) {
             <span className="clue-preview-field__label">完整描述</span>
             <p className="clue-preview-field__value">{clue.description}</p>
           </div>
+
+          {/* 验证状态 */}
+          {clue.verificationStatus && (
+            <div className="clue-preview-field">
+              <span className="clue-preview-field__label">验证状态</span>
+              <span className={`clue-preview-badge ${VERIFICATION_STATUS_MAP[clue.verificationStatus]?.className || ''}`}>
+                {VERIFICATION_STATUS_MAP[clue.verificationStatus]?.label || clue.verificationStatus}
+              </span>
+            </div>
+          )}
 
           {/* 线索类型 */}
           <div className="clue-preview-field">
@@ -76,6 +92,24 @@ export default function CluePreviewModal({ clue, onClose }: Props) {
               <p className="clue-preview-field__value clue-preview-field__value--notes">
                 {clue.discoveryNotes}
               </p>
+            </div>
+          )}
+
+          {/* 验证备注 */}
+          {clue.verificationNotes && (
+            <div className="clue-preview-field">
+              <span className="clue-preview-field__label">验证备注</span>
+              <p className="clue-preview-field__value clue-preview-field__value--notes">
+                {clue.verificationNotes}
+              </p>
+            </div>
+          )}
+
+          {/* 验证来源 */}
+          {clue.verifiedBy && (
+            <div className="clue-preview-field">
+              <span className="clue-preview-field__label">验证来源</span>
+              <span className="clue-preview-field__value">{clue.verifiedBy}</span>
             </div>
           )}
 

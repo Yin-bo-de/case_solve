@@ -22,6 +22,7 @@ import { SelectableMessage } from '@/components/SelectableMessage'
 import ExtractClueModal from '@/components/ExtractClueModal'
 import WatsonTipsPanel from '@/components/WatsonTipsPanel'
 import Toast from '@/components/Toast'
+import ClueSelectorModal from '@/components/ClueSelectorModal'
 
 export default function InterrogationPage() {
   const { gameId } = useParams<{ gameId: string }>()
@@ -29,7 +30,7 @@ export default function InterrogationPage() {
 
   const { gameState, isLoading, error, setError } = useGameStore()
   const { addWatsonMessage } = useWatsonChatStore()
-  const { addClueFromBackend } = useCluesStore()
+  const { addClueFromBackend, clues } = useCluesStore()
   const {
     mode,
     setMode,
@@ -77,6 +78,9 @@ export default function InterrogationPage() {
     expertReportLoadedById,
     markExpertReportLoaded,
     extractClueFromActor,
+    // P2
+    confrontLoading,
+    confrontSuspectWithClue,
   } = useInterrogationStore()
 
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
@@ -88,6 +92,7 @@ export default function InterrogationPage() {
   const [processingActorId, setProcessingActorId] = useState<string | null>(null)
   const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
+  const [showClueSelector, setShowClueSelector] = useState(false)
 
   // 全体质询相关UI状态（不需要持久化）
   const [showMentionMenu, setShowMentionMenu] = useState(false)
@@ -566,6 +571,17 @@ export default function InterrogationPage() {
     }
   }
 
+  // ---------- 出示线索对质 ----------
+
+  const handleConfrontClue = async (clueId: string, clueLabel: string) => {
+    if (!gameId || !selectedSuspect) return
+    setShowClueSelector(false)
+    console.info('[InterrogationPage] 出示线索对质', { clueId, clueLabel, suspectId: selectedSuspect.id })
+
+    const history = getCurrentConversationHistory(selectedSuspect.id)
+    await confrontSuspectWithClue(gameId, selectedSuspect.id, clueId, clueLabel, history)
+  }
+
   // ---------- 动态文案 ----------
 
   const headerTitle =
@@ -801,6 +817,13 @@ export default function InterrogationPage() {
                                     senderName={selectedSuspect.name}
                                     onExtract={(text) => setPendingExtractText(text)}
                                   />
+                                ) : msg.content.startsWith('【出示线索】') ? (
+                                  <>
+                                    <div className="message-sender">你</div>
+                                    <div className="message-text message-text--clue-confront">
+                                      {msg.content.replace('【出示线索】', '')}
+                                    </div>
+                                  </>
                                 ) : (
                                   <>
                                     <div className="message-sender">你</div>
@@ -844,6 +867,15 @@ export default function InterrogationPage() {
                     </div>
 
                     <div className="question-input-area">
+                      <button
+                        className="confront-clue-btn"
+                        onClick={() => setShowClueSelector(true)}
+                        disabled={isProcessing || confrontLoading}
+                        type="button"
+                        title="出示线索"
+                      >
+                        出示线索
+                      </button>
                       <input
                         type="text"
                         className="question-input"
@@ -853,12 +885,12 @@ export default function InterrogationPage() {
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendQuestion() }
                         }}
-                        disabled={isProcessing}
+                        disabled={isProcessing || confrontLoading}
                       />
                       <button
                         className="send-button"
                         onClick={handleSendQuestion}
-                        disabled={!question.trim() || isProcessing}
+                        disabled={!question.trim() || isProcessing || confrontLoading}
                         type="button"
                       >
                         发送
@@ -1258,6 +1290,15 @@ export default function InterrogationPage() {
           </Link>
         </div>
       </footer>
+
+      {/* 出示线索 Modal */}
+      {showClueSelector && selectedTab === 'suspects' && mode === 'private' && (
+        <ClueSelectorModal
+          clues={clues}
+          onSelect={handleConfrontClue}
+          onClose={() => setShowClueSelector(false)}
+        />
+      )}
 
       {/* 提取线索 Modal */}
       {pendingExtractText && (
@@ -2106,6 +2147,83 @@ export default function InterrogationPage() {
         }
 
         .message--system .message-sender { display: none; }
+
+        /* P2: 出示线索按钮 */
+        .confront-clue-btn {
+          padding: 0.75rem 1rem;
+          background: rgba(212, 175, 55, 0.15);
+          border: 1px solid rgba(212, 175, 55, 0.4);
+          color: #d4af37;
+          border-radius: 6px;
+          font-size: 0.9rem;
+          font-family: 'Georgia', serif;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          white-space: nowrap;
+        }
+        .confront-clue-btn:hover:not(:disabled) {
+          background: rgba(212, 175, 55, 0.25);
+          border-color: #d4af37;
+        }
+        .confront-clue-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        /* P2: 出示线索消息气泡 */
+        .message-text--clue-confront {
+          background: rgba(212, 175, 55, 0.12) !important;
+          border-color: rgba(212, 175, 55, 0.5) !important;
+          border-left: 4px solid #d4af37 !important;
+          font-style: italic;
+        }
+
+        /* P2: 线索选择器 Modal */
+        .clue-selector-modal { max-width: 480px; }
+        .clue-selector-modal__body { max-height: 360px; overflow-y: auto; }
+        .clue-selector-empty { color: #888; text-align: center; padding: 2rem 0; }
+        .clue-selector-list { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+        .clue-selector-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.75rem 1rem;
+          background: rgba(255,255,255,0.03);
+          border: 1px solid #2a2a3a;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+        .clue-selector-item:hover { border-color: #d4af37; background: rgba(212,175,55,0.08); }
+        .clue-selector-item--selected { border-color: #d4af37; background: rgba(212,175,55,0.12); }
+        .clue-selector-item__label { color: #e8e8e8; font-size: 0.95rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 0.75rem; }
+
+        /* P2: 线索状态徽章 */
+        .clue-status-badge {
+          font-size: 0.75rem;
+          padding: 0.15rem 0.5rem;
+          border-radius: 10px;
+          white-space: nowrap;
+        }
+        .clue-status-badge--verified { background: rgba(76, 175, 80, 0.2); color: #4caf50; border: 1px solid rgba(76, 175, 80, 0.3); }
+        .clue-status-badge--unverified { background: rgba(160, 160, 160, 0.15); color: #a0a0a0; border: 1px solid rgba(160, 160, 160, 0.3); }
+        .clue-status-badge--refuted { background: rgba(244, 67, 54, 0.15); color: #f44336; border: 1px solid rgba(244, 67, 54, 0.3); }
+
+        .clue-selector-modal__footer { display: flex; justify-content: flex-end; gap: 0.75rem; padding: 1rem; border-top: 1px solid #333; }
+        .modal-btn {
+          padding: 0.5rem 1.25rem;
+          border-radius: 6px;
+          font-family: 'Georgia', serif;
+          font-size: 0.9rem;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: none;
+        }
+        .modal-btn--secondary { background: rgba(255,255,255,0.05); color: #a0a0a0; border: 1px solid #555; }
+        .modal-btn--secondary:hover { border-color: #888; color: #fff; }
+        .modal-btn--primary { background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%); color: #1a1a2e; font-weight: bold; }
+        .modal-btn--primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(212,175,55,0.4); }
+        .modal-btn:disabled { opacity: 0.4; cursor: not-allowed; }
       `}</style>
 
       {/* 华生对话框 */}

@@ -175,6 +175,13 @@ class WitnessWatsonTipsRequest(BaseModel):
     conversation_history: List[Dict[str, str]] = []
 
 
+class ConfrontWithClueRequest(BaseModel):
+    """出示线索对质请求"""
+    suspect_id: str
+    clue_id: str
+    conversation_history: List[Dict[str, str]] = []
+
+
 class WatsonChatRequest(BaseModel):
     """华生对话请求"""
     message: str
@@ -413,6 +420,94 @@ async def ask_suspect_question(game_id: str, request: SuspectQuestionRequest):
         "suspect_name": suspect.name,
         "response": response,
         "lie_detection": lie_detection
+    }
+
+
+@router.post("/{game_id}/interrogation/confront-with-clue")
+async def confront_with_clue(game_id: str, request: ConfrontWithClueRequest):
+    """向嫌疑人出示线索进行对质"""
+    logger.info(f"[API] 出示线索对质: {game_id}, 嫌疑人: {request.suspect_id}, 线索: {request.clue_id}")
+
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+    if not game.case:
+        raise HTTPException(status_code=400, detail=f"案件未设置: {game_id}")
+
+    # 找到嫌疑人
+    suspect = next(
+        (s for s in game.case.suspects if s.id == request.suspect_id),
+        None
+    )
+    if not suspect:
+        raise HTTPException(status_code=404, detail=f"嫌疑人不存在: {request.suspect_id}")
+
+    # 找到线索
+    clue = next(
+        (c for c in game.case.clues if c.id == request.clue_id),
+        None
+    )
+    if not clue:
+        raise HTTPException(status_code=404, detail=f"线索不存在: {request.clue_id}")
+
+    # 构建在场人员背景信息
+    other_suspects = [s for s in game.case.suspects if s.id != suspect.id]
+    other_suspects_block = "\n".join(
+        f"- {s.name}：{s.background}" for s in other_suspects
+    ) if other_suspects else "（无其他嫌疑人）"
+
+    witnesses_block = "\n".join(
+        f"- {w.name}（{w.occupation}）：{w.relationship_to_case}"
+        for w in (game.case.witnesses or [])
+    ) if game.case.witnesses else "（无证人）"
+
+    # 调用 SuspectAgent 对质
+    suspect_agent = get_suspect_agent()
+    confront_result = await suspect_agent.confront_with_clue(
+        suspect=suspect,
+        case=game.case,
+        clue=clue,
+        conversation_history=request.conversation_history,
+        other_suspects_block=other_suspects_block,
+        witnesses_block=witnesses_block,
+    )
+
+    # 根据 suggested_verification 更新线索状态
+    clue_after = clue
+    if confront_result.get("suggested_verification"):
+        game_service.update_clue_verification(
+            game_id=game_id,
+            clue_id=clue.id,
+            status="verified",
+            verified_by=suspect.id,
+            notes=f"通过对质 {suspect.name} 验证：{confront_result.get('relevance')}",
+        )
+        # 重新获取更新后的线索对象
+        clue_after = next(
+            (c for c in game.case.clues if c.id == request.clue_id),
+            clue
+        )
+
+    # 构建对话消息
+    conversation_message = {
+        "role": "suspect",
+        "content": confront_result.get("response", ""),
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+    logger.info(
+        f"[API] 对质完成: {game_id} relevance={confront_result.get('relevance')} "
+        f"verified={confront_result.get('suggested_verification')}"
+    )
+    return {
+        "response": confront_result.get("response"),
+        "relevance": confront_result.get("relevance"),
+        "status_delta": confront_result.get("status_delta"),
+        "statement_refuted_id": confront_result.get("statement_refuted_id"),
+        "clue_after": clue_after,
+        "conversation_message": conversation_message,
     }
 
 

@@ -538,6 +538,59 @@ class GameService:
             f"[GameService] 记录指控: {game_id} suspect_id={suspect_id} is_correct={is_correct}"
         )
 
+    def update_clue_verification(
+        self,
+        game_id: str,
+        clue_id: str,
+        status: str,
+        verified_by: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> bool:
+        """更新线索验证状态，并同步冗余索引 GameState.verified_clue_ids"""
+        game = self.get_game(game_id)
+        if not game or not game.case:
+            logger.warning(f"[GameService] 游戏或案件不存在: {game_id}")
+            return False
+
+        target_clue = next((c for c in game.case.clues if c.id == clue_id), None)
+        if not target_clue:
+            logger.warning(f"[GameService] 线索不存在: {game_id} clue_id={clue_id}")
+            return False
+
+        target_clue.verification_status = status
+        if verified_by is not None:
+            target_clue.verified_by = verified_by
+        if notes is not None:
+            target_clue.verification_notes = notes
+
+        # 同步冗余索引
+        if status == "verified" and clue_id not in game.verified_clue_ids:
+            game.verified_clue_ids.append(clue_id)
+        elif status != "verified" and clue_id in game.verified_clue_ids:
+            game.verified_clue_ids = [cid for cid in game.verified_clue_ids if cid != clue_id]
+
+        game.updated_at = datetime.utcnow()
+        logger.info(
+            f"[GameService] 更新线索验证状态: {game_id} clue_id={clue_id} status={status}"
+        )
+        return True
+
+    def mark_clue_refuted(
+        self,
+        game_id: str,
+        clue_id: str,
+        refuted_by: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> bool:
+        """将线索标记为已被驳斥"""
+        return self.update_clue_verification(
+            game_id=game_id,
+            clue_id=clue_id,
+            status="refuted",
+            verified_by=refuted_by,
+            notes=notes,
+        )
+
     def add_watson_chat_message(
         self,
         game_id: str,
@@ -612,6 +665,7 @@ class GameService:
                 {
                     "id": s.id,
                     "name": s.name,
+                    "background": s.background,
                 }
                 for s in game.case.suspects
             ]
@@ -626,7 +680,12 @@ class GameService:
         experts = []
         if game.case:
             witnesses = [
-                {"id": w.id, "name": w.name, "occupation": w.occupation}
+                {
+                    "id": w.id,
+                    "name": w.name,
+                    "occupation": w.occupation,
+                    "relationship_to_case": w.relationship_to_case,
+                }
                 for w in game.case.witnesses
             ]
             experts = [
