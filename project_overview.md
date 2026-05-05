@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-06（引导页 Step 1：Suspect.relationship_to_victim 后端字段补充）
+**更新日期**: 2026-05-06（引导页 Step 2：前端类型对齐 — Suspect.relationshipToVictim + GamePhase 新增 briefing）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1 完成）
+**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-2 完成）
 
 ---
 

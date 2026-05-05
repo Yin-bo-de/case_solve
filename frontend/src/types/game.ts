@@ -2,7 +2,7 @@
 
 export type GameDifficulty = 'easy' | 'classic' | 'hardcore'
 
-export type GamePhase = 'start' | 'investigation' | 'interrogation' | 'deduction' | 'conclusion'
+export type GamePhase = 'start' | 'briefing' | 'investigation' | 'interrogation' | 'deduction' | 'conclusion'
 
 // 华生对话消息类型
 export type WatsonMessageType =
@@ -38,6 +38,7 @@ export interface Suspect {
   id: string
   name: string
   age: number
+  relationshipToVictim: string  // 与死者的关系；旧案件可能为空，UI 容错为 "—"
   background: string
   motive: string
   timeline: string
