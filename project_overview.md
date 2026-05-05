@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-05（P4 已验证信息 + 推理类型门槛 完成）
+**更新日期**: 2026-05-05（P5 案件生成强约束 完成）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1-P4 已完成，P5 规划中）
+**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1-P5 全部完成）
 
 ---
 
@@ -198,6 +198,44 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-05（P5 — 案件生成强约束：Suspect.statements 二阶段产出 + 可解性校验 + 失败重试）
+
+**背景**: 探案游戏「线索被使用」核心闭环改造的第五步，也是最后一步。为案件生成加入嫌疑人陈述（statements）的二阶段产出，并引入可解性强约束校验，确保每局游戏都可通过审讯中的线索对质推进。
+
+**后端改动**
+- ✅ **`backend/app/agents/prompts/case_prompts.py`**：
+  - 新增 `SUSPECT_STATEMENTS_GENERATION_SYSTEM` + `SUSPECT_STATEMENTS_GENERATION_HUMAN` prompt 模板
+  - 要求为每位嫌疑人设计 2-4 条陈述，输出严格 JSON（id/content/is_lie/refutable_by_clue_ids/revealed_when_broken）
+  - 新增 `suspect_statements_generation_prompt` ChatPromptTemplate
+- ✅ **`backend/app/agents/case_generator_agent.py`**：
+  - 新增 `_generate_suspect_statements(case, difficulty)`：二阶段 LLM 调用，为每位嫌疑人生成 statements
+    - 弱绑定约束校验：`refutable_by_clue_ids` 必须指向真实 clue 且 clue.related_suspect_ids 包含当前 suspect
+    - 校验失败时自修复重试 1 次（prompt 追加约束提醒）
+    - 重试仍失败回退 `_build_fallback_statements`
+  - 新增 `_validate_solvability(case)`：4 项可解性校验
+    - 至少 2 条 clue 被 statements 引用
+    - 至少 1 名嫌疑人有 ≥2 条可反驳的谎言
+    - 每条 statement 的 refutable_by_clue_ids 关联正确
+    - 真凶至少持有 1 条可反驳的谎言
+  - 新增辅助方法：`_build_clues_block`、`_build_suspects_block`、`_parse_statements_from_llm_output`、`_validate_statement_bindings`、`_build_fallback_statements`
+  - 修改 `generate_case()`：三阶段流程（A 主体 → B statements → C 可解性校验）+ 整体重试最多 3 次 + 终极回退 mock case
+  - 修改 `_generate_mock_case()`：调用 `_build_fallback_statements` 为 3 名嫌疑人生成符合可解性约束的 statements
+
+**测试**
+- ✅ **新建 `backend/tests/test_case_solvability.py`**：18 个 pytest 用例
+  - `TestValidateSolvability`（7 个）：校验通过/失败场景（无谎言链、真凶无谎言、线索不足、弱绑定失败、开关关闭）
+  - `TestStatementBindings`（4 个）：弱绑定约束校验（通过、clue 不存在、clue 未关联、空 refutable）
+  - `TestFallbackStatements`（5 个）：fallback 结构正确、真凶有谎言、弱绑定有效、覆盖所有嫌疑人、满足可解性
+  - `TestGenerateCaseStatements`（2 个）：mock 路径生成 case 包含 statements、满足可解性
+
+**验收**
+- `pytest tests/ -x -q` → **144 passed**（含新增 18 个可解性测试），无回归
+- 前端 `npm run typecheck` → **零错误**（P5 无前端改动）
+- `npm run build` → **构建成功**
+- 连开 mock 案件 → 每局 `case.suspects[*].statements` 非空，真凶有 ≥2 条谎言且可被线索反驳
+
+---
 
 ### 2026-05-05（P1 — 数据骨架：Clue/Suspect/Inference/GameState 字段扩展 + 前端类型同步）
 

@@ -12,8 +12,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 
 from app.config import get_settings
-from app.models.case import Case, Suspect, Clue, Scene, SceneObject, Witness, Expert, ExpertKeyFinding
-from app.agents.prompts.case_prompts import case_generation_prompt
+from app.models.case import Case, Suspect, Clue, Scene, SceneObject, Witness, Expert, ExpertKeyFinding, SuspectStatement
+from app.agents.prompts.case_prompts import case_generation_prompt, suspect_statements_generation_prompt
 from app.agents._llm_helpers import invoke_with_retry
 
 
@@ -34,7 +34,9 @@ class CaseGeneratorAgent:
 
     async def generate_case(self, difficulty: str = "classic") -> Case:
         """
-        生成完整的维多利亚时代谋杀案
+        生成完整的维多利亚时代谋杀案。
+        三阶段流程：A（主体生成）→ B（statements 二阶段）→ C（可解性校验）。
+        阶段 C 失败时整体重试最多 2 次，仍失败则回退 mock case。
 
         Args:
             difficulty: 游戏难度 ("easy", "classic", "hardcore")
@@ -54,28 +56,51 @@ class CaseGeneratorAgent:
             logger.info(f"[CaseGeneratorAgent] 案件生成完成: {case_id}")
             return case
 
-        # 生成案件ID
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            case_id = str(uuid.uuid4())
+            logger.info(f"[CaseGeneratorAgent] 第 {attempt}/{max_attempts} 次尝试生成案件")
+
+            # 阶段 A：生成案件主体
+            chain = case_generation_prompt | self.llm | StrOutputParser()
+            raw_data = await invoke_with_retry(
+                chain=chain,
+                inputs={"difficulty": difficulty},
+                fallback_fn=lambda: None,
+                max_retries=2,
+                timeout=120.0,
+                parse_json=True,
+            )
+
+            if raw_data is None:
+                logger.warning(f"[CaseGeneratorAgent] 第 {attempt} 次 LLM 返回空")
+                if attempt == max_attempts:
+                    logger.warning("[CaseGeneratorAgent] 已达最大重试次数，使用 mock 降级")
+                    return self._generate_mock_case(case_id, difficulty)
+                continue
+
+            case = self._build_case_from_llm_output(case_id, difficulty, raw_data)
+
+            # 阶段 B：二阶段生成 suspect statements
+            suspects_with_statements = await self._generate_suspect_statements(case, difficulty)
+            case = case.model_copy(update={"suspects": suspects_with_statements})
+
+            # 阶段 C：可解性校验
+            errors = self._validate_solvability(case)
+            if not errors:
+                logger.info(f"[CaseGeneratorAgent] 案件生成完成: {case_id}")
+                return case
+
+            logger.warning(
+                f"[CaseGeneratorAgent] 第 {attempt} 次可解性校验失败: {errors}"
+            )
+            if attempt == max_attempts:
+                logger.warning("[CaseGeneratorAgent] 已达最大重试次数，使用 mock 降级")
+                return self._generate_mock_case(case_id, difficulty)
+
+        # 理论上不会到达这里，作为兜底
         case_id = str(uuid.uuid4())
-        chain = case_generation_prompt | self.llm | StrOutputParser()
-
-        raw_data = await invoke_with_retry(
-            chain=chain,
-            inputs={"difficulty": difficulty},
-            fallback_fn=lambda: None,  # None 时走下面的降级逻辑
-            max_retries=2,
-            timeout=120.0,
-            parse_json=True,
-        )
-
-        if raw_data is None:
-            logger.warning("[CaseGeneratorAgent] LLM 返回空，使用 mock 降级")
-            case = self._generate_mock_case(case_id, difficulty)
-            logger.info(f"[CaseGeneratorAgent] 案件生成完成: {case_id}")
-            return case
-
-        case = self._build_case_from_llm_output(case_id, difficulty, raw_data)
-        logger.info(f"[CaseGeneratorAgent] 案件生成完成: {case_id}")
-        return case
+        return self._generate_mock_case(case_id, difficulty)
 
     def _generate_mock_case(self, case_id: str, difficulty: str) -> Case:
         """生成模拟案件数据（临时实现）"""
@@ -360,6 +385,9 @@ class CaseGeneratorAgent:
             ),
         ]
 
+        # 为 mock case 的嫌疑人生成 fallback statements（符合可解性约束）
+        suspects_with_statements = self._build_fallback_statements(suspects, clues)
+
         return Case(
             id=case_id,
             victim_name="埃德蒙·布莱克伍德",
@@ -368,7 +396,7 @@ class CaseGeneratorAgent:
             time_of_death="昨晚9点到11点之间",
             location="白教堂区的阴暗公寓",
             date=datetime.utcnow(),
-            suspects=suspects,
+            suspects=suspects_with_statements,
             clues=clues,
             summary="一位富有的古董商人被发现死在自己的书房中，现场一片狼藉...",
             murder_method="用烛台敲击头部致死，然后试图伪造入室抢劫",
@@ -679,6 +707,341 @@ class CaseGeneratorAgent:
                 credibility=0.65,
             )
         ]
+
+    # ------------------------------------------------------------------
+    # 阶段 B：Suspect Statements 二阶段生成（P5）
+    # ------------------------------------------------------------------
+
+    async def _generate_suspect_statements(self, case: Case, difficulty: str = "classic") -> list:
+        """
+        二阶段：为 case 中每位嫌疑人生成 statements。
+        先尝试 LLM 生成，弱绑定校验失败则自修复重试 1 次，
+        仍失败则回退到 _build_fallback_statements。
+        """
+        settings = get_settings()
+        if not settings.openai_api_key:
+            logger.warning("[CaseGeneratorAgent] api_key 缺失，statements 使用 fallback")
+            return self._build_fallback_statements(case.suspects, case.clues)
+
+        chain = suspect_statements_generation_prompt | self.llm | StrOutputParser()
+        clues_block = self._build_clues_block(case)
+        suspects_block = self._build_suspects_block(case)
+
+        inputs = {
+            "case_summary": case.summary,
+            "murder_method": case.murder_method,
+            "true_murderer_id": case.true_murderer_id,
+            "difficulty": difficulty,
+            "clues_block": clues_block,
+            "suspects_block": suspects_block,
+        }
+
+        # 第一次尝试
+        raw_data = await invoke_with_retry(
+            chain=chain,
+            inputs=inputs,
+            fallback_fn=lambda: None,
+            max_retries=1,
+            timeout=90.0,
+            parse_json=True,
+        )
+
+        suspects_with_statements = self._parse_statements_from_llm_output(raw_data, case)
+        if suspects_with_statements:
+            logger.info(f"[CaseGeneratorAgent] statements LLM 生成成功")
+            return suspects_with_statements
+
+        # 第一次失败，自修复重试：在 human prompt 中追加约束提醒
+        logger.warning("[CaseGeneratorAgent] statements 首次生成失败/校验不通过，进入自修复重试")
+        inputs["suspects_block"] = suspects_block + "\n\n【重要提醒】请确保所有 refutable_by_clue_ids 严格指向上述线索列表中存在且 related_suspect_ids 包含该嫌疑人的线索。"
+        raw_data = await invoke_with_retry(
+            chain=chain,
+            inputs=inputs,
+            fallback_fn=lambda: None,
+            max_retries=1,
+            timeout=90.0,
+            parse_json=True,
+        )
+
+        suspects_with_statements = self._parse_statements_from_llm_output(raw_data, case)
+        if suspects_with_statements:
+            logger.info(f"[CaseGeneratorAgent] statements 自修复重试成功")
+            return suspects_with_statements
+
+        # 重试仍失败，fallback
+        logger.warning("[CaseGeneratorAgent] statements 重试仍失败，使用 fallback")
+        return self._build_fallback_statements(case.suspects, case.clues)
+
+    def _build_clues_block(self, case: Case) -> str:
+        """将 case.clues 格式化为 prompt 可用的文本块"""
+        lines = []
+        for c in case.clues:
+            lines.append(f"- clue_id: {c.id}")
+            lines.append(f"  description: {c.description}")
+            lines.append(f"  related_suspect_ids: {c.related_suspect_ids}")
+            lines.append("")
+        return "\n".join(lines)
+
+    def _build_suspects_block(self, case: Case) -> str:
+        """将 case.suspects 格式化为 prompt 可用的文本块"""
+        lines = []
+        for s in case.suspects:
+            lines.append(f"- suspect_id: {s.id}")
+            lines.append(f"  name: {s.name}")
+            lines.append(f"  background: {s.background}")
+            lines.append(f"  motive: {s.motive}")
+            lines.append(f"  timeline: {s.timeline}")
+            lines.append(f"  is_guilty: {s.is_guilty}")
+            lines.append("")
+        return "\n".join(lines)
+
+    def _parse_statements_from_llm_output(self, data: Optional[dict], case: Case) -> list:
+        """
+        解析 LLM 返回的 statements JSON，校验弱绑定约束。
+        返回 Suspect 列表（含 statements），若校验失败返回空列表。
+        """
+        if not data or not isinstance(data, dict):
+            return []
+
+        suspects_statements = data.get("suspects_statements", [])
+        if not suspects_statements:
+            return []
+
+        # 构建 clue_id -> related_suspect_ids 映射
+        clue_related_map = {c.id: set(c.related_suspect_ids) for c in case.clues}
+        result_suspects = []
+
+        for ss in suspects_statements:
+            suspect_id = ss.get("suspect_id", "")
+            # 找到对应的 suspect 对象
+            suspect = next((s for s in case.suspects if s.id == suspect_id), None)
+            if not suspect:
+                logger.warning(f"[CaseGeneratorAgent] statements 解析：找不到 suspect_id={suspect_id}")
+                return []
+
+            raw_statements = ss.get("statements", [])
+            if not raw_statements or len(raw_statements) < 2:
+                logger.warning(f"[CaseGeneratorAgent] suspect={suspect_id} statements 数量不足（<2）")
+                return []
+
+            parsed_statements = []
+            for raw in raw_statements:
+                stmt = SuspectStatement(
+                    id=raw.get("id", f"stmt-{suspect_id}-{len(parsed_statements)+1}"),
+                    content=raw.get("content", ""),
+                    is_lie=raw.get("is_lie", False),
+                    refutable_by_clue_ids=raw.get("refutable_by_clue_ids", []),
+                    revealed_when_broken=raw.get("revealed_when_broken", False),
+                )
+                # 弱绑定校验
+                if not self._validate_statement_bindings(stmt, suspect_id, clue_related_map):
+                    logger.warning(
+                        f"[CaseGeneratorAgent] suspect={suspect_id} stmt={stmt.id} "
+                        f"弱绑定校验失败: refutable_by_clue_ids={stmt.refutable_by_clue_ids}"
+                    )
+                    return []
+                parsed_statements.append(stmt)
+
+            # 替换 suspect 的 statements
+            new_suspect = suspect.model_copy(update={"statements": parsed_statements})
+            result_suspects.append(new_suspect)
+
+        # 确保所有 suspect 都被覆盖
+        if len(result_suspects) != len(case.suspects):
+            logger.warning(
+                f"[CaseGeneratorAgent] statements 解析：嫌疑人数量不匹配 "
+                f"({len(result_suspects)} != {len(case.suspects)})"
+            )
+            return []
+
+        return result_suspects
+
+    def _validate_statement_bindings(
+        self,
+        stmt: SuspectStatement,
+        suspect_id: str,
+        clue_related_map: dict,
+    ) -> bool:
+        """
+        弱绑定约束校验：
+        1. refutable_by_clue_ids 中的每个 clue_id 必须存在于 clue_related_map 中
+        2. 每个 clue_id 对应的 related_suspect_ids 必须包含当前 suspect_id
+        """
+        for clue_id in stmt.refutable_by_clue_ids:
+            if clue_id not in clue_related_map:
+                return False
+            if suspect_id not in clue_related_map[clue_id]:
+                return False
+        return True
+
+    def _build_fallback_statements(self, suspects: list, clues: list) -> list:
+        """
+        为 mock case 或 LLM 失败回退生成符合可解性约束的 statements。
+        确保：至少真凶有 ≥2 条谎言，每条谎言有可反驳线索。
+        """
+        if not suspects or not clues:
+            return suspects
+
+        # 构建 clue_id -> related_suspect_ids 映射
+        clue_related_map = {c.id: set(c.related_suspect_ids) for c in clues}
+
+        def _find_refutable_clues(suspect_id: str) -> list:
+            """找到所有 related_suspect_ids 包含该 suspect 的 clue_id"""
+            return [cid for cid, related in clue_related_map.items() if suspect_id in related]
+
+        result = []
+        for suspect in suspects:
+            refutable = _find_refutable_clues(suspect.id)
+            statements = []
+
+            if suspect.is_guilty:
+                # 真凶：2 条谎言 + 1-2 条真话
+                # 谎言1：关于时间线
+                if len(refutable) >= 1:
+                    statements.append(SuspectStatement(
+                        id=f"stmt-{suspect.id}-1",
+                        content=f"我昨晚 {random.choice(['8点', '9点', '10点'])} 一直在自己的房间里，没有离开过。",
+                        is_lie=True,
+                        refutable_by_clue_ids=[refutable[0]],
+                        revealed_when_broken=False,
+                    ))
+                # 谎言2：关于动机
+                if len(refutable) >= 2:
+                    statements.append(SuspectStatement(
+                        id=f"stmt-{suspect.id}-2",
+                        content=f"我和死者之间的关系一直很好，从来没有过任何矛盾。",
+                        is_lie=True,
+                        refutable_by_clue_ids=[refutable[1]],
+                        revealed_when_broken=True,
+                    ))
+                # 真话1
+                statements.append(SuspectStatement(
+                    id=f"stmt-{suspect.id}-3",
+                    content=f"我确实在案发现场附近出现过，但我发誓我没有做任何伤害他的事情。",
+                    is_lie=False,
+                    refutable_by_clue_ids=[],
+                    revealed_when_broken=False,
+                ))
+                # 真话2（可选）
+                statements.append(SuspectStatement(
+                    id=f"stmt-{suspect.id}-4",
+                    content=f"案发当晚我确实听到了一些异常的声响，但当时我以为只是风声。",
+                    is_lie=False,
+                    refutable_by_clue_ids=[],
+                    revealed_when_broken=False,
+                ))
+            else:
+                # 无辜嫌疑人：0-1 条谎言 + 2-3 条真话
+                if refutable and random.random() < 0.3:
+                    # 30% 概率有 1 条小谎言
+                    statements.append(SuspectStatement(
+                        id=f"stmt-{suspect.id}-1",
+                        content=f"我可能记错了时间，但我确实没有靠近过死者的房间。",
+                        is_lie=True,
+                        refutable_by_clue_ids=[refutable[0]],
+                        revealed_when_broken=False,
+                    ))
+                # 真话
+                statements.append(SuspectStatement(
+                    id=f"stmt-{suspect.id}-2",
+                    content=f"我昨晚 {random.choice(['8点', '9点', '10点'])} 在 {random.choice(['客厅', '花园', '厨房'])}，之后回房休息了。",
+                    is_lie=False,
+                    refutable_by_clue_ids=[],
+                    revealed_when_broken=False,
+                ))
+                statements.append(SuspectStatement(
+                    id=f"stmt-{suspect.id}-3",
+                    content=f"我承认我对死者有些不满，但那绝不至于让我做出那样可怕的事情。",
+                    is_lie=False,
+                    refutable_by_clue_ids=[],
+                    revealed_when_broken=False,
+                ))
+                statements.append(SuspectStatement(
+                    id=f"stmt-{suspect.id}-4",
+                    content=f"案发时我确实听到了一些动静，但我以为是仆人们在收拾房间。",
+                    is_lie=False,
+                    refutable_by_clue_ids=[],
+                    revealed_when_broken=False,
+                ))
+
+            new_suspect = suspect.model_copy(update={"statements": statements})
+            result.append(new_suspect)
+
+        return result
+
+    # ------------------------------------------------------------------
+    # 阶段 C：可解性校验（P5）
+    # ------------------------------------------------------------------
+
+    def _validate_solvability(self, case: Case) -> list:
+        """
+        校验案件是否满足可解性强约束。
+        返回错误信息列表，空列表表示校验通过。
+        """
+        errors = []
+        settings = get_settings()
+        if not settings.enable_solvability_validation:
+            return errors
+
+        # 收集所有被 refutable_by_clue_ids 引用的 clue_id
+        referenced_clue_ids = set()
+        for s in case.suspects:
+            for stmt in s.statements:
+                referenced_clue_ids.update(stmt.refutable_by_clue_ids)
+
+        # 校验1：至少 2 条 clue 被 statements 引用
+        if len(referenced_clue_ids) < 2:
+            errors.append(
+                f"可解性校验失败：被 statements 引用的线索不足 2 条（实际 {len(referenced_clue_ids)} 条）"
+            )
+
+        # 校验2：至少 1 名嫌疑人有 ≥2 条谎言且每条都有可反驳线索
+        has_lie_chain = False
+        for s in case.suspects:
+            lie_stmts = [
+                stmt for stmt in s.statements
+                if stmt.is_lie and stmt.refutable_by_clue_ids
+            ]
+            if len(lie_stmts) >= 2:
+                has_lie_chain = True
+                break
+        if not has_lie_chain:
+            errors.append(
+                "可解性校验失败：没有嫌疑人持有 ≥2 条可反驳的谎言链"
+            )
+
+        # 校验3：每条 statement 的 refutable_by_clue_ids 都指向真实 clue 且关联匹配
+        clue_ids_in_case = {c.id for c in case.clues}
+        clue_related_map = {c.id: set(c.related_suspect_ids) for c in case.clues}
+        for s in case.suspects:
+            for stmt in s.statements:
+                for clue_id in stmt.refutable_by_clue_ids:
+                    if clue_id not in clue_ids_in_case:
+                        errors.append(
+                            f"弱绑定校验失败：suspect={s.id} stmt={stmt.id} "
+                            f"引用了不存在的 clue_id={clue_id}"
+                        )
+                    elif s.id not in clue_related_map.get(clue_id, set()):
+                        errors.append(
+                            f"弱绑定校验失败：suspect={s.id} stmt={stmt.id} "
+                            f"引用的 clue_id={clue_id} 未关联该嫌疑人"
+                        )
+
+        # 校验4：真凶至少持有 1 条谎言链（≥1 条可反驳的谎言）
+        guilty_suspect = next((s for s in case.suspects if s.is_guilty), None)
+        if guilty_suspect:
+            guilty_lies = [
+                stmt for stmt in guilty_suspect.statements
+                if stmt.is_lie and stmt.refutable_by_clue_ids
+            ]
+            if len(guilty_lies) < 1:
+                errors.append(
+                    f"可解性校验失败：真凶 {guilty_suspect.id} 没有可反驳的谎言"
+                )
+        else:
+            errors.append("可解性校验失败：案件中没有标记真凶")
+
+        return errors
 
     def _build_fallback_expert(self, clues: list) -> list:
         """当 LLM 未返回 experts 时，生成 1 个基于物证的法医"""

@@ -134,3 +134,68 @@ case_generation_prompt = ChatPromptTemplate.from_messages([
     ("system", CASE_GENERATION_SYSTEM),
     ("human", CASE_GENERATION_HUMAN),
 ])
+
+SUSPECT_STATEMENTS_GENERATION_SYSTEM = """\
+你是一位维多利亚时代谋杀悬疑游戏的编剧，正在为案件中的每位嫌疑人设计审讯陈述。
+每条陈述都将是玩家在审讯阶段可以向嫌疑人出示线索进行对质的对象。
+
+任务：为每位嫌疑人设计 2-4 条陈述。陈述必须符合案件真相，部分为谎言，部分为真话。
+谎言必须可以被案件中已存在的线索反驳。
+
+输出格式（严格 JSON，不要 markdown，不要解释）：
+{{
+  "suspects_statements": [
+    {{
+      "suspect_id": "suspect-1",
+      "statements": [
+        {{
+          "id": "stmt-s1-1",
+          "content": "陈述内容（维多利亚口吻，50-150字）",
+          "is_lie": false,
+          "refutable_by_clue_ids": [],
+          "revealed_when_broken": false
+        }}
+      ]
+    }}
+  ]
+}}
+
+陈述设计规则：
+1. 每位嫌疑人必须有 2-4 条陈述
+2. 真凶（is_guilty=true）必须至少有 2 条 is_lie=true 的谎言，且每条谎言的 refutable_by_clue_ids 非空
+3. 无辜嫌疑人可以有 0-1 条谎言，其余为真话
+4. 至少 1 名嫌疑人（最好是真凶）持有 ≥2 条谎言链
+5. 谎言内容应与嫌疑人的时间线、动机、背景相关
+6. 真话内容可提供有用信息，帮助玩家推理
+
+弱绑定约束（必须遵守）：
+- refutable_by_clue_ids 中的每个 clue_id 必须是案件中真实存在的线索 id
+- 每个 clue_id 对应的线索，其 related_suspect_ids 必须包含当前 suspect_id
+- 不满足上述约束的 refutable_by_clue_ids 将被视为非法，导致陈述被拒绝
+- 若某条陈述是谎言但找不到合适的 clue 来反驳，可将其设为 is_lie=false（改为真话）
+
+revealed_when_broken 规则：
+- 只有真凶的陈述中，最多 1 条可设为 revealed_when_broken=true
+- 该陈述在嫌疑人状态变为 broken（崩溃）时，会额外揭露关键信息
+- 内容应涉及案件核心真相（如作案动机、手法细节）
+"""
+
+SUSPECT_STATEMENTS_GENERATION_HUMAN = """\
+案件概要：{case_summary}
+案件真相：{murder_method}
+真凶ID：{true_murderer_id}
+难度：{difficulty}
+
+案件线索列表（每条线索包含 id、description、related_suspect_ids）：
+{clues_block}
+
+嫌疑人列表（包含 id、name、background、motive、timeline、is_guilty）：
+{suspects_block}
+
+请为每位嫌疑人设计陈述。确保所有 refutable_by_clue_ids 严格指向上述线索列表中存在且 related_suspect_ids 包含该嫌疑人的线索。
+"""
+
+suspect_statements_generation_prompt = ChatPromptTemplate.from_messages([
+    ("system", SUSPECT_STATEMENTS_GENERATION_SYSTEM),
+    ("human", SUSPECT_STATEMENTS_GENERATION_HUMAN),
+])
