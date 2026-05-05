@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-06（引导页 Step 3：新增 Typewriter 打字机组件）
+**更新日期**: 2026-05-06（引导页 Step 4：新增 BriefingPage 4步引导页）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-3 完成）
+**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-4 完成）
 
 ---
 
@@ -198,6 +198,21 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-06（Loading 引导页 Step 4 — BriefingPage 4步引导页）
+
+**背景**: 在「案件生成成功」与「进入勘查页」之间插入4步引导页，帮助用户建立案件心智模型。
+
+**改动**
+- ✅ **新建 `frontend/src/pages/BriefingPage.tsx`**：4步引导主页面，含 4 个 Slide 子组件（SummarySlide/ForensicSlide/SuspectsSlide/WitnessesSlide）；顶部步骤指示器，底部「上一步/下一步/进入案发现场」导航；store 无 case 时自动拉取并写回（直链刷新容错）
+- ✅ **新建 `frontend/src/pages/BriefingPage.css`**：维多利亚风格引导页样式，与现有页面风格一致
+- ✅ **修改 `frontend/src/App.tsx`**：新增 `/briefing/:gameId` 路由
+- ✅ **修改 `frontend/src/pages/StartPage.tsx`**：跳转路径改 `/briefing/${gameId}`
+
+**验收**
+- `npm run typecheck` → **零错误**
+
+---
 
 ### 2026-05-05（P5 — 案件生成强约束：Suspect.statements 二阶段产出 + 可解性校验 + 失败重试）
 

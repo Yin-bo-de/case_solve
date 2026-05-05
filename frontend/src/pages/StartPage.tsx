@@ -68,8 +68,8 @@ export default function StartPage() {
       const gameId = state.gameId
       if (!gameId) throw new Error('游戏创建成功但 ID 缺失')
 
-      console.info('[StartPage] 新游戏创建成功', { gameId })
-      navigate(`/investigation/${gameId}`)                      // 7. 跳转
+      console.info('[StartPage] 跳转引导页', { gameId })
+      navigate(`/briefing/${gameId}`)                           // 7. 跳转至引导页
     } catch (err) {
       console.error('[StartPage] 新游戏失败', err)
       setError(err instanceof Error ? err.message : '创建游戏失败，请稍后重试')

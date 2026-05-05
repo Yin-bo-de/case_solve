@@ -1,0 +1,388 @@
+/* BriefingPage — 维多利亚风格引导页 */
+
+/* ─── 页面容器 ────────────────────────────────────────────────────────────── */
+
+.briefing-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+  padding: 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.briefing-page--loading {
+  flex-direction: column;
+}
+
+.briefing-loading__text {
+  color: rgba(212, 175, 55, 0.8);
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  letter-spacing: 0.05em;
+  animation: gaslight-flicker 3s ease-in-out infinite;
+}
+
+.briefing-page__inner {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  z-index: 2;
+}
+
+/* ─── 步骤指示器 ──────────────────────────────────────────────────────────── */
+
+.briefing-step-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.briefing-step-indicator__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, 0.25);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  transition: background 0.3s, transform 0.3s;
+}
+
+.briefing-step-indicator__dot--active {
+  background: rgba(212, 175, 55, 0.9);
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.5);
+}
+
+.briefing-step-indicator__dot--done {
+  background: rgba(212, 175, 55, 0.5);
+}
+
+.briefing-step-indicator__label {
+  margin-left: 0.4rem;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: rgba(212, 175, 55, 0.7);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ─── 通用 Slide 容器 ────────────────────────────────────────────────────── */
+
+.briefing-page__slide {
+  background: rgba(22, 30, 60, 0.85);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: 4px;
+  padding: 2rem;
+  max-height: 65vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.3) transparent;
+}
+
+.briefing-page__slide::-webkit-scrollbar {
+  width: 4px;
+}
+
+.briefing-page__slide::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.3);
+  border-radius: 2px;
+}
+
+.briefing-slide__header {
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  padding-bottom: 0.75rem;
+}
+
+.briefing-slide__title {
+  font-family: var(--font-title);
+  font-size: 1.4rem;
+  color: rgba(212, 175, 55, 0.95);
+  letter-spacing: 0.06em;
+  margin-bottom: 0.25rem;
+}
+
+.briefing-slide__subtitle {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.04em;
+}
+
+/* ─── SummarySlide ───────────────────────────────────────────────────────── */
+
+.briefing-summary__body {
+  line-height: 1.9;
+}
+
+.briefing-summary__text {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: pre-wrap;
+  cursor: pointer;
+}
+
+/* ─── ForensicSlide ──────────────────────────────────────────────────────── */
+
+.briefing-forensic__cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 560px) {
+  .briefing-forensic__cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.briefing-forensic__card {
+  background: rgba(212, 175, 55, 0.06);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 3px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.briefing-forensic__card-label {
+  font-size: 0.72rem;
+  color: rgba(212, 175, 55, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.briefing-forensic__card-value {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+}
+
+.briefing-forensic__report {
+  border-top: 1px solid rgba(212, 175, 55, 0.15);
+  padding-top: 1rem;
+}
+
+.briefing-forensic__report-title {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  color: rgba(212, 175, 55, 0.7);
+  margin-bottom: 0.6rem;
+  letter-spacing: 0.04em;
+}
+
+.briefing-forensic__report-body {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.7;
+}
+
+/* ─── SuspectsSlide ──────────────────────────────────────────────────────── */
+
+.briefing-suspects__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.briefing-suspects__card {
+  background: rgba(212, 175, 55, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 3px;
+  padding: 1rem 1.2rem;
+}
+
+.briefing-suspects__card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.briefing-suspects__name {
+  font-family: var(--font-title);
+  font-size: 1rem;
+  color: rgba(212, 175, 55, 0.9);
+  letter-spacing: 0.03em;
+}
+
+.briefing-suspects__age {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.briefing-suspects__relation {
+  font-size: 0.8rem;
+  color: rgba(180, 160, 90, 0.75);
+  font-style: italic;
+}
+
+.briefing-suspects__background {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.65;
+  margin-bottom: 0.6rem;
+}
+
+.briefing-suspects__statements {
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.briefing-suspects__statement {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.6;
+}
+
+.briefing-suspects__no-statement {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* ─── WitnessesSlide ─────────────────────────────────────────────────────── */
+
+.briefing-witnesses__empty {
+  color: rgba(255, 255, 255, 0.5);
+  font-style: italic;
+  font-size: 0.95rem;
+}
+
+.briefing-witnesses__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.briefing-witnesses__card {
+  background: rgba(212, 175, 55, 0.04);
+  border: 1px solid rgba(212, 175, 55, 0.18);
+  border-radius: 3px;
+  padding: 1rem 1.2rem;
+}
+
+.briefing-witnesses__card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.briefing-witnesses__name {
+  font-family: var(--font-title);
+  font-size: 1rem;
+  color: rgba(212, 175, 55, 0.85);
+  letter-spacing: 0.03em;
+}
+
+.briefing-witnesses__age {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.briefing-witnesses__occupation {
+  font-size: 0.8rem;
+  color: rgba(180, 160, 90, 0.7);
+  font-style: italic;
+}
+
+.briefing-witnesses__relation {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.65);
+  margin-bottom: 0.6rem;
+  line-height: 1.5;
+}
+
+.briefing-witnesses__timeline {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.briefing-witnesses__timeline-bar {
+  flex-shrink: 0;
+  width: 3px;
+  min-height: 100%;
+  align-self: stretch;
+  background: linear-gradient(to bottom, rgba(212, 175, 55, 0.6), rgba(212, 175, 55, 0.15));
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+.briefing-witnesses__timeline-text {
+  font-family: 'Courier New', 'Courier', monospace;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+/* ─── Footer 按钮区 ──────────────────────────────────────────────────────── */
+
+.briefing-page__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.briefing-btn {
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  letter-spacing: 0.06em;
+  padding: 0.6rem 1.4rem;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid;
+}
+
+.briefing-btn--secondary {
+  background: transparent;
+  border-color: rgba(212, 175, 55, 0.3);
+  color: rgba(212, 175, 55, 0.6);
+}
+
+.briefing-btn--secondary:hover:not(:disabled) {
+  border-color: rgba(212, 175, 55, 0.6);
+  color: rgba(212, 175, 55, 0.9);
+}
+
+.briefing-btn--secondary:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.briefing-btn--primary {
+  background: rgba(212, 175, 55, 0.12);
+  border-color: rgba(212, 175, 55, 0.6);
+  color: rgba(212, 175, 55, 0.95);
+  animation: button-glow 3s ease-in-out infinite;
+}
+
+.briefing-btn--primary:hover {
+  background: rgba(212, 175, 55, 0.2);
+  border-color: rgba(212, 175, 55, 0.9);
+}
+
+/* 打字机未完成时脉冲提示 */
+.briefing-btn--pulse {
+  animation: briefing-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes briefing-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}

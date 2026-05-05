@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from '@/pages/LoginPage'
 import StartPage from '@/pages/StartPage'
+import BriefingPage from '@/pages/BriefingPage'
 import InvestigationPage from '@/pages/InvestigationPage'
 import ScenePage from '@/pages/ScenePage'
 import InterrogationPage from '@/pages/InterrogationPage'
@@ -31,6 +32,7 @@ function App() {
 
         {/* 以下路由均需通过兑换码验证 */}
         <Route path="/start" element={<RequireRedeem><StartPage /></RequireRedeem>} />
+        <Route path="/briefing/:gameId" element={<RequireRedeem><BriefingPage /></RequireRedeem>} />
         <Route path="/investigation/:gameId" element={<RequireRedeem><InvestigationPage /></RequireRedeem>} />
         <Route path="/investigation/:gameId/scene/:sceneId" element={<RequireRedeem><ScenePage /></RequireRedeem>} />
         <Route path="/interrogation/:gameId" element={<RequireRedeem><InterrogationPage /></RequireRedeem>} />
