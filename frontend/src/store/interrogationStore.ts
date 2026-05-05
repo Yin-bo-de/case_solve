@@ -4,6 +4,7 @@ import { createGameScopedStorage } from './gameScopedStorage'
 import type { ConversationMessage, LieDetectionResult, ContradictionResult } from '@/services/api'
 import type { WatsonTip, Clue, CredibilityCheckResult, ActorType } from '@/types/game'
 import { gameApi } from '@/services/api'
+import { useGameStore } from './gameStore'
 
 console.debug('[interrogationStore.ts] 加载模块')
 
@@ -138,6 +139,9 @@ interface InterrogationStore {
   ) => Promise<Clue>
   clearWatsonTips: () => void
 
+  // P3: 嫌疑人状态机（calm / pressured / broken）
+  suspectStates: Record<string, 'calm' | 'pressured' | 'broken'>
+
   // P2: 出示线索对质
   confrontLoading: boolean
   confrontSuspectWithClue: (
@@ -192,6 +196,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
           watsonTipsLoading: false,
           extractedClues: [],
           confrontLoading: false,
+          suspectStates: {},
 
           // Actions - 模式与 Tab
           setMode: (mode) => {
@@ -499,13 +504,37 @@ export const useInterrogationStore = create<InterrogationStore>()(
                 },
               }))
 
+              // P3: 处理嫌疑人状态迁移
+              const stateDelta = result.statusDelta
+              if (stateDelta && stateDelta.from !== stateDelta.to) {
+                const newState = stateDelta.to as 'calm' | 'pressured' | 'broken'
+                set((state) => ({
+                  suspectStates: {
+                    ...state.suspectStates,
+                    [suspectId]: newState,
+                  },
+                }))
+                // 同步到 gameStore（服务端单源）
+                useGameStore.getState().patchGameState({
+                  suspectStates: {
+                    ...useGameStore.getState().gameState?.suspectStates,
+                    [suspectId]: newState,
+                  },
+                })
+                console.info('[interrogationStore] 嫌疑人状态迁移', {
+                  suspectId,
+                  from: stateDelta.from,
+                  to: stateDelta.to,
+                })
+              }
+
               // 同步线索验证状态到 cluesStore
               if (result.clueAfter) {
                 const { useCluesStore } = await import('./cluesStore')
                 useCluesStore.getState().addClueFromBackend(result.clueAfter)
               }
 
-              console.info('[interrogationStore] 对质完成', { relevance: result.relevance, clueId })
+              console.info('[interrogationStore] 对质完成', { relevance: result.relevance, clueId, stateDelta })
               set({ confrontLoading: false })
               return result
             } catch (err) {
@@ -542,6 +571,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
               watsonTipsLoading: false,
               extractedClues: [],
               confrontLoading: false,
+              suspectStates: {},
             })
             console.info('[interrogationStore] 重置所有状态')
           },
@@ -585,6 +615,7 @@ export const useInterrogationStore = create<InterrogationStore>()(
           interjectionCounts: state.interjectionCounts,
           suspectStatements: state.suspectStatements,
           contradictions: state.contradictions,
+          suspectStates: state.suspectStates,
         }),
       }
     ),

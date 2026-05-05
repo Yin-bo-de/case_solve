@@ -400,6 +400,9 @@ async def ask_suspect_question(game_id: str, request: SuspectQuestionRequest):
     if not suspect:
         raise HTTPException(status_code=404, detail=f"嫌疑人不存在: {request.suspect_id}")
 
+    # P3: 读取当前嫌疑人状态（默认 calm）
+    current_state = game.suspect_states.get(request.suspect_id, "calm")
+
     # 调用嫌疑人Agent生成回复
     suspect_agent = get_suspect_agent()
     response = await suspect_agent.generate_response(
@@ -408,7 +411,8 @@ async def ask_suspect_question(game_id: str, request: SuspectQuestionRequest):
         user_question=request.question,
         conversation_history=request.conversation_history,
         is_private=request.is_private,
-        other_suspects_present=request.other_suspect_ids
+        other_suspects_present=request.other_suspect_ids,
+        current_state=current_state,
     )
 
     # 检测谎言
@@ -463,6 +467,9 @@ async def confront_with_clue(game_id: str, request: ConfrontWithClueRequest):
         for w in (game.case.witnesses or [])
     ) if game.case.witnesses else "（无证人）"
 
+    # P3: 读取当前嫌疑人状态（默认 calm）
+    current_state = game.suspect_states.get(request.suspect_id, "calm")
+
     # 调用 SuspectAgent 对质
     suspect_agent = get_suspect_agent()
     confront_result = await suspect_agent.confront_with_clue(
@@ -472,7 +479,24 @@ async def confront_with_clue(game_id: str, request: ConfrontWithClueRequest):
         conversation_history=request.conversation_history,
         other_suspects_block=other_suspects_block,
         witnesses_block=witnesses_block,
+        current_state=current_state,
     )
+
+    # P3: 根据 relevance 执行嫌疑人状态迁移
+    state_delta = None
+    settings = get_settings()
+    if settings.enable_suspect_state_machine:
+        old_state, new_state, changed = game_service.transition_suspect_state(
+            game_id=game_id,
+            suspect_id=request.suspect_id,
+            relevance=confront_result.get("relevance", "irrelevant"),
+        )
+        if changed:
+            state_delta = {"from": old_state, "to": new_state}
+            # 同步到 game.suspect_states（transition_suspect_state 内部已更新）
+    else:
+        # 开关关闭时，沿用 LLM 返回的 status_delta（P2 兼容行为）
+        state_delta = confront_result.get("status_delta")
 
     # 根据 suggested_verification 更新线索状态
     clue_after = clue
@@ -499,12 +523,12 @@ async def confront_with_clue(game_id: str, request: ConfrontWithClueRequest):
 
     logger.info(
         f"[API] 对质完成: {game_id} relevance={confront_result.get('relevance')} "
-        f"verified={confront_result.get('suggested_verification')}"
+        f"verified={confront_result.get('suggested_verification')} state_delta={state_delta}"
     )
     return {
         "response": confront_result.get("response"),
         "relevance": confront_result.get("relevance"),
-        "status_delta": confront_result.get("status_delta"),
+        "status_delta": state_delta,
         "statement_refuted_id": confront_result.get("statement_refuted_id"),
         "clue_after": clue_after,
         "conversation_message": conversation_message,

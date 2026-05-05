@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-05（P2 出示线索质询 MVP 完成）
+**更新日期**: 2026-05-05（P3 嫌疑人状态机 + 谎言链 完成）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1-P2 已完成）
+**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1-P3 已完成）
 
 ---
 
@@ -259,6 +259,62 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 **验收**
 - `pytest tests/ -x -q` → **99 passed**（含新增 8 个对质测试），无回归
+- `npm run typecheck` → **零错误**
+- `npm run build` → **构建成功**（130 modules）
+
+---
+
+### 2026-05-05（P3 — 嫌疑人状态机 + 谎言链：服务端状态迁移 + Prompt 压力指令 + 前端徽章/Toast）
+
+**背景**: 探案游戏「线索被使用」核心闭环改造的第三步，实现嫌疑人在审讯中从 calm → pressured → broken 的三态动态变化，玩家可通过出示线索对质看到嫌疑人状态迁移和语气变化。
+
+**后端改动**
+- ✅ **`backend/app/services/game_service.py`**：
+  - 新增 `_suspect_relevance_counter` 内存计数器（key 格式 `{game_id}:{suspect_id}`）
+  - 新增 `transition_suspect_state(game_id, suspect_id, relevance)`：实现状态迁移规则引擎
+    - `calm + critical` → `broken`
+    - `calm + related`（累计≥1）→ `pressured`
+    - `pressured + critical` → `broken`
+    - `pressured + related` → `pressured`（保持）
+    - `broken` → `broken`（终态不回退）
+    - `irrelevant` 不触发任何迁移
+- ✅ **`backend/app/agents/prompts/suspect_prompts.py`**：
+  - `SUSPECT_RESPONSE_SYSTEM` 与 `SUSPECT_CONFRONT_CLUE_SYSTEM` 注入 `{state_directive}` 占位符
+- ✅ **`backend/app/agents/suspect_agent.py`**：
+  - 新增 `_STATE_DIRECTIVES` 映射表（calm/pressured/broken 三态指令文本）
+  - `generate_response` 新增 `current_state` 参数，注入对应心理状态指令
+  - `confront_with_clue` 新增 `current_state` 参数，注入对应心理状态指令
+- ✅ **`backend/app/routers/game.py`**：
+  - `POST /interrogation/confront-with-clue`：读取当前状态 → 调 SuspectAgent（带 state）→ 根据 relevance 调用 `transition_suspect_state` → 响应追加 `state_delta: {from, to}`
+  - `POST /interrogation/question`：读取当前状态 → 调 `generate_response`（带 state，仅影响语气，不触发状态迁移）
+  - 配置开关 `enable_suspect_state_machine` 控制：关闭时沿用 P2 LLM 返回的 `status_delta`
+
+**前端改动**
+- ✅ **`frontend/src/store/gameStore.ts`**：新增 `patchGameState(patch: Partial<GameState>)` 轻量局部更新方法
+- ✅ **`frontend/src/store/interrogationStore.ts`**：
+  - 新增 `suspectStates: Record<string, 'calm'|'pressured'|'broken'>` 状态
+  - `confrontSuspectWithClue` 处理响应 `statusDelta`，更新本地 suspectStates 并通过 `patchGameState` 同步到 gameStore
+  - `resetAll` 清空 suspectStates；`persist` 追加 suspectStates 持久化
+- ✅ **`frontend/src/pages/InterrogationPage.tsx`**：
+  - 嫌疑人列表项：头像旁新增状态徽章（冷静/承压/崩溃），`broken` 状态红色边框高亮（`.suspect-item--broken`）
+  - 当前嫌疑人信息卡（`.suspect-header`）：姓名旁显示状态徽章
+  - 状态升级时 Toast 提示「{suspect.name} 的语气变了…… ({from} → {to})」
+  - `handleConfrontClue` 中检测 `statusDelta` 变化并触发 Toast
+- ✅ **样式**：新增 `.suspect-state-badge--calm`（灰色）、`.suspect-state-badge--pressured`（橙色）、`.suspect-state-badge--broken`（红色）；`.suspect-item--broken` 红色边框
+
+**测试**
+- ✅ **新建 `backend/tests/test_suspect_state_machine.py`**：9 个 pytest 用例
+  - `test_calm_to_broken_on_critical`：calm → broken
+  - `test_calm_to_pressured_on_related`：calm → pressured
+  - `test_pressured_stays_on_second_related`：pressured 保持
+  - `test_pressured_to_broken_on_critical`：pressured → broken
+  - `test_broken_remains_terminal_on_related/critical`：broken 终态
+  - `test_irrelevant_does_not_trigger_any_transition`：irrelevant 无影响
+  - `test_counter_increments_on_related`：计数器递增
+  - `test_game_not_found_returns_calm`：游戏不存在兜底
+
+**验收**
+- `pytest tests/ -x -q` → **108 passed**（含新增 9 个状态机测试），无回归
 - `npm run typecheck` → **零错误**
 - `npm run build` → **构建成功**（130 modules）
 

@@ -21,6 +21,7 @@ interface GameStore {
   setLoading: (isLoading: boolean) => void
   setError: (error: string | null) => void
   resetGame: () => void
+  patchGameState: (patch: Partial<GameState>) => void
 }
 
 export const useGameStore = create<GameStore>()(
@@ -138,6 +139,19 @@ export const useGameStore = create<GameStore>()(
             isLoading: false,
             error: null,
           })
+        },
+
+        patchGameState: (patch: Partial<GameState>) => {
+          console.info('[gameStore] 局部更新游戏状态', { keys: Object.keys(patch) })
+          set((state) => ({
+            gameState: state.gameState
+              ? {
+                  ...state.gameState,
+                  ...patch,
+                  updatedAt: new Date().toISOString(),
+                }
+              : null,
+          }))
         },
       }),
       {

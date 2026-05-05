@@ -81,6 +81,8 @@ export default function InterrogationPage() {
     // P2
     confrontLoading,
     confrontSuspectWithClue,
+    // P3
+    suspectStates,
   } = useInterrogationStore()
 
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
@@ -92,6 +94,7 @@ export default function InterrogationPage() {
   const [processingActorId, setProcessingActorId] = useState<string | null>(null)
   const [pendingExtractText, setPendingExtractText] = useState<string | null>(null)
   const [showToast, setShowToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState('线索已成功提取！')
   const [showClueSelector, setShowClueSelector] = useState(false)
 
   // 全体质询相关UI状态（不需要持久化）
@@ -562,6 +565,7 @@ export default function InterrogationPage() {
 
       if (clue) {
         addClueFromBackend(clue)
+        setToastMessage('线索已成功提取！')
         setShowToast(true)
       }
     } catch (err) {
@@ -579,7 +583,21 @@ export default function InterrogationPage() {
     console.info('[InterrogationPage] 出示线索对质', { clueId, clueLabel, suspectId: selectedSuspect.id })
 
     const history = getCurrentConversationHistory(selectedSuspect.id)
-    await confrontSuspectWithClue(gameId, selectedSuspect.id, clueId, clueLabel, history)
+    const result = await confrontSuspectWithClue(gameId, selectedSuspect.id, clueId, clueLabel, history)
+
+    // P3: 状态迁移 Toast 提示
+    const statusDelta = (result as any)?.statusDelta
+    if (statusDelta && statusDelta.from !== statusDelta.to) {
+      const stateLabels: Record<string, string> = {
+        calm: '冷静',
+        pressured: '承压',
+        broken: '崩溃',
+      }
+      const fromLabel = stateLabels[statusDelta.from] || statusDelta.from
+      const toLabel = stateLabels[statusDelta.to] || statusDelta.to
+      setToastMessage(`${selectedSuspect.name} 的语气变了…… (${fromLabel} → ${toLabel})`)
+      setShowToast(true)
+    }
   }
 
   // ---------- 动态文案 ----------
@@ -712,19 +730,27 @@ export default function InterrogationPage() {
             {/* 嫌疑人列表 */}
             {selectedTab === 'suspects' && (
               <ul className="suspect-list">
-                {suspects.map(suspect => (
-                  <li
-                    key={suspect.id}
-                    className={`suspect-item ${selectedSuspect?.id === suspect.id ? 'suspect-item--selected' : ''}`}
-                    onClick={() => handleSuspectSelect(suspect)}
-                  >
-                    <div className="suspect-avatar">{suspect.isGuilty ? '🔪' : '👤'}</div>
-                    <div className="suspect-info">
-                      <div className="suspect-name">{suspect.name}</div>
-                      <div className="suspect-age">{suspect.age}岁</div>
-                    </div>
-                  </li>
-                ))}
+                {suspects.map(suspect => {
+                  const state = suspectStates[suspect.id] || 'calm'
+                  const stateBadgeClass = `suspect-state-badge--${state}`
+                  const stateLabel = state === 'calm' ? '冷静' : state === 'pressured' ? '承压' : '崩溃'
+                  return (
+                    <li
+                      key={suspect.id}
+                      className={`suspect-item ${selectedSuspect?.id === suspect.id ? 'suspect-item--selected' : ''} suspect-item--${state}`}
+                      onClick={() => handleSuspectSelect(suspect)}
+                    >
+                      <div className="suspect-avatar">{suspect.isGuilty ? '🔪' : '👤'}</div>
+                      <div className="suspect-info">
+                        <div className="suspect-name">
+                          {suspect.name}
+                          <span className={`suspect-state-badge ${stateBadgeClass}`}>{stateLabel}</span>
+                        </div>
+                        <div className="suspect-age">{suspect.age}岁</div>
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             )}
 
@@ -787,7 +813,18 @@ export default function InterrogationPage() {
                     <div className="suspect-header">
                       <div className="suspect-avatar-large">{selectedSuspect.isGuilty ? '🔪' : '👤'}</div>
                       <div className="suspect-details">
-                        <h2>{selectedSuspect.name}</h2>
+                        <h2>
+                          {selectedSuspect.name}
+                          {(() => {
+                            const state = suspectStates[selectedSuspect.id] || 'calm'
+                            const stateLabel = state === 'calm' ? '冷静' : state === 'pressured' ? '承压' : '崩溃'
+                            return (
+                              <span className={`suspect-state-badge suspect-state-badge--${state}`}>
+                                {stateLabel}
+                              </span>
+                            )
+                          })()}
+                        </h2>
                         <p className="suspect-background">{selectedSuspect.background}</p>
                         <div className="suspect-tags">
                           {selectedSuspect.personalityTraits?.map((trait: string, i: number) => (
@@ -2178,6 +2215,37 @@ export default function InterrogationPage() {
           font-style: italic;
         }
 
+        /* P3: 嫌疑人状态徽章 */
+        .suspect-state-badge {
+          font-size: 0.7rem;
+          padding: 0.15rem 0.5rem;
+          border-radius: 10px;
+          margin-left: 0.5rem;
+          white-space: nowrap;
+          vertical-align: middle;
+        }
+        .suspect-state-badge--calm {
+          background: rgba(160, 160, 160, 0.15);
+          color: #a0a0a0;
+          border: 1px solid rgba(160, 160, 160, 0.3);
+        }
+        .suspect-state-badge--pressured {
+          background: rgba(255, 152, 0, 0.15);
+          color: #ff9800;
+          border: 1px solid rgba(255, 152, 0, 0.3);
+        }
+        .suspect-state-badge--broken {
+          background: rgba(244, 67, 54, 0.15);
+          color: #f44336;
+          border: 1px solid rgba(244, 67, 54, 0.3);
+        }
+
+        /* P3: 嫌疑人列表项状态边框 */
+        .suspect-item--broken {
+          border-color: rgba(244, 67, 54, 0.5) !important;
+          background: rgba(244, 67, 54, 0.06) !important;
+        }
+
         /* P2: 线索选择器 Modal */
         .clue-selector-modal { max-width: 480px; }
         .clue-selector-modal__body { max-height: 360px; overflow-y: auto; }
@@ -2230,7 +2298,7 @@ export default function InterrogationPage() {
       <WatsonChatDialog gameId={gameId!} />
 
       {showToast && (
-        <Toast message="线索已成功提取！" onDismiss={() => setShowToast(false)} />
+        <Toast message={toastMessage} onDismiss={() => setShowToast(false)} />
       )}
     </div>
   )

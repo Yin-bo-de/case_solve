@@ -36,6 +36,13 @@ class SuspectAgent:
         )
         logger.info("[SuspectAgent] 初始化嫌疑人 Agent")
 
+    # P3: 状态指令映射表
+    _STATE_DIRECTIVES = {
+        "calm": "你目前表现冷静、礼貌、克制，滴水不漏。回答要镇定自信，不轻易暴露情绪。",
+        "pressured": "你目前承受压力，回答中会带出口误、停顿、过度解释等紧张迹象。措辞变得过于精确，或主动更改故事细节。",
+        "broken": "你已近情绪崩溃，倾向于坦白或揭露隐藏的陈述。语气颤抖，可能承认部分事实。",
+    }
+
     async def generate_response(
         self,
         suspect: Suspect,
@@ -43,7 +50,8 @@ class SuspectAgent:
         user_question: str,
         conversation_history: List[Dict[str, str]] = None,
         is_private: bool = True,
-        other_suspects_present: List[str] = None
+        other_suspects_present: List[str] = None,
+        current_state: str = "calm",
     ) -> str:
         """
         生成嫌疑人的回复
@@ -115,6 +123,8 @@ class SuspectAgent:
             for w in (case.witnesses or [])
         ) if case.witnesses else "（无证人）"
 
+        state_directive = self._STATE_DIRECTIVES.get(current_state, self._STATE_DIRECTIVES["calm"])
+
         chain = suspect_response_prompt | self.llm
         result = await invoke_with_retry(
             chain=chain,
@@ -134,6 +144,7 @@ class SuspectAgent:
                 "interrogation_mode": "私下单独审讯" if is_private else "全体质询，其他嫌疑人在场",
                 "user_question": user_question,
                 "history": history,
+                "state_directive": state_directive,
             },
             fallback_fn=lambda: self._generate_mock_response(suspect, case, user_question, is_private),
         )
@@ -227,6 +238,7 @@ class SuspectAgent:
         conversation_history: List[Dict[str, str]] = None,
         other_suspects_block: str = "",
         witnesses_block: str = "",
+        current_state: str = "calm",
     ) -> Dict[str, Any]:
         """
         嫌疑人对出示线索的回应（对质）
@@ -238,6 +250,7 @@ class SuspectAgent:
             conversation_history: 对话历史
             other_suspects_block: 其他嫌疑人信息块
             witnesses_block: 证人信息块
+            current_state: 当前嫌疑人状态（calm/pressured/broken）
 
         Returns:
             {
@@ -248,7 +261,7 @@ class SuspectAgent:
                 suggested_verification: bool
             }
         """
-        logger.info(f"[SuspectAgent] 对质线索: {suspect.name}, clue={clue.id}")
+        logger.info(f"[SuspectAgent] 对质线索: {suspect.name}, clue={clue.id}, state={current_state}")
         settings = get_settings()
         if not settings.openai_api_key:
             return self._generate_mock_confront_response(suspect, case, clue)
@@ -267,6 +280,8 @@ class SuspectAgent:
                 history.append(HumanMessage(content=msg["content"]))
             else:
                 history.append(AIMessage(content=msg["content"]))
+
+        state_directive = self._STATE_DIRECTIVES.get(current_state, self._STATE_DIRECTIVES["calm"])
 
         chain = suspect_confront_clue_prompt | self.llm
         result = await invoke_with_retry(
@@ -289,6 +304,7 @@ class SuspectAgent:
                 "clue_description": clue.description,
                 "clue_quoted_text": getattr(clue, "quoted_text", None) or clue.description,
                 "history": history,
+                "state_directive": state_directive,
             },
             fallback_fn=lambda: self._generate_mock_confront_response(suspect, case, clue),
             parse_json=True,

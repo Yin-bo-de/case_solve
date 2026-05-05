@@ -23,6 +23,8 @@ SUSPECT_RESPONSE_SYSTEM = """\
 
 审讯模式：{interrogation_mode}
 
+当前心理状态指令：{state_directive}
+
 回复规则（梯度压力系统）：
 1. 使用维多利亚时代的措辞风格，礼貌而正式
 2. 回复用中文，100字以内，保持角色一致性
@@ -110,6 +112,8 @@ SUSPECT_CONFRONT_CLUE_SYSTEM = """\
 
 你的陈述记录（你曾对外说过的话）：
 {statements_block}
+
+当前心理状态指令：{state_directive}
 
 审讯规则：
 1. 使用维多利亚时代的措辞风格，礼貌而正式，回复用中文，150字以内。

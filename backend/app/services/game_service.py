@@ -23,6 +23,8 @@ class GameService:
         self._games: Dict[str, GameState] = {}
         self._deduction_chains: Dict[str, DeductionChain] = {}
         self._watson_chat_history: Dict[str, List[WatsonChatMessage]] = {}
+        # P3: 嫌疑人 relevance 累计计数器，key 格式 "{game_id}:{suspect_id}"
+        self._suspect_relevance_counter: Dict[str, int] = {}
         logger.info("[GameService] 初始化游戏服务")
 
     def create_game(
@@ -590,6 +592,77 @@ class GameService:
             verified_by=refuted_by,
             notes=notes,
         )
+
+    def transition_suspect_state(
+        self,
+        game_id: str,
+        suspect_id: str,
+        relevance: str,
+    ) -> tuple[str, str, bool]:
+        """根据出示线索的 relevance 迁移嫌疑人状态。
+
+        规则：
+        - calm + critical → broken
+        - calm + related（累计≥1）→ pressured
+        - pressured + critical → broken
+        - pressured + related → pressured（保持）
+        - broken → broken（终态）
+        - irrelevant 不触发任何迁移
+
+        返回: (old_state, new_state, state_changed)
+        """
+        game = self.get_game(game_id)
+        if not game:
+            logger.warning(f"[GameService] 游戏不存在，状态迁移跳过: {game_id}")
+            return "calm", "calm", False
+
+        # 读取当前状态，默认 calm
+        current_state = game.suspect_states.get(suspect_id, "calm")
+        old_state = current_state
+
+        # irrelevant 不触发迁移
+        if relevance == "irrelevant":
+            return old_state, current_state, False
+
+        # broken 为终态，不回退
+        if current_state == "broken":
+            return old_state, "broken", False
+
+        counter_key = f"{game_id}:{suspect_id}"
+        related_count = self._suspect_relevance_counter.get(counter_key, 0)
+
+        new_state = current_state
+
+        if relevance == "critical":
+            new_state = "broken"
+        elif relevance == "related":
+            if current_state == "calm":
+                related_count += 1
+                self._suspect_relevance_counter[counter_key] = related_count
+                # 累计≥1 即升级为 pressured（当前实现：第一次 related 就升级）
+                if related_count >= 1:
+                    new_state = "pressured"
+            elif current_state == "pressured":
+                # 保持 pressured，累计计数器继续增加（可用于未来扩展）
+                related_count += 1
+                self._suspect_relevance_counter[counter_key] = related_count
+                new_state = "pressured"
+
+        # 更新 GameState
+        if new_state != current_state:
+            game.suspect_states[suspect_id] = new_state
+            game.updated_at = datetime.utcnow()
+            logger.info(
+                f"[GameService] 嫌疑人状态迁移: {game_id} {suspect_id} "
+                f"{old_state} → {new_state} (relevance={relevance}, related_count={related_count})"
+            )
+        else:
+            logger.debug(
+                f"[GameService] 嫌疑人状态未变化: {game_id} {suspect_id} "
+                f"state={current_state} relevance={relevance}"
+            )
+
+        return old_state, new_state, new_state != current_state
 
     def add_watson_chat_message(
         self,
