@@ -95,3 +95,73 @@ async def test_accuse_endpoint_rejects_wrong_records():
     )
 
     assert has_wrong is True, "应拒绝包含 wrong 记录的请求"
+
+
+def test_accuse_threshold_check_blocks_insufficient_interrogation():
+    """P4: 严格模式下，interrogation 数量不足应被拒绝"""
+    from app.models.game import GameDifficulty
+
+    from app.models.case import Case, Suspect, Clue
+    from datetime import datetime
+    service = GameService()
+    game = service.create_game(difficulty=GameDifficulty.CLASSIC)
+    game.case = Case(
+        id="c1",
+        victim_name="Test",
+        victim_background="test",
+        cause_of_death="test",
+        time_of_death="test",
+        location="test",
+        date=datetime.utcnow(),
+        suspects=[
+            Suspect(id="s1", name="A", age=30, background="test", motive="test", timeline="test")
+        ],
+        clues=[Clue(id="cl1", description="test", clue_type="physical")],
+    )
+    service._games[game.game_id] = game
+
+    chain = service.get_or_create_deduction_chain(game.game_id)
+    # 添加5条观察记录
+    from app.models.case import Observation
+    for i in range(5):
+        chain.observations.append(Observation(id=f"obs{i}", description=f"观察{i}", location="书房"))
+    # 仅添加 fact 推理，不满足 CLASSIC 需要 1 个 interrogation
+    from app.models.case import Inference
+    chain.inferences.append(Inference(id="inf1", content="推理1", node_type="fact"))
+
+    readiness = service.check_conclusion_readiness(game.game_id)
+    assert readiness["is_ready"] is False
+    assert readiness["threshold"] == 1
+
+
+def test_accuse_threshold_check_allows_sufficient_interrogation():
+    """P4: 严格模式下，interrogation 数量达标应通过"""
+    from app.models.game import GameDifficulty
+    from app.models.case import Observation, Inference, Case, Suspect, Clue
+    from datetime import datetime
+
+    service = GameService()
+    game = service.create_game(difficulty=GameDifficulty.CLASSIC)
+    game.case = Case(
+        id="c1",
+        victim_name="Test",
+        victim_background="test",
+        cause_of_death="test",
+        time_of_death="test",
+        location="test",
+        date=datetime.utcnow(),
+        suspects=[
+            Suspect(id="s1", name="A", age=30, background="test", motive="test", timeline="test")
+        ],
+        clues=[Clue(id="cl1", description="test", clue_type="physical")],
+    )
+    service._games[game.game_id] = game
+
+    chain = service.get_or_create_deduction_chain(game.game_id)
+    for i in range(5):
+        chain.observations.append(Observation(id=f"obs{i}", description=f"观察{i}", location="书房"))
+    chain.inferences.append(Inference(id="inf1", content="推理1", node_type="interrogation"))
+
+    readiness = service.check_conclusion_readiness(game.game_id)
+    assert readiness["is_ready"] is True
+    assert readiness["interrogation_count"] == 1

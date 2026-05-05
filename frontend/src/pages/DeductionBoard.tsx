@@ -132,6 +132,10 @@ export default function DeductionBoard() {
                   <span className="clue-item__source">
                     {c.sourceType === 'scene' ? '📍' : c.sourceType === 'interrogation' ? '🗣' : '📋'}
                   </span>
+                  {/* P4: 线索验证状态徽章 */}
+                  <span className={`clue-item__status ${c.verificationStatus || 'unverified'}`}>
+                    {c.verificationStatus === 'verified' ? '✓' : c.verificationStatus === 'refuted' ? '✗' : '⚠️'}
+                  </span>
                 </li>
               ))}
             </ul>

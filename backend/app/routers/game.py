@@ -1099,16 +1099,6 @@ async def check_conclusion_readiness(game_id: str):
     return readiness
 
 
-@router.get("/{game_id}/conclusion/readiness")
-async def get_conclusion_readiness(game_id: str):
-    """获取结案就绪状态，包括推理类型计数和难度阈值"""
-    logger.info(f"[API] 查询结案就绪状态: {game_id}")
-
-    game_service = get_game_service()
-    readiness = game_service.check_conclusion_readiness(game_id)
-
-    return readiness
-
 
 @router.post("/{game_id}/conclusion/accuse")
 async def make_accusation(game_id: str, request: MakeAccusationRequest):
@@ -1133,6 +1123,20 @@ async def make_accusation(game_id: str, request: MakeAccusationRequest):
         raise HTTPException(status_code=400, detail="存在无效的推理记录 id")
     if any(r.verification_result == "wrong" for r in records):
         raise HTTPException(status_code=400, detail="不可使用已被裁决官标记为错误的推理记录")
+
+    # P4: 严格模式下校验推理类型门槛
+    from app.config import get_settings
+    settings = get_settings()
+    if settings.enable_strict_oracle:
+        readiness = game_service.check_conclusion_readiness(game_id)
+        if not readiness["is_ready"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"尚未满足指认条件: {readiness['reason']} "
+                       f"(事实推理: {readiness['fact_count']}, "
+                       f"对质推理: {readiness['interrogation_count']}, "
+                       f"需要: ≥{readiness['threshold']})"
+            )
 
     from app.agents.oracle_agent import get_oracle_agent
     oracle_result = await get_oracle_agent().verify_accusation(

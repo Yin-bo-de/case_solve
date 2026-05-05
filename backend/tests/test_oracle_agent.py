@@ -1,6 +1,6 @@
 """
 章节 8.1 - OracleAgent 单元测试
-验证：JSON schema 正确、fallback 降级路径、指控判定逻辑
+验证：JSON schema 正确、fallback 降级路径、指控判定逻辑、P4 严格模式
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -137,3 +137,59 @@ async def test_verify_inference_with_reasoning_records(fixture_case):
     assert "verdict_explanation" in result
     assert "key_evidence_used" in result
     assert "missing_critical_evidence" in result
+
+
+@pytest.mark.asyncio
+async def test_verify_inference_unverified_clue_downgrade(fixture_case):
+    """P4: 严格模式下，使用未验证线索的推理 verdict 降级为 partial"""
+    oracle = OracleAgent.__new__(OracleAgent)
+    oracle.temperature = 0.2
+    oracle.llm = MagicMock()
+
+    # 所有线索都是 unverified
+    for c in fixture_case.clues:
+        c.verification_status = "unverified"
+
+    with patch("app.agents.oracle_agent.invoke_with_retry", new=AsyncMock(return_value={
+        "verdict": "correct",
+        "score": 0.9,
+        "explanation": "推理逻辑清晰",
+        "node_type": "mixed",
+    })):
+        result = await oracle.verify_inference(
+            case=fixture_case,
+            clues=fixture_case.clues,
+            conclusion="管家在红酒中下毒",
+            enable_strict_oracle=True,
+        )
+
+    assert result["verdict"] == "partial"
+    assert "验证" in result["explanation"]
+
+
+@pytest.mark.asyncio
+async def test_verify_inference_verified_clue_keeps_correct(fixture_case):
+    """P4: 严格模式下，使用已验证线索的推理保持 correct"""
+    oracle = OracleAgent.__new__(OracleAgent)
+    oracle.temperature = 0.2
+    oracle.llm = MagicMock()
+
+    # 所有线索都是 verified
+    for c in fixture_case.clues:
+        c.verification_status = "verified"
+
+    with patch("app.agents.oracle_agent.invoke_with_retry", new=AsyncMock(return_value={
+        "verdict": "correct",
+        "score": 0.9,
+        "explanation": "基于已验证物证的可靠推理",
+        "node_type": "fact",
+    })):
+        result = await oracle.verify_inference(
+            case=fixture_case,
+            clues=fixture_case.clues,
+            conclusion="管家在红酒中下毒",
+            enable_strict_oracle=True,
+        )
+
+    assert result["verdict"] == "correct"
+    assert result["node_type"] == "fact"

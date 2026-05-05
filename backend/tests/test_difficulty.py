@@ -232,3 +232,96 @@ class TestWitnessDifficultyDistribution:
             assert 0.3 <= w.credibility <= 0.6, (
                 f"Hardcore 证人可信度应在 0.3~0.6，{w.id}={w.credibility}"
             )
+
+
+# ─── P4 推理类型门槛阈值测试 ────────────────────────────────────
+
+class TestAccusationThresholdByDifficulty:
+    """验证不同难度下的指认门槛配置生效"""
+
+    def _setup_game(self, difficulty: GameDifficulty):
+        """辅助：创建指定难度游戏并填充最低观察记录"""
+        from app.models.case import Case, Suspect, Clue, Observation
+        from datetime import datetime
+        service = GameService()
+        game = service.create_game(difficulty=difficulty)
+        game.case = Case(
+            id="c1",
+            victim_name="Test",
+            victim_background="test",
+            cause_of_death="test",
+            time_of_death="test",
+            location="test",
+            date=datetime.utcnow(),
+            suspects=[Suspect(id="s1", name="A", age=30, background="test", motive="test", timeline="test")],
+            clues=[Clue(id="cl1", description="test", clue_type="physical")],
+        )
+        service._games[game.game_id] = game
+        chain = service.get_or_create_deduction_chain(game.game_id)
+        for i in range(5):
+            chain.observations.append(Observation(id=f"obs{i}", description=f"观察{i}", location="书房"))
+        return service, game
+
+    def test_easy_threshold_is_zero(self):
+        """Easy 难度门槛为 0，无需 interrogation 即可指认"""
+        from app.models.case import Inference
+        service, game = self._setup_game(GameDifficulty.EASY)
+        chain = service.get_or_create_deduction_chain(game.game_id)
+        chain.inferences.append(Inference(id="inf1", content="推理1", node_type="fact"))
+
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["threshold"] == 0
+        assert readiness["is_ready"] is True
+
+    def test_classic_threshold_is_one(self):
+        """Classic 难度门槛为 1，需要至少 1 个 interrogation"""
+        from app.models.case import Inference
+        service, game = self._setup_game(GameDifficulty.CLASSIC)
+        chain = service.get_or_create_deduction_chain(game.game_id)
+
+        # 只有 fact，不满足
+        chain.inferences.append(Inference(id="inf1", content="推理1", node_type="fact"))
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["threshold"] == 1
+        assert readiness["is_ready"] is False
+
+        # 添加 interrogation，满足
+        chain.inferences.append(Inference(id="inf2", content="推理2", node_type="interrogation"))
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["is_ready"] is True
+
+    def test_hardcore_threshold_is_two(self):
+        """Hardcore 难度门槛为 2，需要至少 2 个 interrogation"""
+        from app.models.case import Inference
+        service, game = self._setup_game(GameDifficulty.HARDCORE)
+        chain = service.get_or_create_deduction_chain(game.game_id)
+
+        # 1 个 interrogation 不够
+        chain.inferences.append(Inference(id="inf1", content="推理1", node_type="interrogation"))
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["threshold"] == 2
+        assert readiness["is_ready"] is False
+
+        # 再加 1 个，满足
+        chain.inferences.append(Inference(id="inf2", content="推理2", node_type="interrogation"))
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["is_ready"] is True
+
+    def test_mixed_counts_as_half(self):
+        """mixed 推理计为 0.5 个 interrogation"""
+        from app.models.case import Inference
+        service, game = self._setup_game(GameDifficulty.HARDCORE)
+        chain = service.get_or_create_deduction_chain(game.game_id)
+
+        # 1 个 interrogation + 1 个 mixed = 1.5 < 2，不满足
+        chain.inferences.extend([
+            Inference(id="inf1", content="推理1", node_type="interrogation"),
+            Inference(id="inf2", content="推理2", node_type="mixed"),
+        ])
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["is_ready"] is False
+
+        # 再加 1 个 mixed = 1.5 + 0.5 = 2.0，满足
+        chain.inferences.append(Inference(id="inf3", content="推理3", node_type="mixed"))
+        readiness = service.check_conclusion_readiness(game.game_id)
+        assert readiness["is_ready"] is True
