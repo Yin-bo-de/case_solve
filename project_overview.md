@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-06（引导页 Step 5：路由与跳转链路完成）
+**更新日期**: 2026-05-06（引导页 Step 6：日志规范完成）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-5 全部完成）
+**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成）
 
 ---
 
@@ -198,6 +198,21 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-06（Loading 引导页 Step 6 — 日志规范）
+
+**背景**: 按 CLAUDE.md 前端可观测性要求，补全 briefing 引导流程的关键节点日志。
+
+**改动**（日志均已随 Step 1-5 一并实现，本步骤为确认 + overview 更新）
+- ✅ `[StartPage] 跳转引导页 { gameId }` — `StartPage.tsx:71`
+- ✅ `[BriefingPage] mount { gameId, hasCase }` — `BriefingPage.tsx:208`
+- ✅ `[BriefingPage] step → next { from, to }` — `BriefingPage.tsx:233`
+- ✅ `[BriefingPage] 进入案发现场 { gameId }` — `BriefingPage.tsx:236`
+- ✅ `[Typewriter] done { length }` — `Typewriter.tsx:36,57`
+
+**验收**: 控制台依次出现 `[StartPage] 跳转引导页` → `[BriefingPage] mount` → 4次 `step` → `[BriefingPage] 进入案发现场`
+
+---
 
 ### 2026-05-06（Loading 引导页 Step 4 — BriefingPage 4步引导页）
 
