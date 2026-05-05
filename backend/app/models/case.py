@@ -6,6 +6,15 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
+class SuspectStatement(BaseModel):
+    """嫌疑人陈述 - 审讯中嫌疑人说出的内容，部分为谎言可被线索反驳"""
+    id: str
+    content: str
+    is_lie: bool = Field(default=False, exclude=True)              # 服务端专用，不下发
+    refutable_by_clue_ids: List[str] = Field(default_factory=list, exclude=True)  # 可反驳该陈述的线索id列表
+    revealed_when_broken: bool = Field(default=False, exclude=True)  # 崩溃时是否揭露该陈述
+
+
 class Witness(BaseModel):
     """证人模型 - 目击者/邻居/相关人员，可能因恐惧或利益隐瞒部分事实"""
     id: str                                                          # witness-{n}
@@ -53,6 +62,7 @@ class Suspect(BaseModel):
     is_guilty: bool = False
     personality_traits: List[str] = Field(default_factory=list)
     secrets: List[str] = Field(default_factory=list)
+    statements: List[SuspectStatement] = Field(default_factory=list)  # P1: 嫌疑人陈述列表
 
 
 class SceneObject(BaseModel):
@@ -94,6 +104,10 @@ class Clue(BaseModel):
     user_generated: bool = False                      # 是否用户主动创建
     investigation_hint: Optional[str] = None          # 发现此线索后的下一步调查方向（仅服务端使用，供华生提示）
     chain_next_clue_index: Optional[int] = None       # 调查链：指向下一条线索的数组下标（null=链条终点）
+    # P1: 线索验证状态（三态：未验证 / 已验证 / 已被驳斥）
+    verification_status: str = "unverified"           # unverified | verified | refuted
+    verification_notes: Optional[str] = None          # 验证备注（如验证过程说明）
+    verified_by: Optional[str] = None                 # 产生验证的 actor id：suspect/witness/expert
 
 
 class Case(BaseModel):
@@ -140,6 +154,7 @@ class Inference(BaseModel):
     verification_result: Optional[str] = None         # correct | wrong | partial
     oracle_explanation: Optional[str] = None
     user_marked_important: bool = False
+    node_type: str = "mixed"                          # P1: fact | interrogation | mixed
 
 
 class ReasoningRecord(Inference):

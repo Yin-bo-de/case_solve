@@ -29,6 +29,11 @@ export interface QuickQuestion {
   phase: GamePhase[]
 }
 
+export interface SuspectStatement {
+  id: string
+  content: string
+}
+
 export interface Suspect {
   id: string
   name: string
@@ -39,6 +44,7 @@ export interface Suspect {
   isGuilty: boolean
   personalityTraits: string[]
   secrets: string[]
+  statements?: SuspectStatement[]  // P1: 嫌疑人陈述列表（服务端仅下发 id+content）
 }
 
 export interface Witness {
@@ -118,6 +124,7 @@ export interface ReasoningRecord {
   confidence: number
   createdAt: string
   userMarkedImportant: boolean
+  nodeType?: 'fact' | 'interrogation' | 'mixed'  // P1
 }
 
 export interface WatsonTip {
@@ -140,6 +147,10 @@ export interface Clue {
   sourceRef?: string
   quotedText?: string
   userGenerated?: boolean
+  // P1: 线索验证状态三态
+  verificationStatus?: 'unverified' | 'verified' | 'refuted'
+  verificationNotes?: string
+  verifiedBy?: string  // 产生验证的 actor id
 }
 
 export interface Case {
@@ -230,6 +241,9 @@ export interface GameState {
   timeLimitMinutes?: number
   createdAt: string
   updatedAt: string
+  // P1: 嫌疑人状态机 + 已验证线索索引
+  suspectStates?: Record<string, 'calm' | 'pressured' | 'broken'>
+  verifiedClueIds?: string[]
 }
 
 // 结案相关类型

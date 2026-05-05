@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-02（场景搜索接口新增 dialog_options 字段 — 前后端全部完成）
-**当前分支**: releaes/1.0.0
-**项目状态**: 开发中
+**更新日期**: 2026-05-05（P1 数据骨架完成）
+**当前分支**: releaes/1.0.0_dev
+**项目状态**: 开发中（探案游戏「线索被使用」核心闭环改造 P1 已完成）
 
 ---
 
@@ -198,6 +198,94 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-05（P1 — 数据骨架：Clue/Suspect/Inference/GameState 字段扩展 + 前端类型同步）
+
+**背景**: 探案游戏「线索被使用」核心闭环改造的第一步，为后续 P2-P5 阶段（出示线索质询、嫌疑人状态机、已验证信息门槛、案件生成强约束）打好数据层基础。
+
+**改动**
+- ✅ **扩展 `backend/app/models/case.py`**：
+  - `Clue` 新增 `verification_status`（默认 "unverified"）、`verification_notes`、`verified_by`
+  - 新增 `SuspectStatement` 模型（`id/content/is_lie/refutable_by_clue_ids/revealed_when_broken`，敏感字段 `exclude=True`）
+  - `Suspect` 新增 `statements: List[SuspectStatement]`
+  - `Inference` 新增 `node_type`（默认 "mixed"）
+- ✅ **扩展 `backend/app/models/game.py`**：
+  - `GameState` 新增 `suspect_states: Dict[str, str]`、`verified_clue_ids: List[str]`
+- ✅ **扩展 `frontend/src/types/game.ts`**：
+  - `Clue` 新增 `verificationStatus/verificationNotes/verifiedBy`
+  - `Suspect` 新增 `statements?: SuspectStatement[]`
+  - `ReasoningRecord` 新增 `nodeType`
+  - `GameState` 新增 `suspectStates/verifiedClueIds`
+- ✅ **扩展 `backend/app/config.py`**：新增 4 个 feature flag（`enable_clue_confrontation=True`、`enable_suspect_state_machine=False`、`enable_strict_oracle=False`、`enable_solvability_validation=False`）+ `strict_accusation_threshold`
+- ✅ **新建 `backend/tests/test_models_backward_compat.py`**：6 个测试类，覆盖 Clue/Suspect/Inference/GameState/SuspectStatement/Case 旧 JSON 反序列化兼容
+
+**验收**
+- `pytest tests/ -x -q` → **91 passed**（含新增 11 个兼容测试），无回归
+- `npm run typecheck` → **零错误**
+- 所有新增字段均为 Optional + 默认值，历史 GameState 反序列化无破坏
+
+---
+
+### 2026-05-05（WatsonAgent 审讯提示词增强：案件概要、其他嫌疑人、证人信息）
+
+**背景**: `WATSON_INTERROGATION_TIPS_HUMAN` 提示词中仅包含案件线索、当前嫌疑人和最近对话，缺少案件整体概要、其他嫌疑人背景及证人信息，导致华生在审讯环节给出的建议缺乏全局视角。
+
+**改动**
+- ✅ **`backend/app/agents/prompts/watson_prompts.py`**：
+  - `WATSON_INTERROGATION_TIPS_HUMAN` 新增三段：`案件概要`、`其他嫌疑人信息`、`证人信息`
+  - 对应新增 `{case_summary}`、`{other_suspects_block}`、`{witnesses_block}` 占位符
+- ✅ **`backend/app/agents/watson_agent.py`**：
+  - `offer_interrogation_tips` 新增构建 `case_summary`（直接取 `case.summary`）
+  - 新增构建 `other_suspects_block`（排除当前嫌疑人，含姓名、年龄、背景、动机、时间线、性格）
+  - 新增构建 `witnesses_block`（含姓名、年龄、职业、与案件关系、时间线、关键目击）
+  - `invoke_with_retry` 的 `inputs` 中新增 `"case_summary"`、`"other_suspects_block"`、`"witnesses_block"` 字段
+
+---
+
+### 2026-05-05（SuspectAgent / WatsonAgent 注入在场人员背景信息）
+
+**背景**: SuspectAgent、WatsonAgent 的 System Prompt 中均未注入"在场其他嫌疑人"和"证人"清单。当玩家问及人物关系时，LLM 可能编造不存在的人名，破坏游戏一致性。
+
+**改动**
+- ✅ **`backend/app/agents/prompts/suspect_prompts.py`**：
+  - `SUSPECT_RESPONSE_SYSTEM` 新增两段：`在场其他嫌疑人（可供你提及或关联）`、`在场证人（可供你提及或关联）`
+- ✅ **`backend/app/agents/suspect_agent.py`**：
+  - `generate_response` 新增构建 `other_suspects_block`（排除当前嫌疑人，含姓名+背景）和 `witnesses_block`（含姓名+职业+关系）
+  - `invoke_with_retry` 的 `inputs` 中新增 `"other_suspects_block"`、`"witnesses_block"` 字段
+- ✅ **`backend/app/agents/prompts/watson_prompts.py`**：
+  - `WATSON_CHAT_SYSTEM` 中 `案件中的嫌疑人` 升级为含背景摘要的格式
+  - 新增 `在场证人` 段落及 `{witnesses_block}` 变量
+- ✅ **`backend/app/agents/watson_agent.py`**：
+  - `_generate_response` 中升级 `suspects_block` 构建逻辑（`name + background`）
+  - 新增 `witnesses_block` 构建逻辑（`name + occupation + relationship_to_case`）
+  - `invoke_with_retry` 的 `inputs` 中新增 `"witnesses_block"` 字段
+- ✅ **`backend/app/services/game_service.py`**：
+  - `build_watson_chat_context` 中 suspects 列表新增 `"background"` 字段
+  - witnesses 列表新增 `"relationship_to_case"` 字段
+
+**验证**
+- `python3 -m py_compile` 语法检查 ✅ 全绿
+- `pytest tests/ -x -q` 全量回归测试 ✅ 80/80 通过
+
+---
+
+### 2026-05-05（SceneAgent 增加已发现线索输入，避免重复提示）
+
+**背景**: `scene_agent.py` 调用 LLM 时未传入玩家已发现的线索列表，导致 LLM 在玩家已发现某线索后仍重复给出"发现提示"，影响游戏体验。
+
+**改动**
+- ✅ **`backend/app/agents/scene_agent.py`**：
+  - 新增 `_format_discovered_clues_for_scene(case, scene)` 函数，提取当前场景对象相关且 `discovered=True` 的线索
+  - `invoke_with_retry` 的 `inputs` 中新增 `"discovered_clues_block"` 字段
+- ✅ **`backend/app/agents/prompts/scene_prompts.py`**：
+  - `SCENE_SYSTEM` 新增规则 3a：已发现线索不再给出"发现提示"，但玩家追问时可补充新细节
+  - `SCENE_SEARCH_USER` 新增 `## 玩家已在本场景发现的线索` 段落，变量 `{discovered_clues_block}`
+
+**验证**
+- `python3 -m py_compile` 语法检查 ✅ 全绿
+- 无需修改路由层（`game.py`），`case.clues` 已包含 `discovered` 状态
+
+---
 
 ### 2026-05-01（修复 SceneAgent LLM 返回 JSON key 缩写问题）
 

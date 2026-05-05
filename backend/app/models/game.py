@@ -78,6 +78,10 @@ class GameState(BaseModel):
     openai_api_key: Optional[str] = Field(default=None, exclude=True)
     openai_base_url: Optional[str] = None
     redemption_code: Optional[str] = None
+    # P1: 嫌疑人状态机（calm / pressured / broken）
+    suspect_states: Dict[str, str] = Field(default_factory=dict)
+    # P1: 已验证线索ID冗余索引（单源仍是 Clue.verification_status）
+    verified_clue_ids: List[str] = Field(default_factory=list)
 
 
 class CreateGameRequest(BaseModel):
