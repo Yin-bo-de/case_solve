@@ -304,7 +304,7 @@ class GameService:
         return gaps
 
     def check_conclusion_readiness(self, game_id: str) -> Dict[str, Any]:
-        """检查是否可以进入结案阶段"""
+        """检查是否可以进入结案阶段，包含推理类型门槛校验"""
         chain = self.get_or_create_deduction_chain(game_id)
         game = self.get_game(game_id)
 
@@ -312,6 +312,9 @@ class GameService:
             return {
                 "is_ready": False,
                 "reason": "案件未设置",
+                "fact_count": 0,
+                "interrogation_count": 0,
+                "threshold": 0,
                 "observations_count": 0,
                 "inferences_count": 0,
                 "hypotheses_count": 0,
@@ -323,17 +326,37 @@ class GameService:
         inferences_count = len(chain.inferences)
         hypotheses_count = len(chain.hypotheses)
 
-        # 最低要求：至少5条观察记录
+        # 统计推理节点类型（P4：推理类型门槛）
+        fact_count = sum(1 for inf in chain.inferences if inf.node_type == "fact")
+        interrogation_count = sum(1 for inf in chain.inferences if inf.node_type == "interrogation")
+        mixed_count = sum(1 for inf in chain.inferences if inf.node_type == "mixed")
+
+        # 从配置获取难度阈值
+        settings = get_settings()
+        # 将difficulty转换为字符串（处理枚举或字符串）
+        difficulty_str = game.difficulty.value if hasattr(game.difficulty, 'value') else str(game.difficulty)
+        threshold = settings.strict_accusation_threshold.get(difficulty_str.lower(), 0)
+
+        # 计算有效的 interrogation 数量（mixed 计一半）
+        effective_interrogation = interrogation_count + (mixed_count // 2)
+
+        # 最低要求：至少5条观察记录 + 满足推理类型门槛
         minimum_observations = 5
-        is_ready = observations_count >= minimum_observations
+        is_ready = (observations_count >= minimum_observations and
+                   effective_interrogation >= threshold)
 
         reason = ""
-        if not is_ready:
-            reason = f"还需要收集 {minimum_observations - observations_count} 条观察记录才能进入结案阶段"
+        if observations_count < minimum_observations:
+            reason = f"还需要收集 {minimum_observations - observations_count} 条观察记录"
+        elif effective_interrogation < threshold:
+            reason = f"需要至少 {threshold} 个审讯类推理，当前仅有 {effective_interrogation} 个"
 
         return {
             "is_ready": is_ready,
             "reason": reason,
+            "fact_count": fact_count,
+            "interrogation_count": interrogation_count,
+            "threshold": threshold,
             "observations_count": observations_count,
             "inferences_count": inferences_count,
             "hypotheses_count": hypotheses_count,

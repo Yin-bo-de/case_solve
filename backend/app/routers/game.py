@@ -1099,6 +1099,17 @@ async def check_conclusion_readiness(game_id: str):
     return readiness
 
 
+@router.get("/{game_id}/conclusion/readiness")
+async def get_conclusion_readiness(game_id: str):
+    """获取结案就绪状态，包括推理类型计数和难度阈值"""
+    logger.info(f"[API] 查询结案就绪状态: {game_id}")
+
+    game_service = get_game_service()
+    readiness = game_service.check_conclusion_readiness(game_id)
+
+    return readiness
+
+
 @router.post("/{game_id}/conclusion/accuse")
 async def make_accusation(game_id: str, request: MakeAccusationRequest):
     """指认凶手：必须附带 1-3 条推理记录，经 Oracle 裁决后记录结果"""
