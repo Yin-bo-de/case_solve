@@ -389,6 +389,14 @@ export const gameApi = {
     return response.data
   },
 
+  /** 获取结案就绪状态（P4：推理类型门槛） */
+  async getConclusionReadiness(gameId: string): Promise<any> {
+    validateGameId(gameId, 'getConclusionReadiness')
+    console.info('[gameApi] 获取结案就绪状态', { gameId })
+    const response = await apiClient.get(`/api/game/${gameId}/conclusion/readiness`)
+    return response.data
+  },
+
   /** 指认凶手（新版，传 reasoning_record_ids） */
   async makeAccusation(
     gameId: string,

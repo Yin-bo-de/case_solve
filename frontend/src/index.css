@@ -3203,3 +3203,81 @@ body {
   color: #d4af37;
   box-shadow: 0 2px 12px rgba(212, 175, 55, 0.25);
 }
+
+/* P4: 推理节点类型样式 */
+.inference-node--fact {
+  background-color: #eff6ff;
+  border-left: 4px solid #2563eb;
+}
+
+.inference-node--interrogation {
+  background-color: #faf5ff;
+  border-left: 4px solid #a855f7;
+}
+
+.inference-node--mixed {
+  background-color: #f3f4f6;
+  border-left: 4px solid #6b7280;
+}
+
+/* 节点类型徽章 */
+.node-type-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+.node-type-badge--fact {
+  background-color: #dbeafe;
+  color: #1e3a8a;
+  border-color: #93c5fd;
+}
+
+.node-type-badge--interrogation {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+  border-color: #e9d5ff;
+}
+
+.node-type-badge--mixed {
+  background-color: #f3f4f6;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+
+/* 验证状态样式 */
+.clue-status-verified {
+  background-color: #dcfce7;
+  border-left: 3px solid #16a34a;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+}
+
+.clue-status-unverified {
+  background-color: #fef3c7;
+  border-left: 3px solid #eab308;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+}
+
+.readiness-box {
+  border-radius: 0.375rem;
+  border-left: 4px solid;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.readiness-box--ready {
+  background-color: #f0fdf4;
+  border-left-color: #22c55e;
+  color: #166534;
+}
+
+.readiness-box--notready {
+  background-color: #fffbeb;
+  border-left-color: #eab308;
+  color: #92400e;
+}

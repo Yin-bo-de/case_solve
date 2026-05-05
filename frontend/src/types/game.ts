@@ -190,6 +190,8 @@ export interface Observation {
   notes?: string
 }
 
+export type InferenceNodeType = 'fact' | 'interrogation' | 'mixed'
+
 export interface Inference {
   id: string
   content: string
@@ -203,6 +205,15 @@ export interface Inference {
   verificationResult?: 'correct' | 'wrong' | 'partial'
   oracleExplanation?: string
   userMarkedImportant?: boolean
+  nodeType?: InferenceNodeType  // P4: 推理节点类型
+}
+
+export interface ConclusionReadiness {
+  isReady: boolean
+  factCount: number
+  interrogationCount: number
+  threshold: number
+  reason: string
 }
 
 export interface Hypothesis {
