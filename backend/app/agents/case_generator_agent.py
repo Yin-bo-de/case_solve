@@ -900,7 +900,7 @@ class CaseGeneratorAgent:
                 if len(refutable) >= 1:
                     statements.append(SuspectStatement(
                         id=f"stmt-{suspect.id}-1",
-                        content=f"我昨晚 {random.choice(['8点', '9点', '10点'])} 一直在自己的房间里，没有离开过。",
+                        content=f"我当晚根本没有接近过死者，此事与我毫无关联。",
                         is_lie=True,
                         refutable_by_clue_ids=[refutable[0]],
                         revealed_when_broken=False,
@@ -909,7 +909,7 @@ class CaseGeneratorAgent:
                 if len(refutable) >= 2:
                     statements.append(SuspectStatement(
                         id=f"stmt-{suspect.id}-2",
-                        content=f"我和死者之间的关系一直很好，从来没有过任何矛盾。",
+                        content=f"我与死者之间从无嫌隙，绝无任何伤害他的动机。",
                         is_lie=True,
                         refutable_by_clue_ids=[refutable[1]],
                         revealed_when_broken=True,
@@ -917,7 +917,7 @@ class CaseGeneratorAgent:
                 # 真话1
                 statements.append(SuspectStatement(
                     id=f"stmt-{suspect.id}-3",
-                    content=f"我确实在案发现场附近出现过，但我发誓我没有做任何伤害他的事情。",
+                    content=f"我承认我对此案知情，但我绝没有插手任何伤害之事。",
                     is_lie=False,
                     refutable_by_clue_ids=[],
                     revealed_when_broken=False,
@@ -925,7 +925,7 @@ class CaseGeneratorAgent:
                 # 真话2（可选）
                 statements.append(SuspectStatement(
                     id=f"stmt-{suspect.id}-4",
-                    content=f"案发当晚我确实听到了一些异常的声响，但当时我以为只是风声。",
+                    content=f"我是无辜的。无论证据如何指向我，我的良心是清白的。",
                     is_lie=False,
                     refutable_by_clue_ids=[],
                     revealed_when_broken=False,
@@ -936,7 +936,7 @@ class CaseGeneratorAgent:
                     # 30% 概率有 1 条小谎言
                     statements.append(SuspectStatement(
                         id=f"stmt-{suspect.id}-1",
-                        content=f"我可能记错了时间，但我确实没有靠近过死者的房间。",
+                        content=f"我对死者没有任何敌意，此案与我无关。",
                         is_lie=True,
                         refutable_by_clue_ids=[refutable[0]],
                         revealed_when_broken=False,
@@ -944,21 +944,21 @@ class CaseGeneratorAgent:
                 # 真话
                 statements.append(SuspectStatement(
                     id=f"stmt-{suspect.id}-2",
-                    content=f"我昨晚 {random.choice(['8点', '9点', '10点'])} 在 {random.choice(['客厅', '花园', '厨房'])}，之后回房休息了。",
+                    content=f"我与死者平日相处融洽，我无法想象谁会想伤害他。",
                     is_lie=False,
                     refutable_by_clue_ids=[],
                     revealed_when_broken=False,
                 ))
                 statements.append(SuspectStatement(
                     id=f"stmt-{suspect.id}-3",
-                    content=f"我承认我对死者有些不满，但那绝不至于让我做出那样可怕的事情。",
+                    content=f"我承认我与死者之间曾有些许不快，但那绝不足以成为我的杀人动机。",
                     is_lie=False,
                     refutable_by_clue_ids=[],
                     revealed_when_broken=False,
                 ))
                 statements.append(SuspectStatement(
                     id=f"stmt-{suspect.id}-4",
-                    content=f"案发时我确实听到了一些动静，但我以为是仆人们在收拾房间。",
+                    content=f"我是清白的，我没有理由对死者痛下杀手。",
                     is_lie=False,
                     refutable_by_clue_ids=[],
                     revealed_when_broken=False,
