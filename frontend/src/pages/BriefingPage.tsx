@@ -102,16 +102,13 @@ function SuspectsSlide({ suspects }: SuspectsSlideProps) {
               </span>
             </div>
             <p className="briefing-suspects__background">{suspect.background}</p>
-            {suspect.statements && suspect.statements.length > 0 ? (
-              <ul className="briefing-suspects__statements">
-                {suspect.statements.map((s) => (
-                  <li key={s.id} className="briefing-suspects__statement">
-                    {s.content}
-                  </li>
-                ))}
-              </ul>
+            {suspect.timeline ? (
+              <div className="briefing-suspects__timeline">
+                <div className="briefing-suspects__timeline-bar" />
+                <p className="briefing-suspects__timeline-text">{suspect.timeline}</p>
+              </div>
             ) : (
-              <p className="briefing-suspects__no-statement">（暂无主动陈述）</p>
+              <p className="briefing-suspects__no-timeline">（暂无时间线记录）</p>
             )}
           </div>
         ))}

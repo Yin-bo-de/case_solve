@@ -27,7 +27,7 @@ CASE_GENERATION_SYSTEM = """\
       "relationship_to_victim": "string，与死者的具体关系（≤12字，如：私人女仆、商业合伙人、远房表亲）",
       "background": "string",
       "motive": "string",
-      "timeline": "string",
+      "timeline": "string，嫌疑人的自述不在场陈述，包含其声称的案发时间段内的行动、所在地点和接触人员。可能包含谎言或隐瞒，但格式上是嫌疑人自己的叙事。",
       "is_guilty": false,
       "personality_traits": ["string"],
       "secrets": ["string"]
@@ -68,7 +68,7 @@ CASE_GENERATION_SYSTEM = """\
       "age": 30,
       "occupation": "string",
       "relationship_to_case": "string",
-      "timeline": "string",
+      "timeline": "string，证人的自述，包含其声称的案发时间段内的行动、所在地点和接触人员。",
       "personality_traits": ["string"],
       "secrets": ["string"],
       "key_observations": ["string（证人确实目击的事实，至少 1 条）"],

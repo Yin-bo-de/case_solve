@@ -37,8 +37,8 @@ class Settings(BaseSettings):
 
     # P1-P5 feature flags（探案游戏「线索被使用」核心闭环改造）
     enable_clue_confrontation: bool = True        # P2: 出示线索质询
-    enable_suspect_state_machine: bool = False    # P3: 嫌疑人状态机
-    enable_strict_oracle: bool = False            # P4: Oracle 严格模式
+    enable_suspect_state_machine: bool = True    # P3: 嫌疑人状态机
+    enable_strict_oracle: bool = True            # P4: Oracle 严格模式
     enable_solvability_validation: bool = True   # P5: 案件可解性校验
     strict_accusation_threshold: dict = {"easy": 0, "classic": 1, "hardcore": 2}
 

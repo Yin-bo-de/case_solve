@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-06（引导页 Step 6：日志规范完成）
+**更新日期**: 2026-05-06（Briefing 嫌疑人介绍改为时间线展示）
 **当前分支**: releaes/1.0.0_dev
 **项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成）
 
@@ -198,6 +198,19 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-06（Briefing 嫌疑人介绍改为时间线展示）
+
+**背景**: 引导页「嫌疑人介绍」Slide 中展示的是嫌疑人的 `statements`（陈述列表），但 statements 主要用于审讯阶段的对质功能，在 briefing 阶段过早暴露陈述内容会削弱游戏体验。`Suspect` 模型已包含 `timeline` 字段，更适合在 briefing 阶段帮助玩家建立对嫌疑人的时间线认知。
+
+**改动**
+- ✅ **修改 `frontend/src/pages/BriefingPage.tsx`**：`SuspectsSlide` 组件中，移除 `suspect.statements` 列表渲染，替换为 `suspect.timeline` 展示。视觉风格复用证人 timeline 样式（左侧金色渐变竖线 + Courier 等宽字体），空值时显示「（暂无时间线记录）」。
+- ✅ **修改 `frontend/src/pages/BriefingPage.css`**：新增 `.briefing-suspects__timeline*` 系列样式（与证人 timeline 保持一致），清理不再使用的 `.briefing-suspects__statements`、`.briefing-suspects__statement`、`.briefing-suspects__no-statement` 样式。
+
+**验收**
+- `npm run typecheck` → **零错误**
+
+---
 
 ### 2026-05-06（Loading 引导页 Step 6 — 日志规范）
 
