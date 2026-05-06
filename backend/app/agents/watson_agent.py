@@ -525,7 +525,6 @@ class WatsonAgent:
         """生成线索讨论回复"""
         responses = [
             "这条线索很有意思。你觉得它和案子有什么关系？",
-            "嗯...让我仔细看看。这可能是关键证据，也可能是个红鲱鱼。",
             "你注意到了吗？这条线索可能指向某个人，但我们需要更多证据。",
             "很有趣的发现！让我们把它记下来，看看能不能和其他线索关联起来。"
         ]
@@ -860,7 +859,7 @@ class WatsonAgent:
             return fallback
 
         clues_block = "\n".join(
-            [f"  - {c.description[:50]}" for c in case.clues if not c.is_red_herring]
+            [f"  - {c.description[:50]}" for c in case.clues]
         ) or "（无）"
 
         # 构建嫌疑人陈述 block，附上 name 便于 LLM 引用

@@ -199,6 +199,28 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 
 ## 最近的关键变更
 
+### 2026-05-06（移除案件生成中的红鲱鱼机制）
+
+**背景**: 用户要求去掉案件生成中的所有红鲱鱼线索，使所有线索均为真实线索。
+
+**改动**
+- **数据模型**: `backend/app/models/case.py` 移除 `Clue.is_red_herring` 字段
+- **提示词模板**: `backend/app/agents/prompts/case_prompts.py` 移除所有红鲱鱼数量描述、线索 JSON 中的 `is_red_herring`、线索链条/场景/专家约束中关于红鲱鱼的特殊规则
+- **案件生成器**: `backend/app/agents/case_generator_agent.py`
+  - 移除 `difficulty_config` 中的 `red_herring_count` 和 `decoy_range`
+  - 移除 `decoy_pool` 和红鲱鱼选择逻辑，所有线索统一使用 `real_range` 的 obviousness 范围
+  - 移除 `_parse_experts_from_data` / `_build_fallback_expert` 中找"非红鲱鱼"线索的兜底逻辑
+- **游戏服务**: `backend/app/services/game_service.py` 移除 `get_case_reveal` 中的 `is_red_herring` 字段和过滤条件，改为返回所有线索
+- **华生/Oracle Agent**: `backend/app/agents/watson_agent.py` / `oracle_agent.py` 移除红鲱鱼线索排除和调试信息
+- **前端类型**: `frontend/src/types/game.ts` 移除 `Clue.isRedHerring` 和 `CaseReveal.keyClues[].isRedHerring`
+- **测试**: `backend/tests/test_difficulty.py` 移除红鲱鱼数量断言，重命名 `test_non_red_herring_clues_covered_by_objects` → `test_all_clues_covered_by_objects`；`backend/tests/test_witness_expert.py` 重命名并移除红鲱鱼过滤
+
+**验收**
+- `grep -r "red_herring\|redHerring\|红鲱鱼" backend/ frontend/` → **零残留**
+- `pytest tests/test_difficulty.py tests/test_witness_expert.py -v` → **45/45 全绿**
+
+---
+
 ### 2026-05-06（审讯页面聊天框置顶展示角色 Timeline）
 
 **背景**: 玩家在审讯嫌疑人或问询证人时，需要随时查看角色的时间线信息以辅助推理。时间线数据已存在于 `Suspect.timeline` 和 `Witness.timeline` 字段中，但审讯页面此前未展示。

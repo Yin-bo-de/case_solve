@@ -92,9 +92,6 @@ class Clue(BaseModel):
     clue_type: str  # "physical", "testimonial", "forensic"
     location: Optional[str] = None
     related_suspect_ids: List[str] = Field(default_factory=list)
-    # 干扰线索标记：仅服务端使用，禁止下发至客户端 (运行时 API 中默认剥离)
-    # conclusion/reveal 走 game_service.get_case_reveal() 手工构造 dict，不受 exclude 影响
-    is_red_herring: bool = Field(default=False, exclude=True)
     discovered: bool = False
     discovery_notes: Optional[str] = None
     obviousness: float = Field(default=0.5, ge=0.0, le=1.0)  # 0.0=隐蔽, 1.0=明显

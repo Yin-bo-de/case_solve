@@ -19,8 +19,25 @@ from app.agents.watson_agent import get_watson_agent, WatsonAgent
 from app.agents.suspect_agent import get_suspect_agent
 from app.agents.witness_agent import get_witness_agent
 from app.agents.expert_agent import get_expert_agent
+from app.config import get_settings
 
 router = APIRouter()
+
+
+def _filter_visible_clues(game: GameState) -> GameState:
+    """过滤未发现的线索，防止客户端提前获知案件信息。"""
+    if game.case:
+        visible_clues = [c for c in game.case.clues if c.discovered or c.user_generated]
+        logger.debug(
+            f"[API] 过滤线索: game_id={game.game_id}, "
+            f"总量={len(game.case.clues)}, 可见={len(visible_clues)}"
+        )
+        game = game.model_copy(
+            update={
+                "case": game.case.model_copy(update={"clues": visible_clues})
+            }
+        )
+    return game
 
 
 class CreateInferenceRequest(BaseModel):
@@ -240,12 +257,12 @@ async def create_new_game(request: CreateGameRequest):
             logger.info(f"[API] 兑换码扣减成功: {updated_game.redemption_code}, 剩余: {remaining}")
 
     logger.info(f"[API] 游戏创建成功: {game.game_id}")
-    return updated_game
+    return _filter_visible_clues(updated_game)
 
 
 @router.get("/{game_id}", response_model=GameState)
 async def get_game_state(game_id: str):
-    """获取游戏状态"""
+    """获取游戏状态。只下发已发现（discovered）或用户生成（user_generated）的线索，防止客户端提前获知案件信息。"""
     logger.info(f"[API] 获取游戏状态: {game_id}")
 
     game_service = get_game_service()
@@ -254,7 +271,7 @@ async def get_game_state(game_id: str):
     if not game:
         raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
 
-    return game
+    return _filter_visible_clues(game)
 
 
 class SetDifficultyRequest(BaseModel):
@@ -308,7 +325,7 @@ async def set_difficulty(game_id: str, request: SetDifficultyRequest):
             raise HTTPException(status_code=500, detail="案件生成后游戏状态丢失")
 
     logger.info(f"[API] 难度设置成功: {game_id} -> {difficulty}, phase: {game.phase}")
-    return game
+    return _filter_visible_clues(game)
 
 
 @router.post("/{game_id}/watson/observation")

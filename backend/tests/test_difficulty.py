@@ -24,35 +24,23 @@ def _make_mock_case(difficulty: str):
 class TestClueDifficultyDistribution:
     def test_easy_clues(self):
         case = _make_mock_case("easy")
-        red_herrings = [c for c in case.clues if c.is_red_herring]
-        real_clues = [c for c in case.clues if not c.is_red_herring]
-
-        assert len(red_herrings) == 1, f"Easy 应有 1 个红鲱鱼，实际 {len(red_herrings)}"
-        for c in real_clues:
+        for c in case.clues:
             assert c.obviousness >= 0.7, (
-                f"Easy 真实线索 obviousness 应 >= 0.7，{c.id}={c.obviousness}"
+                f"Easy 线索 obviousness 应 >= 0.7，{c.id}={c.obviousness}"
             )
 
     def test_classic_clues(self):
         case = _make_mock_case("classic")
-        red_herrings = [c for c in case.clues if c.is_red_herring]
-        real_clues = [c for c in case.clues if not c.is_red_herring]
-
-        assert len(red_herrings) == 2, f"Classic 应有 2 个红鲱鱼，实际 {len(red_herrings)}"
-        for c in real_clues:
+        for c in case.clues:
             assert 0.4 <= c.obviousness <= 0.8, (
-                f"Classic 真实线索 obviousness 应在 0.4~0.8，{c.id}={c.obviousness}"
+                f"Classic 线索 obviousness 应在 0.4~0.8，{c.id}={c.obviousness}"
             )
 
     def test_hardcore_clues(self):
         case = _make_mock_case("hardcore")
-        red_herrings = [c for c in case.clues if c.is_red_herring]
-        real_clues = [c for c in case.clues if not c.is_red_herring]
-
-        assert len(red_herrings) == 3, f"Hardcore 应有 3 个红鲱鱼，实际 {len(red_herrings)}"
-        for c in real_clues:
+        for c in case.clues:
             assert c.obviousness <= 0.5, (
-                f"Hardcore 真实线索 obviousness 应 <= 0.5，{c.id}={c.obviousness}"
+                f"Hardcore 线索 obviousness 应 <= 0.5，{c.id}={c.obviousness}"
             )
 
     def test_all_clues_have_obviousness_field(self):
@@ -167,18 +155,17 @@ class TestSceneGeneration:
                     f"{difficulty}: scene '{scene.name}' 对象数 {len(scene.objects)} 不在 3-6 范围内"
                 )
 
-    def test_non_red_herring_clues_covered_by_objects(self):
-        """每个非红鲱鱼线索必须至少出现在某个 object.hidden_clue_ids 中"""
+    def test_all_clues_covered_by_objects(self):
+        """每个线索必须至少出现在某个 object.hidden_clue_ids 中"""
         for difficulty in ["easy", "classic", "hardcore"]:
             case = _make_mock_case(difficulty)
             all_hidden_ids: set = set()
             for scene in case.scenes:
                 for obj in scene.objects:
                     all_hidden_ids.update(obj.hidden_clue_ids)
-            real_clues = [c for c in case.clues if not c.is_red_herring]
-            for clue in real_clues:
+            for clue in case.clues:
                 assert clue.id in all_hidden_ids, (
-                    f"{difficulty}: 真实线索 '{clue.id}' 未被任何 object 引用"
+                    f"{difficulty}: 线索 '{clue.id}' 未被任何 object 引用"
                 )
 
     def test_investigation_locations_mirrors_scene_names(self):

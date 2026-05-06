@@ -144,25 +144,22 @@ class CaseGeneratorAgent:
             ),
         ]
 
-        # 按难度决定红鲱鱼数量和 obviousness 范围
-        # red_herring_count: 难度越高，误导线索越多
+        # 按难度决定 obviousness 范围
         # obviousness_range: 难度越高，线索越隐蔽
         difficulty_config = {
-            "easy":     {"red_herring_count": 1, "real_range": (0.7, 1.0), "decoy_range": (0.3, 0.5),
+            "easy":     {"real_range": (0.7, 1.0),
                          "witness_credibilities": [0.85, 0.9], "witness_lying": [False, False]},
-            "classic":  {"red_herring_count": 2, "real_range": (0.4, 0.8), "decoy_range": (0.2, 0.4),
+            "classic":  {"real_range": (0.4, 0.8),
                          "witness_credibilities": [0.75, 0.6], "witness_lying": [False, True]},
-            "hardcore": {"red_herring_count": 3, "real_range": (0.1, 0.4), "decoy_range": (0.1, 0.3),
+            "hardcore": {"real_range": (0.1, 0.4),
                          "witness_credibilities": [0.5, 0.4], "witness_lying": [True, False]},
         }
         config = difficulty_config.get(difficulty, difficulty_config["classic"])
-        red_herring_count = config["red_herring_count"]
         real_lo, real_hi = config["real_range"]
-        decoy_lo, decoy_hi = config["decoy_range"]
         witness_creds = config["witness_credibilities"]
         witness_lying = config["witness_lying"]
 
-        # 5条预定义线索原型（不含 is_red_herring / obviousness，由难度决定）
+        # 5条预定义线索原型（不含 obviousness，由难度决定）
         clue_templates = [
             dict(
                 id="clue-1",
@@ -201,23 +198,16 @@ class CaseGeneratorAgent:
             ),
         ]
 
-        # clue-2、clue-3、clue-4 作为候选红鲱鱼池（clue-1、clue-5 始终是真实线索）
-        decoy_pool = ["clue-2", "clue-3", "clue-4"]
-        red_herring_ids = set(decoy_pool[:red_herring_count])
-
         clues = []
         for tmpl in clue_templates:
-            is_rh = tmpl["id"] in red_herring_ids
-            lo, hi = (decoy_lo, decoy_hi) if is_rh else (real_lo, real_hi)
             clues.append(Clue(
                 **tmpl,
-                is_red_herring=is_rh,
-                obviousness=round(random.uniform(lo, hi), 2),
+                obviousness=round(random.uniform(real_lo, real_hi), 2),
             ))
 
         logger.debug(
-            f"[CaseGeneratorAgent] 难度={difficulty}, 红鲱鱼数={red_herring_count}, "
-            f"obviousness范围(真实)={real_lo}~{real_hi}"
+            f"[CaseGeneratorAgent] 难度={difficulty}, "
+            f"obviousness范围={real_lo}~{real_hi}"
         )
 
         # 构造 3 个 scenes，将所有线索挂到对应 objects 上
@@ -410,13 +400,12 @@ class CaseGeneratorAgent:
     def _build_case_from_llm_output(self, case_id: str, difficulty: str, data: dict) -> Case:
         """将 LLM 返回的 JSON 转换为 Case 对象，补充 ID/时间戳/obviousness 等"""
         difficulty_config = {
-            "easy":     {"red_herring_count": 1, "real_range": (0.7, 1.0), "decoy_range": (0.3, 0.5)},
-            "classic":  {"red_herring_count": 2, "real_range": (0.4, 0.8), "decoy_range": (0.2, 0.4)},
-            "hardcore": {"red_herring_count": 3, "real_range": (0.1, 0.4), "decoy_range": (0.1, 0.3)},
+            "easy":     {"real_range": (0.7, 1.0)},
+            "classic":  {"real_range": (0.4, 0.8)},
+            "hardcore": {"real_range": (0.1, 0.4)},
         }
         config = difficulty_config.get(difficulty, difficulty_config["classic"])
         real_lo, real_hi = config["real_range"]
-        decoy_lo, decoy_hi = config["decoy_range"]
 
         # 构建嫌疑人（补充 ID）
         suspects = []
@@ -431,8 +420,6 @@ class CaseGeneratorAgent:
         # 构建线索（补充 ID / obviousness）
         clues = []
         for i, c in enumerate(data["clues"]):
-            is_rh = c.get("is_red_herring", False)
-            lo, hi = (decoy_lo, decoy_hi) if is_rh else (real_lo, real_hi)
             # related_suspect_indices → related_suspect_ids
             related_ids = [suspects[idx].id for idx in c.get("related_suspect_indices", []) if idx < len(suspects)]
             clues.append(Clue(
@@ -441,8 +428,7 @@ class CaseGeneratorAgent:
                 clue_type=c.get("clue_type", "physical"),
                 location=c.get("location"),
                 related_suspect_ids=related_ids,
-                is_red_herring=is_rh,
-                obviousness=round(random.uniform(lo, hi), 2),
+                obviousness=round(random.uniform(real_lo, real_hi), 2),
                 investigation_hint=c.get("investigation_hint"),
                 chain_next_clue_index=c.get("chain_next_clue_index"),
             ))
@@ -513,7 +499,7 @@ class CaseGeneratorAgent:
     def _build_fallback_scenes(self, clues: list) -> list:
         """
         当 LLM 不返回 scenes 时，将所有线索平均分配到 2 个 fallback scenes 中。
-        保证非红鲱鱼线索至少在一个 object 的 hidden_clue_ids 中出现。
+        保证所有线索至少在一个 object 的 hidden_clue_ids 中出现。
         """
         mid = max(1, len(clues) // 2)
         first_half = [c.id for c in clues[:mid]]
@@ -641,9 +627,9 @@ class CaseGeneratorAgent:
                     if idx < len(clues)
                 ]
                 if not related_clue_ids and clues:
-                    # 找第一条非红鲱鱼物证线索
+                    # 找第一条物证线索
                     real_clue = next(
-                        (c for c in clues if not c.is_red_herring and c.clue_type in ("physical", "forensic")),
+                        (c for c in clues if c.clue_type in ("physical", "forensic")),
                         clues[0]
                     )
                     related_clue_ids = [real_clue.id]
@@ -1046,7 +1032,7 @@ class CaseGeneratorAgent:
     def _build_fallback_expert(self, clues: list) -> list:
         """当 LLM 未返回 experts 时，生成 1 个基于物证的法医"""
         real_clue = next(
-            (c for c in clues if not c.is_red_herring and c.clue_type in ("physical", "forensic")),
+            (c for c in clues if c.clue_type in ("physical", "forensic")),
             clues[0] if clues else None
         )
         related_ids = [real_clue.id] if real_clue else []

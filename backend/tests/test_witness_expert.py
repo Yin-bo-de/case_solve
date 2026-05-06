@@ -90,17 +90,17 @@ class TestMockCaseRelationshipConsistency:
                             f"{difficulty}: 专家发现 {finding.topic} 引用了不存在的线索 {cid}"
                         )
 
-    def test_expert_covers_at_least_one_non_red_herring_physical_clue(self):
+    def test_expert_covers_at_least_one_physical_clue(self):
         for difficulty in ["easy", "classic", "hardcore"]:
             case = _make_mock_case(difficulty)
             physical_clue_ids = {
                 c.id for c in case.clues
-                if not c.is_red_herring and c.clue_type in ("physical", "forensic")
+                if c.clue_type in ("physical", "forensic")
             }
             for expert in case.experts:
                 covered = set(expert.related_clue_ids) & physical_clue_ids
                 assert len(covered) >= 1, (
-                    f"{difficulty}: 专家 {expert.id} 应覆盖至少 1 条非红鲱鱼物证线索"
+                    f"{difficulty}: 专家 {expert.id} 应覆盖至少 1 条物证线索"
                 )
 
 

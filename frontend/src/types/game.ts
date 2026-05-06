@@ -140,7 +140,6 @@ export interface Clue {
   clueType: 'physical' | 'testimonial' | 'forensic'
   location?: string
   relatedSuspectIds: string[]
-  isRedHerring?: boolean
   discovered: boolean
   discoveryNotes?: string
   userLabel?: string
@@ -319,6 +318,5 @@ export interface CaseReveal {
     id: string
     description: string
     clueType: string
-    isRedHerring: boolean
   }>
 }

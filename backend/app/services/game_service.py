@@ -475,10 +475,8 @@ class GameService:
                     "id": c.id,
                     "description": c.description,
                     "clue_type": c.clue_type,
-                    "is_red_herring": c.is_red_herring
                 }
                 for c in game.case.clues
-                if not c.is_red_herring
             ]
         }
 

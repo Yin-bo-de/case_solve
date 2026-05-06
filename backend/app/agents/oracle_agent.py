@@ -31,7 +31,7 @@ def _format_case_truth(case: Case) -> str:
     lines.append("clues:")
     for c in case.clues:
         lines.append(
-            f"  - id={c.id} type={c.clue_type} red_herring={c.is_red_herring} desc={c.description}"
+            f"  - id={c.id} type={c.clue_type} desc={c.description}"
         )
     return "\n".join(lines)
 
