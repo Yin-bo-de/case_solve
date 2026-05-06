@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-06（Briefing 嫌疑人介绍改为时间线展示）
+**更新日期**: 2026-05-06（审讯页面聊天框置顶展示角色 Timeline）
 **当前分支**: releaes/1.0.0_dev
 **项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成）
 
@@ -198,6 +198,22 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-06（审讯页面聊天框置顶展示角色 Timeline）
+
+**背景**: 玩家在审讯嫌疑人或问询证人时，需要随时查看角色的时间线信息以辅助推理。时间线数据已存在于 `Suspect.timeline` 和 `Witness.timeline` 字段中，但审讯页面此前未展示。
+
+**改动**
+- ✅ **修改 `frontend/src/pages/InterrogationPage.tsx`**：
+  - 嫌疑人单独审讯：`conversation-area` 顶部新增 `actor-timeline-card` 组件，展示 `selectedSuspect.timeline`
+  - 证人问询：`conversation-area` 顶部新增 `actor-timeline-card` 组件，展示 `selectedWitness.timeline`
+  - 新增内联样式 `.actor-timeline-card*` 系列（金色渐变竖线 + Courier 等宽字体，与 BriefingPage 风格一致）
+  - timeline 为空时不展示卡片
+
+**验收**
+- `npm run typecheck` → **零错误**
+
+---
 
 ### 2026-05-06（Briefing 嫌疑人介绍改为时间线展示）
 

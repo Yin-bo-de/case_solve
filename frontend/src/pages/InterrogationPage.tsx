@@ -836,6 +836,15 @@ export default function InterrogationPage() {
                   </div>
 
                   <div className="conversation-area conversation-area--with-tips">
+                    {selectedSuspect?.timeline && (
+                      <div className="actor-timeline-card">
+                        <div className="actor-timeline-card__header">⏱ 时间线</div>
+                        <div className="actor-timeline-card__body">
+                          <div className="actor-timeline-card__bar" />
+                          <p className="actor-timeline-card__text">{selectedSuspect.timeline}</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="conversation-messages">
                       {(() => {
                         const currentHistory = getCurrentConversationHistory()
@@ -1097,6 +1106,15 @@ export default function InterrogationPage() {
                   </div>
 
                   <div className="conversation-area conversation-area--with-tips">
+                    {selectedWitness?.timeline && (
+                      <div className="actor-timeline-card">
+                        <div className="actor-timeline-card__header">⏱ 时间线</div>
+                        <div className="actor-timeline-card__body">
+                          <div className="actor-timeline-card__bar" />
+                          <p className="actor-timeline-card__text">{selectedWitness.timeline}</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="conversation-messages">
                       {(witnessConversationsByWitnessId[selectedWitness.id] || []).length === 0 ? (
                         <div className="no-messages"><p>开始询问证人{selectedWitness.name}。</p></div>
@@ -1722,6 +1740,48 @@ export default function InterrogationPage() {
           font-size: 0.75rem;
           color: #555;
           font-style: italic;
+        }
+
+        /* 角色时间线卡片（置顶于聊天框） */
+        .actor-timeline-card {
+          flex-shrink: 0;
+          background: rgba(212, 175, 55, 0.04);
+          border: 1px solid rgba(212, 175, 55, 0.2);
+          border-radius: 6px;
+          padding: 0.75rem 1rem;
+          margin: 1rem 1.5rem 0;
+        }
+
+        .actor-timeline-card__header {
+          font-size: 0.8rem;
+          color: rgba(212, 175, 55, 0.8);
+          margin-bottom: 0.5rem;
+          letter-spacing: 0.05em;
+        }
+
+        .actor-timeline-card__body {
+          display: flex;
+          gap: 0.75rem;
+          align-items: flex-start;
+        }
+
+        .actor-timeline-card__bar {
+          flex-shrink: 0;
+          width: 3px;
+          min-height: 100%;
+          align-self: stretch;
+          background: linear-gradient(to bottom, rgba(212, 175, 55, 0.6), rgba(212, 175, 55, 0.15));
+          border-radius: 2px;
+          margin-top: 2px;
+        }
+
+        .actor-timeline-card__text {
+          font-family: 'Courier New', 'Courier', monospace;
+          font-size: 0.82rem;
+          color: rgba(255, 255, 255, 0.7);
+          line-height: 1.7;
+          white-space: pre-wrap;
+          margin: 0;
         }
 
         /* 对话区 */
