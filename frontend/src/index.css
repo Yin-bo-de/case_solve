@@ -2985,8 +2985,7 @@ button, .clue-item, .actor-tab, .footer-button {
 .scene-page__clues-btn {
   position: fixed;
   left: 1rem;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 1.5rem;
   z-index: 100;
   background: rgba(0, 0, 0, 0.75);
   border: 1px solid rgba(201, 160, 92, 0.5);
