@@ -69,7 +69,22 @@ CASE_GENERATION_SYSTEM = """\
   "cause_of_death": "string",
   "time_of_death": "string",
   "location": "string",
-  "summary": "string，不要出现任何案件故事内容之外的描述，如“本案难度较低，关键线索指向明确，时间线矛盾可直接定位说谎者。”",
+  "summary": "string，案件对外公开的初始概要，仅用于玩家开局阅读，必须满足：
+    - 只能包含案件表面信息
+    - 只能描述：
+      - 死者身份
+      - 死亡事件
+      - 案发地点
+      - 初步异常现象
+    - 风格应像维多利亚时代报纸或警方简报
+
+    禁止包含：
+    - 真凶身份
+    - 真实动机
+    - 作案手法真相
+    - 隐藏关系
+    - 未被调查发现的事实
+    - 任何结论性语言",
   "murder_method": "string",
   "true_murderer_index": 0,
 
