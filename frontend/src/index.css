@@ -2961,21 +2961,6 @@ button, .clue-item, .actor-tab, .footer-button {
   display: flex; justify-content: space-between; font-size: 0.75rem; color: #666;
 }
 
-.deduction-board__accuse-fab {
-  position: fixed; bottom: 2rem; right: 2rem;
-  padding: 0.8rem 1.5rem; border-radius: 24px;
-  background: rgba(50,30,10,0.9);
-  border: 2px solid rgba(201,160,92,0.4);
-  color: #c9a05c; cursor: pointer; font-size: 1rem;
-  transition: all 0.2s; opacity: 0.4;
-}
-.deduction-board__accuse-fab--active {
-  opacity: 1; box-shadow: 0 0 16px rgba(201,160,92,0.4);
-}
-.deduction-board__accuse-fab--active:hover {
-  background: rgba(201,160,92,0.2); box-shadow: 0 0 24px rgba(201,160,92,0.6);
-}
-.deduction-board__accuse-fab:disabled { cursor: not-allowed; }
 
 /* ═══════════════════════════════════════════════════════
    场景页 (ScenePage) & 勘查页场景列表
@@ -3466,10 +3451,6 @@ button, .clue-item, .actor-tab, .footer-button {
     display: flex !important;
   }
 
-  .deduction-board__accuse-fab {
-    bottom: calc(80px + env(safe-area-inset-bottom)) !important;
-    right: 16px !important;
-  }
 
   .deduction-board__mobile-clues-btn {
     display: flex !important;

@@ -230,6 +230,15 @@ export default function DeductionBoard() {
           <Link to={`/interrogation/${gameId}`} className="footer-button footer-button--secondary">
             审讯室 →
           </Link>
+          <button
+            className={`footer-button ${canAccuse ? 'footer-button--next' : 'footer-button--secondary'}`}
+            disabled={!canAccuse}
+            onClick={() => setShowAccuseModal(true)}
+            type="button"
+            title={canAccuse ? '点击指认凶手' : '需要至少一条正确推理记录'}
+          >
+            🔍 指认凶手
+          </button>
         </div>
       </footer>
 
@@ -293,16 +302,6 @@ export default function DeductionBoard() {
         </MobileDrawer>
       )}
 
-      {/* 指认凶手浮动按钮 */}
-      <button
-        className={`deduction-board__accuse-fab ${canAccuse ? 'deduction-board__accuse-fab--active' : ''}`}
-        disabled={!canAccuse}
-        onClick={() => setShowAccuseModal(true)}
-        type="button"
-        title={canAccuse ? '点击指认凶手' : '需要至少一条正确推理记录'}
-      >
-        🔍 指认凶手
-      </button>
 
       {showCombineModal && (
         <CombineReasoningModal
