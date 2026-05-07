@@ -1493,7 +1493,6 @@ button, .clue-item, .actor-tab, .footer-button {
 
 .deduction-board__header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 15px;
@@ -1507,24 +1506,6 @@ button, .clue-item, .actor-tab, .footer-button {
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
 }
 
-.deduction-board__nav {
-  display: flex;
-  gap: 15px;
-}
-
-.deduction-board__link {
-  color: #8b7355;
-  text-decoration: none;
-  padding: 8px 16px;
-  border: 1px solid #8b7355;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
-
-.deduction-board__link:hover {
-  background: #8b7355;
-  color: #1a1a2e;
-}
 
 .deduction-board__content {
   display: grid;
@@ -2773,9 +2754,6 @@ button, .clue-item, .actor-tab, .footer-button {
   background: rgba(0,0,0,0.4);
 }
 .deduction-board__title { font-family: var(--font-title); color: #c9a05c; font-size: 1.4rem; }
-.deduction-board__nav { display: flex; gap: 1rem; }
-.deduction-board__link { color: #c9a05c; text-decoration: none; font-size: 0.9rem; }
-.deduction-board__link:hover { text-decoration: underline; }
 
 .deduction-board__content {
   display: grid;
@@ -3501,9 +3479,6 @@ button, .clue-item, .actor-tab, .footer-button {
     padding: 0.75rem 1rem;
   }
 
-  .deduction-board__nav {
-    font-size: 0.85rem;
-  }
 
   .stats-bar {
     flex-wrap: wrap;

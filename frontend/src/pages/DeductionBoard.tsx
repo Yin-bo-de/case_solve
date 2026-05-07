@@ -102,10 +102,6 @@ export default function DeductionBoard() {
     <div className="deduction-board">
       <header className="deduction-board__header">
         <h1 className="deduction-board__title">演绎推理板</h1>
-        <div className="deduction-board__nav">
-          <Link to={`/investigation/${gameId}`} className="deduction-board__link">← 返回勘查</Link>
-          <Link to={`/interrogation/${gameId}`} className="deduction-board__link">审讯室 →</Link>
-        </div>
       </header>
 
       <div className="deduction-board__content">
@@ -224,6 +220,18 @@ export default function DeductionBoard() {
           )}
         </main>
       </div>
+
+      {/* 底部导航 */}
+      <footer className="investigation-footer">
+        <Link to={`/investigation/${gameId}`} className="footer-button footer-button--back">
+          ← 返回勘查
+        </Link>
+        <div className="investigation-footer__actions">
+          <Link to={`/interrogation/${gameId}`} className="footer-button footer-button--secondary">
+            审讯室 →
+          </Link>
+        </div>
+      </footer>
 
       {/* 移动端线索抽屉按钮 */}
       <button
