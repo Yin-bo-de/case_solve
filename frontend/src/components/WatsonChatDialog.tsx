@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useDrag } from '@/hooks/useDrag'
 import { useWatsonChatStore, useUIStore, useGameStore } from '@/store'
 import type { QuickQuestion, GamePhase } from '@/types/game'
+import MobileDrawer from './MobileDrawer'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 console.debug('[WatsonChatDialog.tsx] 加载模块')
 
@@ -60,6 +62,8 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
   const currentPhase = gameState?.phase || 'start'
 
   const [inputMessage, setInputMessage] = useState('')
+  const isMobile = useIsMobile()
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const isInitializedRef = useRef(false)
   const isDraggingRef = useRef(false)
@@ -76,7 +80,8 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     position: currentPosition,
   } = useDrag({
     initialPosition: watsonDialogPosition,
-    boundary: { padding: 20 }
+    boundary: { padding: 20 },
+    enabled: !isMobile,
   })
 
   // 组件首次挂载后，计算默认右下角位置
@@ -168,6 +173,117 @@ export default function WatsonChatDialog({ gameId }: WatsonChatDialogProps) {
     return names[type] || type
   }
 
+  // 移动端：FAB + 底部抽屉
+  if (isMobile) {
+    return (
+      <>
+        <button
+          className="watson-fab"
+          onClick={() => setMobileDrawerOpen(true)}
+          type="button"
+          title="与华生对话"
+          aria-label="打开华生对话"
+        >
+          👨‍⚕️
+        </button>
+        <MobileDrawer
+          open={mobileDrawerOpen}
+          onClose={() => setMobileDrawerOpen(false)}
+          title="👨‍⚕️ 约翰·华生"
+          height="75dvh"
+        >
+          {/* 错误提示 */}
+          {error && (
+            <div className="watson-error">
+              <span className="error-icon">⚠️</span>
+              <span className="error-message">{error}</span>
+            </div>
+          )}
+
+          {/* 消息列表 */}
+          <div className="watson-messages" style={{ maxHeight: 'calc(75dvh - 200px)', overflowY: 'auto' }}>
+            {messages.length === 0 ? (
+              <div className="watson-welcome">
+                <p>你好，老朋友！有什么想和我讨论的吗？随时问我问题，我会尽力帮助你。</p>
+              </div>
+            ) : (
+              messages.map(msg => (
+                <div
+                  key={msg.id}
+                  className={`watson-message watson-message--${msg.role} watson-message--type-${msg.messageType}`}
+                >
+                  <div className="watson-message__role">
+                    {msg.role === 'user' ? '你' : '华生'}
+                    {msg.role === 'watson' && (
+                      <span className="watson-message__type">
+                        ({getMessageTypeName(msg.messageType)})
+                      </span>
+                    )}
+                  </div>
+                  <div className="watson-message__content">{msg.content}</div>
+                  <div className="watson-message__time">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))
+            )}
+            {isLoading && (
+              <div className="watson-typing">
+                <span className="typing-dot"></span>
+                <span className="typing-dot"></span>
+                <span className="typing-dot"></span>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* 快捷问题 */}
+          {currentQuickQuestions.length > 0 && (
+            <div className="watson-quick-questions">
+              <div className="quick-questions-label">快捷问题：</div>
+              <div className="quick-questions-list">
+                {currentQuickQuestions.map((q, index) => (
+                  <button
+                    key={index}
+                    className="quick-question-btn"
+                    onClick={() => handleQuickQuestion(q.message)}
+                    disabled={isLoading}
+                    type="button"
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 输入区域 */}
+          <div className="watson-input-area">
+            <input
+              type="text"
+              className="watson-input"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="问华生任何问题..."
+              disabled={isLoading}
+              style={{ fontSize: '16px' }}
+            />
+            <button
+              className="watson-send-btn"
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim() || isLoading}
+              type="button"
+            >
+              发送
+            </button>
+          </div>
+        </MobileDrawer>
+      </>
+    )
+  }
+
+  // 桌面端：原有拖拽浮窗
   return (
     <div
       ref={dragRef}

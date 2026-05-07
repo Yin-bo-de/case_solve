@@ -2352,6 +2352,116 @@ export default function InterrogationPage() {
         .modal-btn--primary { background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%); color: #1a1a2e; font-weight: bold; }
         .modal-btn--primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(212,175,55,0.4); }
         .modal-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* ─── 移动端响应式 ─── */
+        @media (max-width: 1024px) {
+          .interrogation-main {
+            flex-direction: column !important;
+            padding: 0.75rem;
+          }
+
+          .actors-panel {
+            width: 100% !important;
+            flex-direction: row !important;
+            overflow: visible !important;
+            flex-shrink: 0;
+          }
+
+          .actor-tabs {
+            flex-direction: row !important;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: rgba(0, 0, 0, 0.4);
+          }
+
+          .actor-tab {
+            flex: 0 0 auto !important;
+            min-width: 80px;
+          }
+
+          .panel-content {
+            display: none !important;
+          }
+
+          .tips-panel {
+            display: none !important;
+          }
+
+          .interrogation-room {
+            width: 100% !important;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .interrogation-header {
+            padding: 0.75rem 1rem;
+          }
+
+          .header-content {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 0.4rem;
+          }
+
+          .header-title {
+            font-size: 1.2rem !important;
+          }
+
+          .mode-toggle {
+            flex-wrap: wrap;
+          }
+
+          .mode-button {
+            padding: 0.4rem 0.75rem;
+            font-size: 0.85rem;
+          }
+
+          .conversation-area {
+            min-height: calc(100dvh - 320px) !important;
+            max-height: none !important;
+          }
+
+          .message-content {
+            max-width: 85% !important;
+          }
+
+          .question-input-area {
+            padding: 0.75rem 1rem !important;
+            padding-bottom: max(0.75rem, env(safe-area-inset-bottom)) !important;
+          }
+
+          .question-input {
+            font-size: 16px !important;
+          }
+
+          .interrogation-footer {
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+            padding: 0.75rem 1rem !important;
+            padding-bottom: max(0.75rem, env(safe-area-inset-bottom)) !important;
+          }
+
+          .actor-timeline-card {
+            margin: 0.5rem 0.75rem 0 !important;
+          }
+
+          .current-suspect {
+            padding: 1rem !important;
+          }
+
+          .suspect-avatar-large {
+            width: 56px !important;
+            height: 56px !important;
+            font-size: 1.75rem !important;
+          }
+
+          .suspect-details h2 {
+            font-size: 1.25rem !important;
+          }
+        }
       `}</style>
 
       {/* 华生对话框 */}

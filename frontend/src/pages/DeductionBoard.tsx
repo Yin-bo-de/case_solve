@@ -7,6 +7,8 @@ import CombineReasoningModal from '@/components/CombineReasoningModal'
 import AccusationModal from '@/components/AccusationModal'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
 import CluePreviewModal from '@/components/CluePreviewModal'
+import MobileDrawer from '@/components/MobileDrawer'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 
 console.debug('[DeductionBoard.tsx] 加载模块')
 
@@ -32,6 +34,8 @@ export default function DeductionBoard() {
   const [showCombineModal, setShowCombineModal] = useState(false)
   const [showAccuseModal, setShowAccuseModal] = useState(false)
   const [previewedClueId, setPreviewedClueId] = useState<string | null>(null)
+  const isMobile = useIsMobile()
+  const [showMobileCluesDrawer, setShowMobileCluesDrawer] = useState(false)
 
   console.debug('[DeductionBoard.tsx] 渲染', { gameId, clueCount: clues.length, recordCount: reasoningRecords.length })
 
@@ -106,7 +110,7 @@ export default function DeductionBoard() {
 
       <div className="deduction-board__content">
         {/* 左栏：线索列表 */}
-        <aside className="deduction-board__clues">
+        <aside className={`deduction-board__clues${isMobile && !showMobileCluesDrawer ? ' deduction-board__clues--hidden' : ''}`}>
           <h2 className="deduction-board__section-title">📋 线索列表</h2>
           {clues.length === 0 ? (
             <p className="deduction-board__empty">
@@ -220,6 +224,66 @@ export default function DeductionBoard() {
           )}
         </main>
       </div>
+
+      {/* 移动端线索抽屉按钮 */}
+      <button
+        className="deduction-board__mobile-clues-btn"
+        onClick={() => setShowMobileCluesDrawer(true)}
+        type="button"
+      >
+        📋 查看线索
+        {selectedClueIds.length > 0 && (
+          <span style={{ background: '#d4af37', color: '#1a1a2e', borderRadius: '10px', padding: '0 6px', fontSize: '0.75rem' }}>
+            {selectedClueIds.length}
+          </span>
+        )}
+      </button>
+
+      {/* 移动端线索抽屉 */}
+      {isMobile && (
+        <MobileDrawer
+          open={showMobileCluesDrawer}
+          onClose={() => setShowMobileCluesDrawer(false)}
+          title="📋 线索列表"
+          height="75dvh"
+        >
+          {clues.length === 0 ? (
+            <p className="deduction-board__empty">尚无线索，请先在场景中探查或审讯嫌疑人。</p>
+          ) : (
+            <ul className="clue-list clue-list--deduction">
+              {clues.map((c) => (
+                <li
+                  key={c.id}
+                  className={`clue-item clue-item--deduction ${selectedClueIds.includes(c.id) ? 'clue-item--selected' : ''}`}
+                  onClick={() => { toggleClue(c.id); }}
+                >
+                  <span className="clue-item__check">
+                    {selectedClueIds.includes(c.id) ? '☑' : '☐'}
+                  </span>
+                  <span className="clue-item__label">
+                    {c.userLabel || c.description.substring(0, 30)}
+                  </span>
+                  <span className="clue-item__source">
+                    {c.sourceType === 'scene' ? '📍' : c.sourceType === 'interrogation' ? '🗣' : '📋'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div style={{ padding: '12px 0', borderTop: '1px solid rgba(212,175,55,0.2)', marginTop: '8px' }}>
+            <span>已选 {selectedClueIds.length} 条</span>
+            <button
+              className="action-button"
+              disabled={selectedClueIds.length === 0}
+              onClick={() => { setShowCombineModal(true); setShowMobileCluesDrawer(false); }}
+              type="button"
+              style={{ marginLeft: '12px' }}
+            >
+              ✨ 组合推理
+            </button>
+          </div>
+        </MobileDrawer>
+      )}
 
       {/* 指认凶手浮动按钮 */}
       <button

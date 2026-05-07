@@ -12,12 +12,14 @@ interface UseDragOptions {
   boundary?: {
     padding?: number
   }
+  enabled?: boolean
 }
 
 export function useDrag(options: UseDragOptions = {}) {
   const {
     initialPosition = { x: 0, y: 0 },
-    boundary = { padding: 20 }
+    boundary = { padding: 20 },
+    enabled = true
   } = options
 
   const [position, setPosition] = useState<DragPosition>(initialPosition)
@@ -48,6 +50,9 @@ export function useDrag(options: UseDragOptions = {}) {
   }, [boundary.padding])
 
   const handleMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    // 移动端禁用拖拽时直接跳过
+    if (!enabled) return
+
     // 忽略不是鼠标左键或触摸的事件
     if ('touches' in e) {
       // 触摸事件
@@ -110,7 +115,7 @@ export function useDrag(options: UseDragOptions = {}) {
         window.removeEventListener('touchend', handleMouseUp)
       }
     }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+  }, [isDragging, enabled, handleMouseMove, handleMouseUp])
 
   // 窗口大小变化时重新约束位置
   useEffect(() => {
@@ -127,7 +132,7 @@ export function useDrag(options: UseDragOptions = {}) {
     transform: `translate(${position.x}px, ${position.y}px)`,
     cursor: isDragging ? 'grabbing' : 'auto',
     userSelect: isDragging ? 'none' : 'auto',
-    touchAction: 'none'
+    touchAction: enabled ? 'none' : 'auto'
   }
 
   // 拖拽手柄属性
@@ -135,7 +140,7 @@ export function useDrag(options: UseDragOptions = {}) {
     onMouseDown: handleMouseDown,
     onTouchStart: handleMouseDown,
     style: {
-      cursor: 'move'
+      cursor: enabled ? 'move' : 'default'
     } as React.CSSProperties
   }
 

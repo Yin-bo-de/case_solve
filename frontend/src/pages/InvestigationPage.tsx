@@ -132,7 +132,7 @@ export default function InvestigationPage() {
         <button className="footer-button footer-button--back" onClick={() => navigate('/')} type="button">
           返回贝克街
         </button>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="investigation-footer__actions">
           <Link to={`/deduction/${gameId}`} className="footer-button footer-button--secondary">
             推理板
           </Link>

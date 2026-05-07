@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-07（移除冗余字段 investigation_locations，统一由 scenes 派生调查地点）
+**更新日期**: 2026-05-07（移动端响应式改造完成：全量8页面 + Watson浮窗 + 全部Modal均支持 iPhone≥375px 和 iPad≥768px）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成）
+**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成；移动端响应式改造完成）
 
 ---
 
@@ -104,7 +104,8 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ├── frontend/                         # React + Vite 前端
 │   ├── src/
 │   │   ├── hooks/                    # 自定义 Hooks
-│   │   │   └── useDrag.ts               # 拖拽 Hook
+│   │   │   ├── useDrag.ts               # 拖拽 Hook（支持 enabled 参数，移动端禁用）
+│   │   │   └── useMediaQuery.ts         # 响应式媒体查询 Hook（useIsMobile / useIsTablet）
 │   │   ├── pages/                    # 页面组件
 │   │   │   ├── StartPage.tsx             # 起始页面
 │   │   │   ├── InvestigationPage.tsx     # 勘查页面（场景列表）
@@ -122,8 +123,10 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   ├── storeManager.ts           # 统一状态管理器
 │   │   │   └── README.md                # 状态管理文档
 │   │   ├── components/                 # 通用组件
+│   │   │   ├── MobileDrawer.tsx          # 移动端底部/侧边抽屉组件
+│   │   │   ├── MobileDrawer.css          # MobileDrawer 样式
 │   │   │   ├── MusicPlayer.tsx           # 全局背景音乐播放器（右下角浮窗）
-│   │   │   ├── WatsonChatDialog.tsx      # 华生对话框组件
+│   │   │   ├── WatsonChatDialog.tsx      # 华生对话框（桌面拖拽浮窗 / 移动端 FAB + 抽屉）
 │   │   │   ├── CluePreviewModal.tsx       # 线索详情预览弹窗
 │   │   │   ├── ScenePanel/               # 场景相关组件
 │   │   │   │   ├── SceneChat.tsx         # 场景NPC对话聊天框
@@ -198,6 +201,28 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-07（移动端响应式改造 — 全量8页面适配）
+
+**背景**: 前端仅有2个媒体查询断点（1024px/560px），手机端（< 768px）几乎零适配，对应 squishy-wiggling-matsumoto.md 改造计划。
+
+**改动**
+- ✅ **新增 `frontend/src/hooks/useMediaQuery.ts`**：通用媒体查询 Hook，导出 `useIsMobile`（≤768px）、`useIsTablet`（≤1024px）
+- ✅ **新增 `frontend/src/components/MobileDrawer.tsx` + `MobileDrawer.css`**：移动端底部/侧边抽屉组件，含 ESC 关闭、body 滚动锁定、iOS 安全区适配、入场动画
+- ✅ **修改 `frontend/src/hooks/useDrag.ts`**：新增 `enabled` 参数，移动端可禁用拖拽（`enabled: !isMobile`）
+- ✅ **修改 `frontend/src/index.css`**：`:root` 新增响应式断点变量（`--bp-mobile`、`--bp-tablet`）及安全区变量，`body` 添加 `overflow-x: hidden` 等基线，末尾追加全量移动端 `@media` 规则（Modal全屏、各页面布局、Watson FAB、触摸目标44px）
+- ✅ **修改 `frontend/src/components/WatsonChatDialog.tsx`**：移动端渲染圆形 FAB（`.watson-fab`）+ `MobileDrawer` 底部抽屉；桌面端保留原有拖拽浮窗；`useDrag` 传入 `enabled: !isMobile`
+- ✅ **修改 `frontend/src/pages/DeductionBoard.tsx`**：移动端添加「查看线索」FAB 按钮 + `MobileDrawer` 抽屉展示线索列表；`useIsMobile` 控制侧边栏显隐
+- ✅ **修改 `frontend/src/pages/InterrogationPage.tsx`**：内联 `<style>` 块末尾追加移动端 `@media` 规则（布局折叠、input 防缩放、安全区）
+- ✅ **修改 `frontend/src/pages/InvestigationPage.tsx`**：底部导航按钮 div 替换 inline style 为 class `.investigation-footer__actions`（支持CSS覆盖）
+- ✅ **CSS 覆盖范围**：InvestigationPage、DeductionBoard、ScenePage、WatsonDialog FAB、BriefingPage、StartPage/LoginPage、ConclusionPage 全部有对应移动端规则
+
+**验收**
+- `npm run typecheck` → **零错误**
+- 断点：`--bp-mobile: 768px`，`--bp-tablet: 1024px`
+- 新文件行数：useMediaQuery.ts（35行）、MobileDrawer.tsx（78行）、MobileDrawer.css（109行）
+
+---
 
 ### 2026-05-06（Loading 引导页 Step 6 — 日志规范）
 

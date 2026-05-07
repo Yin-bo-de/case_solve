@@ -5,6 +5,22 @@
   --font-body: 'IM Fell English', 'Georgia', 'Times New Roman', serif;
   --font-ui: 'Georgia', 'Times New Roman', serif;
 
+  /* 响应式断点 */
+  --bp-mobile: 768px;
+  --bp-tablet: 1024px;
+
+  /* iOS 安全区 */
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
+  --safe-right: env(safe-area-inset-right);
+
+  /* 层级管理 */
+  --z-modal: 1000;
+  --z-drawer: 900;
+  --z-fab: 800;
+  --z-watson: 850;
+
   font-family: var(--font-body);
   line-height: 1.6;
   font-weight: 400;
@@ -72,11 +88,35 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+}
+
+/* 防止 Safari 在输入框聚焦时自动缩放 */
+input, textarea, select {
+  font-size: 16px;
+}
+
+/* 触摸目标最小尺寸 */
+button, .clue-item, .actor-tab, .footer-button {
+  min-height: 44px;
+}
+
+/* 移动端隐藏 hover 样式 */
+@media (hover: none) {
+  .difficulty-option:hover,
+  .scene-card:hover,
+  .suspect-item:hover,
+  .quick-question-btn:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
 }
 
 /* 起始页面样式 */
@@ -3280,4 +3320,342 @@ body {
   background-color: #fffbeb;
   border-left-color: #eab308;
   color: #92400e;
+}
+
+/* =====================================================
+   移动端响应式 — Mobile Responsive
+   ===================================================== */
+
+/* Modal 全屏规则 */
+@media (max-width: 768px) {
+  .modal,
+  .clue-selector-modal,
+  .clue-preview-modal,
+  .accusation-modal,
+  .extraction-modal,
+  .combine-reasoning-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    inset: 0 !important;
+    margin: 0 !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+  }
+
+  .modal-footer {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    background: inherit;
+  }
+}
+
+/* ─── InvestigationPage 响应式 ─── */
+@media (max-width: 1024px) {
+  .investigation-footer {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0.75rem 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .investigation-header .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .header-info {
+    font-size: 0.85rem;
+  }
+
+  .scene-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .case-summary-banner {
+    font-size: 0.9rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .investigation-footer {
+    flex-direction: column;
+    align-items: stretch;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .investigation-footer > * {
+    width: 100%;
+    text-align: center;
+  }
+
+  .investigation-footer > div {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .investigation-footer .footer-button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ─── DeductionBoard 响应式 ─── */
+@media (max-width: 1024px) {
+  .deduction-board__content {
+    grid-template-columns: 240px 1fr !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .deduction-board__content {
+    grid-template-columns: 1fr !important;
+  }
+
+  .deduction-board__clues {
+    display: none;
+  }
+
+  .deduction-board__clues--mobile-open {
+    display: flex !important;
+  }
+
+  .deduction-board__accuse-fab {
+    bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+    right: 16px !important;
+  }
+
+  .deduction-board__mobile-clues-btn {
+    display: flex !important;
+  }
+
+  .deduction-board__header {
+    padding: 0.75rem 1rem;
+  }
+
+  .deduction-board__nav {
+    font-size: 0.85rem;
+  }
+
+  .stats-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .stat-item {
+    flex: 1;
+    min-width: 80px;
+  }
+
+  .filter-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* 移动端打开线索按钮（默认隐藏，移动端显示） */
+.deduction-board__mobile-clues-btn {
+  display: none;
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 16px;
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  color: #d4af37;
+  border-radius: 24px;
+  padding: 0.6rem 1rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  z-index: var(--z-fab, 800);
+  min-height: 44px;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* ─── ScenePage 响应式 ─── */
+@media (max-width: 1024px) {
+  .scene-page__body {
+    grid-template-columns: 240px 1fr !important;
+  }
+
+  .scene-page__chat-section {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .scene-page__body {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto auto auto;
+  }
+
+  .scene-page__objects {
+    order: 2;
+  }
+
+  .scene-page__atmosphere {
+    order: 1;
+  }
+
+  .scene-page__atmosphere-img {
+    max-height: 200px;
+    width: 100%;
+    object-fit: cover;
+  }
+
+  .scene-page__header {
+    padding: 0.75rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
+
+/* ─── WatsonChatDialog 响应式（桌面浮窗） ─── */
+@media (max-width: 768px) {
+  .watson-dialog {
+    display: none !important;
+  }
+}
+
+/* 移动端 Watson FAB 按钮 */
+.watson-fab {
+  display: none;
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+  border: none;
+  border-radius: 50%;
+  color: #1a1a2e;
+  font-size: 1.5rem;
+  cursor: pointer;
+  z-index: var(--z-watson, 850);
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4);
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .watson-fab {
+    display: flex;
+  }
+}
+
+/* ─── BriefingPage 响应式 ─── */
+@media (max-width: 768px) {
+  .briefing-page {
+    padding: 1rem;
+  }
+
+  .briefing-page__slide {
+    padding: 1.25rem;
+    max-height: none;
+  }
+
+  .briefing-step-indicator {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ─── StartPage / LoginPage 响应式 ─── */
+@media (max-width: 768px) {
+  .start-page {
+    padding: 1rem;
+    align-items: flex-start;
+    padding-top: max(2rem, env(safe-area-inset-top));
+  }
+
+  .start-page__title {
+    font-size: clamp(1.8rem, 6vw, 3rem);
+  }
+
+  .start-page__content {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .difficulty-options {
+    flex-direction: column;
+  }
+
+  .difficulty-option {
+    width: 100%;
+  }
+
+  .login-page {
+    padding: 1rem;
+    align-items: flex-start;
+    padding-top: max(2rem, env(safe-area-inset-top));
+  }
+
+  .login-page__content {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* ─── ConclusionPage 响应式 ─── */
+@media (max-width: 768px) {
+  .conclusion-container {
+    padding: 1rem;
+    max-width: 100%;
+  }
+
+  .suspect-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .step-indicator {
+    font-size: 0.8rem;
+  }
+
+  .step-actions {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .step-actions .button {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* ─── 全局字号阶梯 ─── */
+@media (max-width: 768px) {
+  h1, .header-title, .deduction-board__title {
+    font-size: clamp(1.2rem, 4vw, 1.75rem);
+  }
+
+  h2 {
+    font-size: clamp(1rem, 3vw, 1.5rem);
+  }
+}
+
+/* investigation-footer__actions - 默认横向排列，移动端纵向排列（覆盖原内联样式） */
+.investigation-footer__actions {
+  display: flex;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .investigation-footer__actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .investigation-footer__actions .footer-button {
+    width: 100%;
+    text-align: center;
+  }
 }
