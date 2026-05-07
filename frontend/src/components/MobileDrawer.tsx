@@ -4,7 +4,7 @@ import './MobileDrawer.css'
 interface MobileDrawerProps {
   open: boolean
   onClose: () => void
-  position?: 'bottom' | 'right'
+  position?: 'bottom' | 'right' | 'left'
   height?: string
   title?: string
   children: React.ReactNode

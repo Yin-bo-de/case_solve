@@ -1,8 +1,8 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-07（移动端响应式改造完成：全量8页面 + Watson浮窗 + 全部Modal均支持 iPhone≥375px 和 iPad≥768px）
+**更新日期**: 2026-05-07（线索边栏统一与 Footer 对齐改造完成：investigation/scene/interrogation 三页面引入只读线索边栏 + footer 规范化）
 **当前分支**: releaes/1.0.0_dev
-**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成；移动端响应式改造完成）
+**项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成；移动端响应式改造完成；线索边栏统一改造完成）
 
 ---
 
@@ -123,8 +123,9 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 │   │   │   ├── storeManager.ts           # 统一状态管理器
 │   │   │   └── README.md                # 状态管理文档
 │   │   ├── components/                 # 通用组件
-│   │   │   ├── MobileDrawer.tsx          # 移动端底部/侧边抽屉组件
+│   │   │   ├── MobileDrawer.tsx          # 移动端抽屉组件（bottom/right/left 三方向）
 │   │   │   ├── MobileDrawer.css          # MobileDrawer 样式
+│   │   │   ├── CluesSidebar.tsx          # 只读线索边栏（investigation/scene/interrogation 共用）
 │   │   │   ├── MusicPlayer.tsx           # 全局背景音乐播放器（右下角浮窗）
 │   │   │   ├── WatsonChatDialog.tsx      # 华生对话框（桌面拖拽浮窗 / 移动端 FAB + 抽屉）
 │   │   │   ├── CluePreviewModal.tsx       # 线索详情预览弹窗
@@ -201,6 +202,28 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
+
+### 2026-05-07（线索边栏统一与 Footer 对齐改造）
+
+**背景**: 游戏 investigation/scene/interrogation 三页面缺乏线索快速浏览入口，且 InterrogationPage footer 使用内联样式与 InvestigationPage 不一致。对应 `1-investigation-investigation-scene-inte-harmonic-quokka.md` 改造计划。
+
+**改动**
+- ✅ **新增 `frontend/src/components/CluesSidebar.tsx`**：只读线索列表组件，复用 `.clue-list--deduction` 视觉样式，点击线索打开 `CluePreviewModal`，显示来源 emoji + 验证状态徽章，Props 最小化（title/emptyHint/className）
+- ✅ **修改 `frontend/src/components/MobileDrawer.tsx`**：扩展 position 类型支持 `'left'`
+- ✅ **修改 `frontend/src/components/MobileDrawer.css`**：新增 `.mobile-drawer--left` + `@keyframes drawerSlideLeft` 动画
+- ✅ **修改 `frontend/src/pages/InvestigationPage.tsx`**：删除旧 `discovered-clues-panel`，引入 `<CluesSidebar>` 左侧常驻边栏（桌面）+ `<MobileDrawer position="left">` 移动端抽屉
+- ✅ **修改 `frontend/src/pages/ScenePage.tsx`**：新增左侧固定浮动按钮 `scene-page__clues-btn` + `MobileDrawer` 线索抽屉，不改动三列 grid
+- ✅ **修改 `frontend/src/pages/InterrogationPage.tsx`**：增加 `interrogation-clues-sidebar` 左侧边栏（桌面三列布局），footer 改为 `investigation-footer` + `investigation-footer__actions`（规范化对齐），移动端添加线索抽屉按钮
+- ✅ **修改 `frontend/src/index.css`**：新增 `.investigation-page__body`（grid 双列）、`.investigation-page__sidebar`、`.investigation-page__clues-fab`、`.scene-page__clues-btn`、`.interrogation-clues-sidebar`、`.clues-sidebar` 通用样式；删除废弃 `.discovered-clues-panel`
+
+**验收**
+- `npm run typecheck` → **零错误**
+- `npm run build` → **构建成功（137 modules）**
+- 桌面端：investigation/interrogation 左侧常驻线索边栏；scene 页固定浮动按钮
+- 移动端（≤768px）：边栏隐藏，FAB 触发 left drawer
+- InterrogationPage footer 视觉与 InvestigationPage 完全一致
+
+---
 
 ### 2026-05-07（移动端响应式改造 — 全量8页面适配）
 

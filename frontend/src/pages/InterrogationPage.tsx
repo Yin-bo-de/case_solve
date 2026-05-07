@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import CluesSidebar from '@/components/CluesSidebar'
+import MobileDrawer from '@/components/MobileDrawer'
+import { useIsMobile } from '@/hooks/useMediaQuery'
 import type { Suspect, Witness, Expert } from '@/types/game'
 import {
   gameApi,
@@ -96,6 +99,9 @@ export default function InterrogationPage() {
   const [showToast, setShowToast] = useState(false)
   const [toastMessage, setToastMessage] = useState('线索已成功提取！')
   const [showClueSelector, setShowClueSelector] = useState(false)
+  const [showCluesDrawer, setShowCluesDrawer] = useState(false)
+
+  const isMobile = useIsMobile()
 
   // 全体质询相关UI状态（不需要持久化）
   const [showMentionMenu, setShowMentionMenu] = useState(false)
@@ -698,6 +704,13 @@ export default function InterrogationPage() {
 
       {/* 主内容区 */}
       <main className="interrogation-main">
+        {/* 线索边栏（桌面端显示，移动端隐藏） */}
+        {!isMobile && (
+          <aside className="interrogation-clues-sidebar">
+            <CluesSidebar />
+          </aside>
+        )}
+
         {/* 左栏：3 Tab 角色面板 */}
         <aside className="actors-panel">
           {/* Tab 切换 */}
@@ -1325,7 +1338,7 @@ export default function InterrogationPage() {
       </main>
 
       {/* 底部导航 */}
-      <footer className="interrogation-footer">
+      <footer className="investigation-footer">
         <button
           className="footer-button footer-button--back"
           onClick={() => navigate(`/investigation/${gameId}`)}
@@ -1336,7 +1349,16 @@ export default function InterrogationPage() {
         <div className="footer-progress">
           <span>已审讯: {gameState.interviewedSuspectIds?.length || 0} / {suspects.length}</span>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="investigation-footer__actions">
+          {isMobile && (
+            <button
+              className="footer-button footer-button--secondary"
+              onClick={() => setShowCluesDrawer(true)}
+              type="button"
+            >
+              📋 线索 ({clues.length})
+            </button>
+          )}
           <Link to={`/deduction/${gameId}`} className="footer-button footer-button--secondary">
             推理板
           </Link>
@@ -1345,6 +1367,18 @@ export default function InterrogationPage() {
           </Link>
         </div>
       </footer>
+
+      {/* 移动端线索抽屉 */}
+      {isMobile && (
+        <MobileDrawer
+          position="left"
+          open={showCluesDrawer}
+          onClose={() => setShowCluesDrawer(false)}
+          title="📋 线索列表"
+        >
+          <CluesSidebar />
+        </MobileDrawer>
+      )}
 
       {/* 出示线索 Modal */}
       {showClueSelector && selectedTab === 'suspects' && mode === 'private' && (

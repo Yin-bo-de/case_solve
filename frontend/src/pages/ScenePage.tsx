@@ -6,6 +6,8 @@ import { useGameSessionSync } from '@/hooks/useGameSessionSync'
 import SceneObjectCard from '@/components/ScenePanel/SceneObjectCard'
 import SceneChat from '@/components/ScenePanel/SceneChat'
 import WatsonChatDialog from '@/components/WatsonChatDialog'
+import CluesSidebar from '@/components/CluesSidebar'
+import MobileDrawer from '@/components/MobileDrawer'
 
 const PLACEHOLDER_IMG = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect width="400" height="300" fill="%231a1a2e"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" fill="%23c9a05c" font-size="18" font-family="Georgia"%3E维多利亚时代场景%3C/text%3E%3C/svg%3E'
 
@@ -16,6 +18,7 @@ export default function ScenePage() {
   const { clues } = useCluesStore()
 
   const [activeObjectId, setActiveObjectId] = useState<string | null>(null)
+  const [showCluesDrawer, setShowCluesDrawer] = useState(false)
 
   console.debug('[ScenePage] 渲染', { gameId, sceneId })
 
@@ -56,6 +59,25 @@ export default function ScenePage() {
 
   return (
     <div className="scene-page">
+      {/* 线索浮动按钮（固定左侧中部） */}
+      <button
+        className="scene-page__clues-btn"
+        onClick={() => setShowCluesDrawer(true)}
+        type="button"
+      >
+        📋 线索 ({sceneClueCount})
+      </button>
+
+      {/* 线索抽屉 */}
+      <MobileDrawer
+        position="left"
+        open={showCluesDrawer}
+        onClose={() => setShowCluesDrawer(false)}
+        title="📋 线索列表"
+      >
+        <CluesSidebar />
+      </MobileDrawer>
+
       {/* 顶部导航 */}
       <header className="scene-page__header">
         <Link to={`/investigation/${gameId}`} className="scene-page__back-btn">
