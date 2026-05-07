@@ -1,6 +1,6 @@
 # 福尔摩斯式探案游戏 - 项目概览
 
-**更新日期**: 2026-05-06（审讯页面聊天框置顶展示角色 Timeline）
+**更新日期**: 2026-05-07（移除冗余字段 investigation_locations，统一由 scenes 派生调查地点）
 **当前分支**: releaes/1.0.0_dev
 **项目状态**: 开发中（P1-P5 全部完成；Loading 引导页 Step 1-6 全部完成）
 
@@ -198,57 +198,6 @@ AI驱动的福尔摩斯式探案游戏 - 用户以侦探视角参与，所有嫌
 ---
 
 ## 最近的关键变更
-
-### 2026-05-06（移除案件生成中的红鲱鱼机制）
-
-**背景**: 用户要求去掉案件生成中的所有红鲱鱼线索，使所有线索均为真实线索。
-
-**改动**
-- **数据模型**: `backend/app/models/case.py` 移除 `Clue.is_red_herring` 字段
-- **提示词模板**: `backend/app/agents/prompts/case_prompts.py` 移除所有红鲱鱼数量描述、线索 JSON 中的 `is_red_herring`、线索链条/场景/专家约束中关于红鲱鱼的特殊规则
-- **案件生成器**: `backend/app/agents/case_generator_agent.py`
-  - 移除 `difficulty_config` 中的 `red_herring_count` 和 `decoy_range`
-  - 移除 `decoy_pool` 和红鲱鱼选择逻辑，所有线索统一使用 `real_range` 的 obviousness 范围
-  - 移除 `_parse_experts_from_data` / `_build_fallback_expert` 中找"非红鲱鱼"线索的兜底逻辑
-- **游戏服务**: `backend/app/services/game_service.py` 移除 `get_case_reveal` 中的 `is_red_herring` 字段和过滤条件，改为返回所有线索
-- **华生/Oracle Agent**: `backend/app/agents/watson_agent.py` / `oracle_agent.py` 移除红鲱鱼线索排除和调试信息
-- **前端类型**: `frontend/src/types/game.ts` 移除 `Clue.isRedHerring` 和 `CaseReveal.keyClues[].isRedHerring`
-- **测试**: `backend/tests/test_difficulty.py` 移除红鲱鱼数量断言，重命名 `test_non_red_herring_clues_covered_by_objects` → `test_all_clues_covered_by_objects`；`backend/tests/test_witness_expert.py` 重命名并移除红鲱鱼过滤
-
-**验收**
-- `grep -r "red_herring\|redHerring\|红鲱鱼" backend/ frontend/` → **零残留**
-- `pytest tests/test_difficulty.py tests/test_witness_expert.py -v` → **45/45 全绿**
-
----
-
-### 2026-05-06（审讯页面聊天框置顶展示角色 Timeline）
-
-**背景**: 玩家在审讯嫌疑人或问询证人时，需要随时查看角色的时间线信息以辅助推理。时间线数据已存在于 `Suspect.timeline` 和 `Witness.timeline` 字段中，但审讯页面此前未展示。
-
-**改动**
-- ✅ **修改 `frontend/src/pages/InterrogationPage.tsx`**：
-  - 嫌疑人单独审讯：`conversation-area` 顶部新增 `actor-timeline-card` 组件，展示 `selectedSuspect.timeline`
-  - 证人问询：`conversation-area` 顶部新增 `actor-timeline-card` 组件，展示 `selectedWitness.timeline`
-  - 新增内联样式 `.actor-timeline-card*` 系列（金色渐变竖线 + Courier 等宽字体，与 BriefingPage 风格一致）
-  - timeline 为空时不展示卡片
-
-**验收**
-- `npm run typecheck` → **零错误**
-
----
-
-### 2026-05-06（Briefing 嫌疑人介绍改为时间线展示）
-
-**背景**: 引导页「嫌疑人介绍」Slide 中展示的是嫌疑人的 `statements`（陈述列表），但 statements 主要用于审讯阶段的对质功能，在 briefing 阶段过早暴露陈述内容会削弱游戏体验。`Suspect` 模型已包含 `timeline` 字段，更适合在 briefing 阶段帮助玩家建立对嫌疑人的时间线认知。
-
-**改动**
-- ✅ **修改 `frontend/src/pages/BriefingPage.tsx`**：`SuspectsSlide` 组件中，移除 `suspect.statements` 列表渲染，替换为 `suspect.timeline` 展示。视觉风格复用证人 timeline 样式（左侧金色渐变竖线 + Courier 等宽字体），空值时显示「（暂无时间线记录）」。
-- ✅ **修改 `frontend/src/pages/BriefingPage.css`**：新增 `.briefing-suspects__timeline*` 系列样式（与证人 timeline 保持一致），清理不再使用的 `.briefing-suspects__statements`、`.briefing-suspects__statement`、`.briefing-suspects__no-statement` 样式。
-
-**验收**
-- `npm run typecheck` → **零错误**
-
----
 
 ### 2026-05-06（Loading 引导页 Step 6 — 日志规范）
 
@@ -1055,7 +1004,7 @@ POST /{game_id}/watson/hint
 - 华生当前没有获取到用户在当前游戏中审讯的聊天记录（自由对话 prompt 中未注入审讯历史，未来可按需扩展）
 - [P1] 前端页面适配移动端
 - [P2] 为scene_agent之外的其他agent的invoke_with_retry 返回后，添加一个 _normalize_keys 辅助函数，映射已知别名，避免llm返回缩写导致的字段命名不一致问题
-- [P1] statements 只描述“立场”，不暴露“证据细节”
+- [P1] 在场景勘探过程中，如果勘查的场景中有线索，线索的内容需要在scene_study页面selectable-message中展示出来，避免线索和场景描述混淆
 ---
 
 ## MVP版本待办事项

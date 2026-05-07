@@ -66,7 +66,6 @@ def sample_case():
                 objects=[SceneObject(id="obj-1", name="书桌", description="一张木质书桌", hidden_clue_ids=["clue-related"])],
             )
         ],
-        investigation_locations=["书房"],
     )
 
 

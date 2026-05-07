@@ -234,7 +234,6 @@ class TestCaseBackwardCompat:
             "summary": "",
             "murder_method": "",
             "true_murderer_id": "suspect-1",
-            "investigation_locations": [],
             "scenes": [],
             "witnesses": [],
             "experts": [],

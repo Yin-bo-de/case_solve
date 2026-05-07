@@ -122,7 +122,6 @@ class Case(BaseModel):
     summary: str = ""
     murder_method: str = ""
     true_murderer_id: Optional[str] = None
-    investigation_locations: List[str] = Field(default_factory=list)
     scenes: List[Scene] = Field(default_factory=list)
     witnesses: List[Witness] = Field(default_factory=list)
     experts: List[Expert] = Field(default_factory=list)

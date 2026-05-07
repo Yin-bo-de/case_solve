@@ -168,15 +168,6 @@ class TestSceneGeneration:
                     f"{difficulty}: 线索 '{clue.id}' 未被任何 object 引用"
                 )
 
-    def test_investigation_locations_mirrors_scene_names(self):
-        """investigation_locations 应是 scene 名称的镜像"""
-        for difficulty in ["easy", "classic", "hardcore"]:
-            case = _make_mock_case(difficulty)
-            expected = [s.name for s in case.scenes]
-            assert case.investigation_locations == expected, (
-                f"{difficulty}: investigation_locations={case.investigation_locations} "
-                f"与 scene 名称 {expected} 不一致"
-            )
 
 
 # ─── 证人难度分布测试 ──────────────────────────────────────────

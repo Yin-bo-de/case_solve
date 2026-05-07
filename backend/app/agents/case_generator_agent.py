@@ -392,7 +392,6 @@ class CaseGeneratorAgent:
             murder_method="用烛台敲击头部致死，然后试图伪造入室抢劫",
             true_murderer_id=true_murderer_id,
             scenes=scenes,
-            investigation_locations=[s.name for s in scenes],
             witnesses=witnesses,
             experts=experts,
         )
@@ -454,8 +453,6 @@ class CaseGeneratorAgent:
             murder_method=data["murder_method"],
             true_murderer_id=true_murderer_id,
             scenes=scenes,
-            # investigation_locations 作为 scenes.name 的镜像
-            investigation_locations=[s.name for s in scenes],
             witnesses=witnesses,
             experts=experts,
         )
