@@ -86,6 +86,9 @@ export default function InterrogationPage() {
     confrontSuspectWithClue,
     // P3
     suspectStates,
+    // P6
+    suspectPressures,
+    setNarrativeBlock,
   } = useInterrogationStore()
 
   const [selectedSuspect, setSelectedSuspect] = useState<Suspect | null>(null)
@@ -385,6 +388,33 @@ export default function InterrogationPage() {
       { role: 'suspect', content: response.response, timestamp: new Date().toISOString() },
       targetSuspectId
     )
+
+    // P6: Narrative Director events
+    if (response.narrative) {
+      console.info('[InterrogationPage] Narrative event:', response.narrative)
+      setNarrativeBlock(targetSuspectId, response.narrative)
+
+      // Watson interjection
+      if (response.narrative.watsonInterjection) {
+        setTimeout(() => {
+          addWatsonMessage(response.narrative!.watsonInterjection!, 'guidance')
+        }, 600)
+      }
+
+      // Triggered beats with voluntary statements
+      if (response.narrative.triggeredBeats?.length > 0) {
+        for (const beat of response.narrative.triggeredBeats) {
+          if (beat.effects?.suspectVoluntaryStatement) {
+            setTimeout(() => {
+              addWatsonMessage(
+                `【${beat.title}】${beat.effects.suspectVoluntaryStatement}`,
+                'suspect_analysis'
+              )
+            }, 400)
+          }
+        }
+      }
+    }
 
     const newLieDetection = response.lieDetection ?? null
     setLieDetection(newLieDetection)
@@ -760,6 +790,17 @@ export default function InterrogationPage() {
                           <span className={`suspect-state-badge ${stateBadgeClass}`}>{stateLabel}</span>
                         </div>
                         <div className="suspect-age">{suspect.age}岁</div>
+                        {suspectPressures[suspect.id] !== undefined && suspectPressures[suspect.id] > 0 && (
+                          <div className="suspect-pressure-bar" title={`压力: ${Math.round(suspectPressures[suspect.id] * 100)}%`}>
+                            <div
+                              className="suspect-pressure-fill"
+                              style={{
+                                width: `${Math.round(suspectPressures[suspect.id] * 100)}%`,
+                                backgroundColor: suspectPressures[suspect.id] >= 0.75 ? '#dc2626' : suspectPressures[suspect.id] >= 0.4 ? '#f97316' : '#fbbf24'
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </li>
                   )
@@ -2495,6 +2536,21 @@ export default function InterrogationPage() {
           .suspect-details h2 {
             font-size: 1.25rem !important;
           }
+        }
+
+        /* P6: Narrative Director - 压力条 */
+        .suspect-pressure-bar {
+          width: 100%;
+          height: 3px;
+          background: #e5e7eb;
+          border-radius: 2px;
+          margin-top: 2px;
+          overflow: hidden;
+        }
+        .suspect-pressure-fill {
+          height: 100%;
+          border-radius: 2px;
+          transition: width 0.5s ease, background-color 0.5s ease;
         }
       `}</style>
 

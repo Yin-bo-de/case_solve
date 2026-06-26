@@ -885,6 +885,105 @@ class WatsonAgent:
             return contras
         return fallback
 
+    # ──────────────────────────────────────────────
+    # Phase 6: narrate_event — Watson interjection on narrative events
+    # ──────────────────────────────────────────────
+
+    async def narrate_event(
+        self,
+        event_type: str,
+        suspect_name: str,
+        event_message: str,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """
+        Generate a Watson interjection when a narrative event fires.
+
+        Args:
+            event_type: "state_change" | "revelation" | "beat_triggered" | "pressure_warning"
+            suspect_name: Name of the suspect involved
+            event_message: Human-readable description of what happened
+            context: Optional additional context (old_state, new_state, pressure, etc.)
+
+        Returns:
+            Watson's in-character comment (1-2 sentences, Victorian Chinese), or None
+        """
+        logger.info(
+            f"[WatsonAgent] narrate_event type={event_type} "
+            f"suspect={suspect_name} msg={event_message[:40]}"
+        )
+
+        settings = get_settings()
+        if not settings.openai_api_key:
+            return self._generate_mock_narration(event_type, suspect_name, event_message)
+
+        # Different event types get different prompt guidance
+        event_type_guidance = {
+            "state_change": "嫌疑人情绪或状态发生了变化，请注意到这一点并简短评论。",
+            "revelation": "新的信息被揭示，请对此发表看法。",
+            "beat_triggered": "故事有了新的发展，请做出反应。",
+            "pressure_warning": "嫌疑人受到了压力，请注意这一点并提出建议。",
+        }
+        guidance = event_type_guidance.get(event_type, "请对发生的事件做出简短评论。")
+
+        system_prompt = (
+            f"你是约翰·华生医生，福尔摩斯的助手和挚友。你正在协助调查一起维多利亚时代的谋杀案。\n\n"
+            f"现在发生了一件事：{event_message}\n\n"
+            f"{guidance}\n\n"
+            f"请用维多利亚时代的中文风格，给出1-2句话的评论（不超过50个字）。直接说出评论即可，不要任何前缀或解释。"
+        )
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "华生，你怎么看？"),
+        ])
+
+        chain = prompt | self.llm
+        result = await invoke_with_retry(
+            chain=chain,
+            inputs={},
+            fallback_fn=lambda: self._generate_mock_narration(
+                event_type, suspect_name, event_message
+            ),
+        )
+
+        if result is None:
+            return None
+
+        content = result.content if hasattr(result, "content") else str(result)
+        # Trim overly long responses to maintain brevity
+        if len(content) > 60:
+            content = content[:60]
+        return content.strip()
+
+    def _generate_mock_narration(
+        self,
+        event_type: str,
+        suspect_name: str,
+        event_message: str,
+    ) -> Optional[str]:
+        """Deterministic fallback narration when LLM is unavailable."""
+        mock_comments = {
+            "state_change": [
+                f"福尔摩斯，{suspect_name}的态度似乎松动了……",
+                f"注意，{suspect_name}的情绪有了变化。",
+            ],
+            "revelation": [
+                "有意思！这和我们之前发现的线索吻合。",
+                f"关于{suspect_name}，这是个重要的发现。",
+            ],
+            "beat_triggered": [
+                "好极了！这是个突破口。",
+                "事情有了转机，福尔摩斯！",
+            ],
+            "pressure_warning": [
+                f"{suspect_name}在回避问题，继续追问这一点。",
+                f"他在压力下露出了破绽，别放松。",
+            ],
+        }
+        comments = mock_comments.get(event_type, ["嗯，这值得注意。"])
+        return random.choice(comments)
+
 
 # 全局华生Agent实例
 _watson_agent: Optional[WatsonAgent] = None

@@ -11,7 +11,9 @@ from app.models.game import (
     WatsonChatMessage, WatsonChatContext
 )
 from app.models.case import (
-    Case, Clue, Observation, Inference, Hypothesis, DeductionChain
+    Case, Clue, Observation, Inference, Hypothesis, DeductionChain,
+    NarrativeState, NarrativeDirectorResult, StoryBeat, PressureSignal,
+    NarrativeEvent, StoryBeatTrigger
 )
 from app.config import get_settings
 
@@ -802,6 +804,285 @@ class GameService:
             witnesses=witnesses,
             experts=experts,
         )
+
+
+    # ---- P6: Narrative Director 叙事状态管理 ----
+
+    def init_narrative_state(self, game_id: str, suspect_id: str) -> Any:
+        """初始化嫌疑人的叙事状态。
+
+        若已存在则返回已有状态；否则创建新的 NarrativeState 并存入 game.narrative_states。
+        同时确保 game.narrative_states 和 game.story_beats 字典已初始化。
+        """
+        game = self.get_game(game_id)
+        if not game:
+            logger.warning(f"[GameService] 游戏不存在，无法初始化叙事状态: {game_id}")
+            raise ValueError(f"游戏不存在: {game_id}")
+
+        if not game.case:
+            logger.warning(f"[GameService] 案件未设置，无法初始化叙事状态: {game_id}")
+            raise ValueError(f"案件未设置: {game_id}")
+
+        suspect = next((s for s in game.case.suspects if s.id == suspect_id), None)
+        if not suspect:
+            logger.warning(f"[GameService] 嫌疑人不存在，无法初始化叙事状态: {game_id} {suspect_id}")
+            raise ValueError(f"嫌疑人不存在: {suspect_id}")
+
+        # 确保容器字典已初始化（兼容 GameState 默认值被意外置空的情况）
+        if game.narrative_states is None:
+            game.narrative_states = {}
+        if game.story_beats is None:
+            game.story_beats = {}
+
+        if suspect_id in game.narrative_states:
+            logger.info(f"[GameService] 叙事状态已存在，返回已有状态: {game_id} {suspect_id}")
+            return game.narrative_states[suspect_id]
+
+        narrative_state = NarrativeState(suspect_id=suspect_id)
+        game.narrative_states[suspect_id] = narrative_state.model_dump()
+        game.updated_at = datetime.utcnow()
+        logger.info(f"[GameService] 初始化叙事状态: {game_id} {suspect_id} pressure=0.0")
+        return game.narrative_states[suspect_id]
+
+    def get_narrative_state(self, game_id: str, suspect_id: str) -> Optional[Any]:
+        """获取嫌疑人的叙事状态，不存在时返回 None。"""
+        game = self.get_game(game_id)
+        if not game:
+            return None
+        narrative_states = getattr(game, 'narrative_states', None)
+        if not narrative_states:
+            return None
+        return narrative_states.get(suspect_id)
+
+    def update_narrative_state(
+        self, game_id: str, suspect_id: str, result: Any
+    ) -> None:
+        """将 NarrativeDirectorResult 应用到游戏叙事状态。
+
+        更新压力值、追加压力信号、标记已触发节拍、
+        递增对话轮次、更新已讨论话题，并在有状态迁移时更新
+        game.suspect_states[suspect_id]。
+        """
+        game = self.get_game(game_id)
+        if not game:
+            logger.warning(f"[GameService] 游戏不存在，无法更新叙事状态: {game_id}")
+            return
+
+        narrative_state = self.get_narrative_state(game_id, suspect_id)
+        if narrative_state is None:
+            logger.warning(
+                f"[GameService] 叙事状态不存在，无法更新: {game_id} {suspect_id}"
+            )
+            return
+
+        # 辅助：统一从 dict 或 Pydantic 对象取值
+        def _val(obj, key, default=None):
+            if isinstance(obj, dict):
+                return obj.get(key, default)
+            return getattr(obj, key, default)
+
+        # 1) 更新压力
+        new_pressure = _val(result, "new_pressure", narrative_state.get("pressure", 0.0))
+        old_pressure = narrative_state.get("pressure", 0.0)
+        narrative_state["pressure"] = new_pressure
+
+        # 2) 追加压力信号（转为纯 dict 存储）
+        new_signals = _val(result, "pressure_signals_detected", [])
+        for signal in new_signals:
+            if hasattr(signal, "model_dump"):
+                narrative_state["pressure_signals"].append(signal.model_dump())
+            elif isinstance(signal, dict):
+                narrative_state["pressure_signals"].append(signal)
+
+        # 3) 标记已触发节拍
+        triggered_beats = _val(result, "triggered_beats", [])
+        for beat in triggered_beats:
+            beat_id = _val(beat, "id")
+            if beat_id and beat_id not in narrative_state["triggered_beat_ids"]:
+                narrative_state["triggered_beat_ids"].append(beat_id)
+                # 从已触发的节拍中提取 required_topics 作为已讨论话题
+                trigger = _val(beat, "trigger")
+                if trigger:
+                    required_topics = _val(trigger, "required_topics", [])
+                    for topic in required_topics:
+                        if topic not in narrative_state["topics_discussed"]:
+                            narrative_state["topics_discussed"].append(topic)
+
+        # 4) 递增对话轮次
+        narrative_state["conversation_turn_count"] = (
+            narrative_state.get("conversation_turn_count", 0) + 1
+        )
+
+        # 5) 更新分析时间戳
+        narrative_state["last_analysis_at"] = datetime.utcnow().isoformat()
+
+        # 6) 状态迁移（若导演结果包含 state_transition）
+        state_transition = _val(result, "state_transition")
+        if state_transition:
+            to_state = _val(state_transition, "to")
+            from_state = _val(state_transition, "from")
+            if to_state:
+                game.suspect_states[suspect_id] = to_state
+                logger.info(
+                    f"[GameService] 叙事导演触发状态迁移: {game_id} {suspect_id} "
+                    f"{from_state or '?'} → {to_state}"
+                )
+
+        game.updated_at = datetime.utcnow()
+        logger.info(
+            f"[GameService] 更新叙事状态: {game_id} {suspect_id} "
+            f"pressure {old_pressure:.2f}→{new_pressure:.2f} "
+            f"signals={len(new_signals)} beats={len(triggered_beats)} "
+            f"turn={narrative_state['conversation_turn_count']}"
+        )
+
+    def store_story_beats(
+        self, game_id: str, suspect_id: str, beats: List[Any]
+    ) -> None:
+        """存储嫌疑人故事节拍列表并初始化相关叙事状态。
+
+        beats 中的元素可以是 StoryBeat Pydantic 模型或 dict，统一转为 dict 存储。
+        同时确保叙事状态已初始化并设置 pending_beat_ids。
+        """
+        game = self.get_game(game_id)
+        if not game:
+            logger.warning(f"[GameService] 游戏不存在，无法存储故事节拍: {game_id}")
+            return
+
+        if not game.case:
+            logger.warning(f"[GameService] 案件未设置，无法存储故事节拍: {game_id}")
+            return
+
+        if game.story_beats is None:
+            game.story_beats = {}
+
+        # 统一转为 dict 存储
+        beat_dicts: List[dict] = []
+        for beat in beats:
+            if hasattr(beat, "model_dump"):
+                beat_dicts.append(beat.model_dump())
+            elif isinstance(beat, dict):
+                beat_dicts.append(beat)
+            else:
+                logger.warning(
+                    f"[GameService] 跳过无法识别的节拍类型: {type(beat)}"
+                )
+
+        game.story_beats[suspect_id] = beat_dicts
+
+        # 确保叙事状态已初始化并设置 pending_beat_ids
+        narrative_state = self.get_narrative_state(game_id, suspect_id)
+        if narrative_state is None:
+            try:
+                self.init_narrative_state(game_id, suspect_id)
+                narrative_state = self.get_narrative_state(game_id, suspect_id)
+            except ValueError:
+                logger.warning(
+                    f"[GameService] 无法自动初始化叙事状态: {game_id} {suspect_id}"
+                )
+
+        if narrative_state is not None:
+            narrative_state["pending_beat_ids"] = [
+                b["id"] for b in beat_dicts
+            ]
+
+        game.updated_at = datetime.utcnow()
+        logger.info(
+            f"[GameService] 存储故事节拍: {game_id} {suspect_id} count={len(beat_dicts)}"
+        )
+
+    def get_pending_beats(self, game_id: str, suspect_id: str) -> List[Any]:
+        """返回该嫌疑人尚未触发的故事节拍列表。
+
+        通过比对 narrative_state.triggered_beat_ids 过滤已触发的节拍。
+        """
+        game = self.get_game(game_id)
+        if not game:
+            logger.warning(f"[GameService] 游戏不存在，无法获取待触发节拍: {game_id}")
+            return []
+
+        beats = (
+            game.story_beats.get(suspect_id, [])
+            if game.story_beats is not None
+            else []
+        )
+
+        narrative_state = self.get_narrative_state(game_id, suspect_id)
+        if narrative_state is None:
+            return beats
+
+        triggered_ids = set(narrative_state.get("triggered_beat_ids", []))
+        pending = [
+            b for b in beats
+            if (b["id"] if isinstance(b, dict) else getattr(b, "id", ""))
+            not in triggered_ids
+        ]
+
+        logger.debug(
+            f"[GameService] 待触发节拍: {game_id} {suspect_id} "
+            f"total={len(beats)} triggered={len(triggered_ids)} pending={len(pending)}"
+        )
+        return pending
+
+    def transition_suspect_state_by_pressure(
+        self, game_id: str, suspect_id: str, new_pressure: float
+    ) -> tuple:
+        """根据压力值判定嫌疑人状态并更新 game.suspect_states。
+
+        压力阈值（来自配置）：
+        - 0.0 ~ pressure_threshold_pressured → "calm"
+        - pressure_threshold_pressured ~ pressure_threshold_broken → "pressured"
+        - pressure_threshold_broken+ → "broken"
+
+        broken 为终态，一旦进入永不回退。
+        返回 (old_state, new_state, changed)。
+        """
+        game = self.get_game(game_id)
+        if not game:
+            logger.warning(
+                f"[GameService] 游戏不存在，压力状态迁移跳过: {game_id}"
+            )
+            return "calm", "calm", False
+
+        settings = get_settings()
+        current_state = game.suspect_states.get(suspect_id, "calm")
+        old_state = current_state
+
+        # broken 为终态，永不回退
+        if current_state == "broken":
+            logger.debug(
+                f"[GameService] 嫌疑人已为 broken 终态，跳过压力迁移: "
+                f"{game_id} {suspect_id} pressure={new_pressure:.2f}"
+            )
+            return old_state, "broken", False
+
+        # 根据压力阈值判定新状态
+        if new_pressure >= settings.pressure_threshold_broken:
+            new_state = "broken"
+        elif new_pressure >= settings.pressure_threshold_pressured:
+            new_state = "pressured"
+        else:
+            new_state = "calm"
+
+        # broken 不可回退（理论上不会走到这里，因上面已判断，但保留保护）
+        if current_state == "broken":
+            new_state = "broken"
+
+        changed = new_state != current_state
+        if changed:
+            game.suspect_states[suspect_id] = new_state
+            game.updated_at = datetime.utcnow()
+            logger.info(
+                f"[GameService] 嫌疑人状态迁移(压力): {game_id} {suspect_id} "
+                f"{old_state} → {new_state} (pressure={new_pressure:.2f})"
+            )
+        else:
+            logger.debug(
+                f"[GameService] 嫌疑人状态未变化(压力): {game_id} {suspect_id} "
+                f"state={current_state} pressure={new_pressure:.2f}"
+            )
+
+        return old_state, new_state, changed
 
 
 # 全局游戏服务实例

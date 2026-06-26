@@ -1,7 +1,7 @@
 """
 案件生成Agent - 生成维多利亚时代背景的谋杀案
 """
-from typing import Optional
+from typing import Optional, List
 from loguru import logger
 from datetime import datetime
 import uuid
@@ -12,8 +12,16 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 
 from app.config import get_settings
-from app.models.case import Case, Suspect, Clue, Scene, SceneObject, Witness, Expert, ExpertKeyFinding, SuspectStatement
-from app.agents.prompts.case_prompts import case_generation_prompt, suspect_statements_generation_prompt
+from app.models.case import (
+    Case, Suspect, Clue, Scene, SceneObject, Witness, Expert,
+    ExpertKeyFinding, SuspectStatement,
+    StoryBeat, StoryBeatTrigger, StoryBeatEffects,
+)
+from app.agents.prompts.case_prompts import (
+    case_generation_prompt,
+    suspect_statements_generation_prompt,
+    story_beats_generation_prompt,
+)
 from app.agents._llm_helpers import invoke_with_retry
 
 
@@ -53,6 +61,9 @@ class CaseGeneratorAgent:
             logger.warning("[CaseGeneratorAgent] openai_api_key 未配置，使用 mock 降级")
             case_id = str(uuid.uuid4())
             case = self._generate_mock_case(case_id, difficulty)
+            if settings.enable_story_beats:
+                for i, suspect in enumerate(case.suspects):
+                    await self.generate_story_beats(suspect, case, i * 10, difficulty)
             logger.info(f"[CaseGeneratorAgent] 案件生成完成: {case_id}")
             return case
 
@@ -88,6 +99,18 @@ class CaseGeneratorAgent:
             # 阶段 C：可解性校验
             errors = self._validate_solvability(case)
             if not errors:
+                # Phase 4: Generate story beats for each suspect (P6)
+                if settings.enable_story_beats:
+                    all_beats_count = 0
+                    for i, suspect in enumerate(case.suspects):
+                        beats = await self.generate_story_beats(
+                            suspect, case, i * 10, difficulty
+                        )
+                        all_beats_count += len(beats)
+                    logger.info(
+                        f"[CaseGeneratorAgent] Generated {all_beats_count} story beats "
+                        f"for {len(case.suspects)} suspects"
+                    )
                 logger.info(f"[CaseGeneratorAgent] 案件生成完成: {case_id}")
                 return case
 
@@ -1053,6 +1076,279 @@ class CaseGeneratorAgent:
             )
         ]
 
+
+    # ------------------------------------------------------------------
+    # Phase 4: Story Beats 生成（P6）
+    # ------------------------------------------------------------------
+
+    def _build_suspect_story_context(self, suspect: Suspect, case: Case) -> str:
+        """将单个嫌疑人和案件信息格式化为 prompt 可用的文本块"""
+        lines = []
+        lines.append(f"嫌疑人姓名：{suspect.name}")
+        lines.append(f"年龄：{suspect.age}")
+        lines.append(f"与死者关系：{suspect.relationship_to_victim or '未知'}")
+        lines.append(f"背景：{suspect.background}")
+        lines.append(f"动机：{suspect.motive}")
+        lines.append(f"时间线：{suspect.timeline}")
+        lines.append(f"是否真凶：{'是' if suspect.is_guilty else '否'}")
+        if suspect.personality_traits:
+            lines.append(f"性格特征：{', '.join(suspect.personality_traits)}")
+        if suspect.secrets:
+            lines.append(f"隐藏秘密：")
+            for s in suspect.secrets:
+                lines.append(f"  - {s}")
+        if suspect.statements:
+            lines.append(f"审讯陈述：")
+            for stmt in suspect.statements:
+                lie_tag = "【谎言】" if stmt.is_lie else "【真话】"
+                lines.append(f"  - {lie_tag} {stmt.content}")
+        return "\n".join(lines)
+
+    async def generate_story_beats(
+        self,
+        suspect: Suspect,
+        case: Case,
+        beat_index_offset: int = 0,
+        difficulty: str = "classic",
+    ) -> List[StoryBeat]:
+        """
+        为单个嫌疑人生成 3-5 个叙事故事节拍。
+
+        Beat progression:
+        - Beat 1: Low threshold (min_pressure=0.15) — fires as initial pressure builds
+        - Beat 2: Medium threshold (min_pressure=0.35, may require specific topics)
+        - Beat 3: High threshold (min_pressure=0.55) — major secret revelation
+        - Optional Beat 4-5: Additional beats depending on suspect secrets
+
+        Falls back to deterministic default beats if LLM unavailable.
+        """
+        settings = get_settings()
+
+        # API key 缺失时直接使用 fallback
+        if not settings.openai_api_key:
+            logger.warning(
+                f"[CaseGeneratorAgent] openai_api_key 未配置，"
+                f"使用 fallback 生成 story beats for suspect={suspect.id}"
+            )
+            return self._generate_default_story_beats(suspect, case, beat_index_offset)
+
+        suspect_context = self._build_suspect_story_context(suspect, case)
+        chain = story_beats_generation_prompt | self.llm | StrOutputParser()
+        inputs = {
+            "suspect_context": suspect_context,
+            "difficulty": difficulty,
+            "victim_name": case.victim_name,
+            "cause_of_death": case.cause_of_death,
+            "case_summary": case.summary,
+            "location": case.location,
+        }
+
+        raw_data = await invoke_with_retry(
+            chain=chain,
+            inputs=inputs,
+            fallback_fn=lambda: None,
+            max_retries=2,
+            timeout=60.0,
+            parse_json=True,
+        )
+
+        if raw_data is None:
+            logger.warning(
+                f"[CaseGeneratorAgent] LLM story beats 生成失败，"
+                f"使用 fallback for suspect={suspect.id}"
+            )
+            return self._generate_default_story_beats(suspect, case, beat_index_offset)
+
+        try:
+            beats_data = raw_data.get("beats", [])
+            if not beats_data:
+                logger.warning(
+                    f"[CaseGeneratorAgent] LLM 返回空 beats，"
+                    f"使用 fallback for suspect={suspect.id}"
+                )
+                return self._generate_default_story_beats(suspect, case, beat_index_offset)
+
+            beats = []
+            for i, beat_data in enumerate(beats_data):
+                trigger_data = beat_data.get("trigger", {})
+                effects_data = beat_data.get("effects", {})
+
+                beat = StoryBeat(
+                    id=f"beat-{suspect.id}-{beat_index_offset + i}",
+                    suspect_id=suspect.id,
+                    title=beat_data.get("title", f"节拍 {i+1}"),
+                    description=beat_data.get("description", ""),
+                    trigger=StoryBeatTrigger(
+                        min_pressure=trigger_data.get("min_pressure", 0.15),
+                        min_state=trigger_data.get("min_state"),
+                        required_topics=trigger_data.get("required_topics", []),
+                        min_contradiction_count=trigger_data.get("min_contradiction_count", 0),
+                    ),
+                    effects=StoryBeatEffects(
+                        new_revelation=effects_data.get("new_revelation"),
+                        state_transition=effects_data.get("state_transition"),
+                        watson_comment=effects_data.get("watson_comment"),
+                        suspect_voluntary_statement=effects_data.get("suspect_voluntary_statement"),
+                    ),
+                    priority=beat_data.get("priority", i),
+                )
+                beats.append(beat)
+
+            logger.info(
+                f"[CaseGeneratorAgent] LLM 生成 {len(beats)} story beats "
+                f"for suspect={suspect.id}"
+            )
+            return beats
+
+        except Exception as e:
+            logger.warning(
+                f"[CaseGeneratorAgent] story beats 解析异常: {e}，"
+                f"使用 fallback for suspect={suspect.id}"
+            )
+            return self._generate_default_story_beats(suspect, case, beat_index_offset)
+
+    def _generate_default_story_beats(
+        self,
+        suspect: Suspect,
+        case: Case,
+        beat_index_offset: int = 0,
+    ) -> List[StoryBeat]:
+        """
+        Deterministic fallback: 基于嫌疑人数据生成故事节拍。
+
+        规则：
+        - 若 suspect.secrets 非空，为每个 secret 生成一个节拍，压力阈值递进
+        - 若无 secrets 但有谎言陈述，基于矛盾生成节拍
+        - 若既无 secrets 也无陈述，生成 2 个通用节拍
+        """
+        beats = []
+        idx = 0
+
+        # 基于 secrets 生成节拍（每个 secret 一个节拍，压力递进）
+        if suspect.secrets:
+            pressure_thresholds = [0.15, 0.35, 0.55, 0.65, 0.75]
+            for i, secret in enumerate(suspect.secrets[:5]):
+                threshold = pressure_thresholds[min(i, len(pressure_thresholds) - 1)]
+                is_final = (i == len(suspect.secrets) - 1 or i >= 4)
+                is_first = (i == 0)
+
+                if is_first:
+                    title = "初露端倪"
+                    desc = f"在审讯压力下，{suspect.name}的镇定开始出现裂痕，语气中透露出不安。"
+                    watson = f"注意{suspect.name}的表情变化，福尔摩斯，他/她在隐瞒什么。"
+                    voluntary = "我...我已经说了我知道的一切。"
+                elif is_final and suspect.is_guilty:
+                    title = "防线崩溃"
+                    desc = f"{suspect.name}的防线终于瓦解，隐藏最深的秘密被层层揭开。"
+                    watson = f"真相大白了！{suspect.name}终于露出了马脚。"
+                    voluntary = f"好吧...你赢了。是的，{secret}"
+                elif is_final:
+                    title = "真相浮现"
+                    desc = f"在持续的追问下，{suspect.name}终于吐露了藏匿已久的秘密。"
+                    watson = f"又一个拼图对上了！这个信息可能扭转整个案件的走向。"
+                    voluntary = f"我承认...{secret}"
+                else:
+                    title = "暗流涌动"
+                    desc = f"随着审讯深入，{suspect.name}的话语中出现了更多的矛盾和迟疑。"
+                    watson = f"这越来越有趣了，{suspect.name}在回避关键问题。"
+                    voluntary = f"等等，我不是那个意思...让我重新说。"
+
+                state = "pressured" if threshold >= 0.55 else None
+
+                beats.append(StoryBeat(
+                    id=f"beat-{suspect.id}-{beat_index_offset + idx}",
+                    suspect_id=suspect.id,
+                    title=title,
+                    description=desc,
+                    trigger=StoryBeatTrigger(
+                        min_pressure=threshold,
+                        min_state=state,
+                    ),
+                    effects=StoryBeatEffects(
+                        new_revelation=f"{suspect.name}透露：{secret}",
+                        state_transition="calm->pressured" if threshold >= 0.40 else None,
+                        watson_comment=watson,
+                        suspect_voluntary_statement=voluntary,
+                    ),
+                    priority=idx,
+                ))
+                idx += 1
+
+        # 无 secrets 但有谎言陈述：基于矛盾生成节拍
+        if not suspect.secrets:
+            lie_statements = [s for s in suspect.statements if s.is_lie]
+            if lie_statements:
+                for i, stmt in enumerate(lie_statements[:3]):
+                    threshold = 0.15 + i * 0.20
+                    beats.append(StoryBeat(
+                        id=f"beat-{suspect.id}-{beat_index_offset + idx}",
+                        suspect_id=suspect.id,
+                        title="矛盾浮现" if i == 0 else "步步紧逼",
+                        description=(
+                            f"在质问下，{suspect.name}的陈述出现明显矛盾，"
+                            f"其辩解开始站不住脚。"
+                        ),
+                        trigger=StoryBeatTrigger(
+                            min_pressure=threshold,
+                            min_contradiction_count=i + 1,
+                        ),
+                        effects=StoryBeatEffects(
+                            new_revelation=f"{suspect.name}关于'{stmt.content[:40]}...'的陈述存在疑点。",
+                            state_transition="calm->pressured" if threshold >= 0.40 else None,
+                            watson_comment=f"这里有问题，{suspect.name}的话自相矛盾。",
+                            suspect_voluntary_statement="我不确定你在说什么...让我想想。",
+                        ),
+                        priority=idx,
+                    ))
+                    idx += 1
+
+        # 既无 secrets 也无谎言陈述：生成 2 个通用节拍
+        if not beats:
+            guilt_label = "真凶" if suspect.is_guilty else "无辜者"
+            beats.append(StoryBeat(
+                id=f"beat-{suspect.id}-{beat_index_offset + idx}",
+                suspect_id=suspect.id,
+                title="初步施压",
+                description=(
+                    f"审讯开始时，{suspect.name}保持{guilt_label}的外表，"
+                    f"但细微的紧张已通过肢体语言显露。"
+                ),
+                trigger=StoryBeatTrigger(min_pressure=0.15),
+                effects=StoryBeatEffects(
+                    watson_comment=f"{suspect.name}看起来有些紧张，指尖在微微颤抖。",
+                    suspect_voluntary_statement="我真的什么都不知道，这件事与我无关。",
+                ),
+                priority=0,
+            ))
+            idx += 1
+            beats.append(StoryBeat(
+                id=f"beat-{suspect.id}-{beat_index_offset + idx}",
+                suspect_id=suspect.id,
+                title="深入追问",
+                description=(
+                    f"随着审讯深入，{suspect.name}的情绪开始剧烈波动，"
+                    f"回答变得更加谨慎和防御性。"
+                ),
+                trigger=StoryBeatTrigger(min_pressure=0.45),
+                effects=StoryBeatEffects(
+                    watson_comment=(
+                        f"注意{suspect.name}在回答关键问题时的停顿，"
+                        f"福尔摩斯，那是最能说明问题的地方。"
+                    ),
+                    suspect_voluntary_statement=(
+                        f"你们为什么一直追问我？"
+                        f"我已经说了我所知道的一切，再问我也是这些。"
+                    ),
+                ),
+                priority=1,
+            ))
+            idx += 1
+
+        logger.info(
+            f"[CaseGeneratorAgent] fallback 生成 {len(beats)} story beats "
+            f"for suspect={suspect.id}"
+        )
+        return beats
 
 # 全局案件生成器实例
 _case_generator: Optional[CaseGeneratorAgent] = None

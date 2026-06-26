@@ -19,6 +19,7 @@ from app.agents.watson_agent import get_watson_agent, WatsonAgent
 from app.agents.suspect_agent import get_suspect_agent
 from app.agents.witness_agent import get_witness_agent
 from app.agents.expert_agent import get_expert_agent
+from app.agents.narrative_director_agent import get_narrative_director
 from app.config import get_settings
 
 router = APIRouter()
@@ -241,6 +242,13 @@ async def create_new_game(request: CreateGameRequest):
     case = await case_generator.generate_case(difficulty=request.difficulty.value)
     game_service.set_case(game.game_id, case)
 
+    # P6: 生成并存储故事节拍
+    if settings.enable_story_beats:
+        for i, s in enumerate(case.suspects):
+            beats = await case_generator.generate_story_beats(s, case, i * 10, request.difficulty.value)
+            if beats:
+                game_service.store_story_beats(game.game_id, s.id, beats)
+
     # 获取更新后的游戏状态
     updated_game = game_service.get_game(game.game_id)
     if not updated_game:
@@ -323,6 +331,13 @@ async def set_difficulty(game_id: str, request: SetDifficultyRequest):
         game = game_service.get_game(game_id)
         if not game:
             raise HTTPException(status_code=500, detail="案件生成后游戏状态丢失")
+
+        # P6: 生成并存储故事节拍
+        if settings.enable_story_beats:
+            for i, s in enumerate(case.suspects):
+                beats = await case_generator.generate_story_beats(s, case, i * 10, difficulty.value)
+                if beats:
+                    game_service.store_story_beats(game_id, s.id, beats)
 
     logger.info(f"[API] 难度设置成功: {game_id} -> {difficulty}, phase: {game.phase}")
     return _filter_visible_clues(game)
@@ -435,12 +450,105 @@ async def ask_suspect_question(game_id: str, request: SuspectQuestionRequest):
     # 检测谎言
     lie_detection = await suspect_agent.detect_lie(suspect, response, game.case)
 
+    # P6: Narrative Director — 分析对话轮次，驱动剧情推进
+    narrative = None
+    settings = get_settings()
+    if settings.enable_narrative_director:
+        try:
+            # 初始化或获取叙事状态
+            narrative_state = game_service.get_narrative_state(game_id, request.suspect_id)
+            if narrative_state is None:
+                narrative_state = game_service.init_narrative_state(game_id, request.suspect_id)
+
+            # 获取未触发的 story beats
+            pending_beats = game_service.get_pending_beats(game_id, request.suspect_id)
+
+            # 获取已发现线索 ID 列表
+            discovered_clue_ids = [
+                c.id for c in game.case.clues if c.discovered
+            ] if game.case else []
+
+            # 调用叙事导演分析本轮对话
+            narrative_director = get_narrative_director()
+            result = await narrative_director.analyze_conversation_turn(
+                suspect=suspect,
+                case=game.case,
+                user_question=request.question,
+                suspect_response=response,
+                recent_history=request.conversation_history[-settings.narrative_director_max_history_messages:],
+                narrative_state=narrative_state,
+                pending_beats=pending_beats,
+                suspect_state=current_state,
+                discovered_clue_ids=discovered_clue_ids,
+            )
+
+            # 应用叙事结果到游戏状态
+            game_service.update_narrative_state(game_id, request.suspect_id, result)
+
+            # 如果压力导致状态迁移，更新 suspect_states
+            if result.state_transition:
+                old_st = result.state_transition.get("from", current_state)
+                new_st = result.state_transition.get("to", current_state)
+                # 取压力系统和 relevance 系统的最大值
+                current_relevance_state = game.suspect_states.get(request.suspect_id, "calm")
+                state_rank = {"calm": 0, "pressured": 1, "broken": 2}
+                effective_state = new_st if state_rank.get(new_st, 0) > state_rank.get(current_relevance_state, 0) else current_relevance_state
+                game.suspect_states[request.suspect_id] = effective_state
+                result.state_transition = {"from": old_st, "to": effective_state}
+
+            # 华生插话（叙事事件触发时）
+            watson_interjection = None
+            if result.narrative_events or result.triggered_beats:
+                watson_agent = get_watson_agent()
+                watson_interjection = await watson_agent.narrate_event(
+                    event_type=result.narrative_events[0].type if result.narrative_events else "beat_triggered",
+                    suspect_name=suspect.name,
+                    event_message=result.narrative_events[0].message if result.narrative_events else "事情有了新的进展。",
+                )
+
+            # 构建叙事响应块
+            narrative = {
+                "pressure": result.new_pressure,
+                "pressure_delta": result.pressure_delta,
+                "pressure_signals": [
+                    {
+                        "signal_type": s.signal_type.value if hasattr(s.signal_type, 'value') else s.signal_type,
+                        "confidence": s.confidence,
+                        "description": s.description,
+                    }
+                    for s in result.pressure_signals_detected
+                ],
+                "narrative_events": [
+                    {"type": e.type, "message": e.message, "data": e.data}
+                    for e in result.narrative_events
+                ],
+                "state_transition": result.state_transition,
+                "triggered_beats": [
+                    {
+                        "id": b.id,
+                        "title": b.title,
+                        "description": b.description,
+                        "effects": {
+                            "new_revelation": b.effects.new_revelation,
+                            "watson_comment": b.effects.watson_comment,
+                            "suspect_voluntary_statement": b.effects.suspect_voluntary_statement,
+                        },
+                    }
+                    for b in result.triggered_beats
+                ],
+                "watson_interjection": watson_interjection or result.watson_interjection,
+            }
+        except Exception as e:
+            logger.error(f"[API] 叙事导演分析失败: {e}", exc_info=True)
+            narrative = None  # 降级：不影响核心对话功能
+
     logger.info(f"[API] 嫌疑人回复生成成功: {game_id}")
     return {
         "suspect_id": suspect.id,
         "suspect_name": suspect.name,
         "response": response,
-        "lie_detection": lie_detection
+        "lie_detection": lie_detection,
+        "narrative": narrative,
     }
 
 
@@ -1244,3 +1352,55 @@ async def get_watson_chat_history(game_id: str):
 
     messages = game_service.get_watson_chat_history(game_id)
     return {"messages": messages}
+
+
+# ──────────────────────────────────────────────
+# P6: Narrative Director 调试端点
+# ──────────────────────────────────────────────
+
+@router.get("/{game_id}/narrative/state")
+async def get_narrative_state(game_id: str):
+    """获取所有嫌疑人的叙事状态（调试用）"""
+    logger.info(f"[API] 获取叙事状态: {game_id}")
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    result = {}
+    for suspect_id in game.narrative_states:
+        ns = game.narrative_states[suspect_id]
+        result[suspect_id] = {
+            "pressure": ns.get("pressure", 0.0) if isinstance(ns, dict) else ns.pressure,
+            "turn_count": ns.get("conversation_turn_count", 0) if isinstance(ns, dict) else ns.conversation_turn_count,
+            "contradictions_detected": ns.get("contradictions_detected", 0) if isinstance(ns, dict) else ns.contradictions_detected,
+            "topics_discussed": ns.get("topics_discussed", []) if isinstance(ns, dict) else ns.topics_discussed,
+            "triggered_beat_count": len(ns.get("triggered_beat_ids", [])) if isinstance(ns, dict) else len(ns.triggered_beat_ids),
+            "signal_count": len(ns.get("pressure_signals", [])) if isinstance(ns, dict) else len(ns.pressure_signals),
+            "suspect_state": game.suspect_states.get(suspect_id, "calm"),
+        }
+    return {"game_id": game_id, "narrative_states": result}
+
+
+@router.get("/{game_id}/narrative/beats")
+async def get_story_beats(game_id: str):
+    """获取所有故事节拍及触发状态（调试用）"""
+    logger.info(f"[API] 获取故事节拍: {game_id}")
+    game_service = get_game_service()
+    game = game_service.get_game(game_id)
+    if not game:
+        raise HTTPException(status_code=404, detail=f"游戏不存在: {game_id}")
+
+    result = {}
+    for suspect_id, beats in game.story_beats.items():
+        result[suspect_id] = []
+        for b in beats:
+            bd = b if isinstance(b, dict) else b.model_dump()
+            result[suspect_id].append({
+                "id": bd.get("id"),
+                "title": bd.get("title"),
+                "triggered": bd.get("triggered"),
+                "priority": bd.get("priority"),
+                "trigger_min_pressure": bd.get("trigger", {}).get("min_pressure") if isinstance(bd.get("trigger"), dict) else None,
+            })
+    return {"game_id": game_id, "story_beats": result}

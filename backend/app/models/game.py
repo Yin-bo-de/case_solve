@@ -82,6 +82,9 @@ class GameState(BaseModel):
     suspect_states: Dict[str, str] = Field(default_factory=dict)
     # P1: 已验证线索ID冗余索引（单源仍是 Clue.verification_status）
     verified_clue_ids: List[str] = Field(default_factory=list)
+    # P6: 叙事导演系统
+    narrative_states: Dict[str, Any] = Field(default_factory=dict)   # suspect_id -> NarrativeState
+    story_beats: Dict[str, Any] = Field(default_factory=dict)        # suspect_id -> List[StoryBeat]
 
 
 class CreateGameRequest(BaseModel):

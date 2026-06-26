@@ -42,6 +42,29 @@ class Settings(BaseSettings):
     enable_solvability_validation: bool = True   # P5: 案件可解性校验
     strict_accusation_threshold: dict = {"easy": 0, "classic": 1, "hardcore": 2}
 
+    # P6: Narrative Director feature flags
+    enable_narrative_director: bool = True       # 叙事导演主开关
+    enable_pressure_accumulation: bool = True    # 对话压力累积
+    enable_story_beats: bool = True              # 故事节拍系统
+
+    # 压力信号权重
+    pressure_signal_weight_evasion: float = 0.15
+    pressure_signal_weight_contradiction: float = 0.30
+    pressure_signal_weight_over_explanation: float = 0.10
+    pressure_signal_weight_emotional_leakage: float = 0.20
+    pressure_signal_weight_inconsistency: float = 0.25
+    pressure_signal_weight_deflection: float = 0.10
+
+    # 压力阈值
+    pressure_decay_per_turn: float = 0.0          # 无压力信号时衰减量（0=不衰减）
+    pressure_threshold_pressured: float = 0.40    # 跨此阈值为 pressured
+    pressure_threshold_broken: float = 0.75       # 跨此阈值为 broken
+
+    # 叙事导演 LLM 配置
+    narrative_director_max_history_messages: int = 10
+    narrative_director_max_history_tokens: int = 4000
+    narrative_director_temperature: float = 0.3
+
     class Config:
         env_file = ".env"
 

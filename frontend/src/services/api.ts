@@ -6,6 +6,7 @@ import type {
   WatsonChatMessage, WatsonMessageType,
   Clue, SceneSearchResponse, ReasoningRecord, WatsonTip,
   CredibilityCheckResult, ActorType,
+  NarrativeBlock,
 } from '@/types/game'
 import type { RedemptionVerifyResponse, RedemptionGenerateResponse } from '@/types/redemption'
 
@@ -213,6 +214,7 @@ export const gameApi = {
     response: string
     lie_detection: LieDetectionResult
     lieDetection?: LieDetectionResult
+    narrative?: NarrativeBlock
   }> {
     console.info('[gameApi] 向嫌疑人提问', { gameId, suspectId, question: question.substring(0, 50) })
     const response = await apiClient.post(`/api/game/${gameId}/interrogation/question`, {

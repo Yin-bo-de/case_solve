@@ -320,3 +320,48 @@ export interface CaseReveal {
     clueType: string
   }>
 }
+
+// ──────────────────────────────────────────────
+// P6: Narrative Director types
+// ──────────────────────────────────────────────
+
+export type PressureSignalType =
+  | 'evasion'
+  | 'contradiction'
+  | 'over_explanation'
+  | 'emotional_leakage'
+  | 'inconsistency'
+  | 'deflection'
+
+export interface PressureSignal {
+  signalType: PressureSignalType
+  confidence: number
+  description: string
+}
+
+export interface NarrativeEvent {
+  type: 'state_change' | 'revelation' | 'beat_triggered' | 'pressure_warning' | 'watson_interjection'
+  message: string
+  data?: Record<string, unknown>
+}
+
+export interface StoryBeatSummary {
+  id: string
+  title: string
+  description: string
+  effects: {
+    newRevelation?: string | null
+    watsonComment?: string | null
+    suspectVoluntaryStatement?: string | null
+  }
+}
+
+export interface NarrativeBlock {
+  pressure: number
+  pressureDelta: number
+  pressureSignals: PressureSignal[]
+  narrativeEvents: NarrativeEvent[]
+  stateTransition?: { from: string; to: string } | null
+  triggeredBeats: StoryBeatSummary[]
+  watsonInterjection?: string | null
+}

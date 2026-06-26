@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 import { createGameScopedStorage } from './gameScopedStorage'
 import type { ConversationMessage, LieDetectionResult, ContradictionResult } from '@/services/api'
-import type { WatsonTip, Clue, CredibilityCheckResult, ActorType } from '@/types/game'
+import type { WatsonTip, Clue, CredibilityCheckResult, ActorType, NarrativeBlock, NarrativeEvent } from '@/types/game'
 import { gameApi } from '@/services/api'
 import { useGameStore } from './gameStore'
 
@@ -142,6 +142,11 @@ interface InterrogationStore {
   // P3: 嫌疑人状态机（calm / pressured / broken）
   suspectStates: Record<string, 'calm' | 'pressured' | 'broken'>
 
+  // P6: Narrative state
+  suspectPressures: Record<string, number>  // suspect_id -> pressure (0.0-1.0)
+  lastNarrativeBlock: NarrativeBlock | null
+  narrativeEvents: NarrativeEvent[]
+
   // P2: 出示线索对质
   confrontLoading: boolean
   confrontSuspectWithClue: (
@@ -156,6 +161,9 @@ interface InterrogationStore {
     clueAfter: Clue
     conversationMessage: { role: string; content: string; timestamp: string }
   } | null>
+
+  // P6: Narrative Director
+  setNarrativeBlock: (suspectId: string, block: NarrativeBlock) => void
 
   // Actions - 通用
   resetAll: () => void
@@ -197,6 +205,9 @@ export const useInterrogationStore = create<InterrogationStore>()(
           extractedClues: [],
           confrontLoading: false,
           suspectStates: {},
+          suspectPressures: {},
+          lastNarrativeBlock: null,
+          narrativeEvents: [],
 
           // Actions - 模式与 Tab
           setMode: (mode) => {
@@ -544,6 +555,30 @@ export const useInterrogationStore = create<InterrogationStore>()(
             }
           },
 
+          // P6: Narrative Director
+          setNarrativeBlock: (suspectId, block) => {
+            set((state) => ({
+              lastNarrativeBlock: block,
+              suspectPressures: {
+                ...state.suspectPressures,
+                [suspectId]: block.pressure,
+              },
+              narrativeEvents: block.narrativeEvents || [],
+              suspectStates: block.stateTransition
+                ? {
+                    ...state.suspectStates,
+                    [suspectId]: block.stateTransition.to as 'calm' | 'pressured' | 'broken',
+                  }
+                : state.suspectStates,
+            }))
+            console.info('[interrogationStore] 叙事块更新', {
+              suspectId,
+              pressure: block.pressure,
+              events: block.narrativeEvents.length,
+              stateTransition: block.stateTransition,
+            })
+          },
+
           // Actions - 通用
           resetAll: () => {
             set({
@@ -572,6 +607,9 @@ export const useInterrogationStore = create<InterrogationStore>()(
               extractedClues: [],
               confrontLoading: false,
               suspectStates: {},
+              suspectPressures: {},
+              lastNarrativeBlock: null,
+              narrativeEvents: [],
             })
             console.info('[interrogationStore] 重置所有状态')
           },

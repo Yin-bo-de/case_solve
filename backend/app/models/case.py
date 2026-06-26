@@ -182,3 +182,97 @@ class DeductionChain(BaseModel):
     final_accusation: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ──────────────────────────────────────────────
+# P6: Narrative Director 数据模型
+# ──────────────────────────────────────────────
+
+from enum import Enum as PyEnum
+
+
+class PressureSignalType(str, PyEnum):
+    """压力信号类型 — 从对话中提取的嫌疑人压力迹象"""
+    EVASION = "evasion"
+    CONTRADICTION = "contradiction"
+    OVER_EXPLANATION = "over_explanation"
+    EMOTIONAL_LEAKAGE = "emotional_leakage"
+    INCONSISTENCY = "inconsistency"
+    DEFLECTION = "deflection"
+
+
+class PressureSignal(BaseModel):
+    """一次对话轮次中检测到的一个压力信号"""
+    suspect_id: str
+    signal_type: PressureSignalType
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    description: str = ""
+    source_question_snippet: str = ""
+    source_response_snippet: str = ""
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class StoryBeatTrigger(BaseModel):
+    """故事节拍触发条件"""
+    min_pressure: float = Field(default=0.0, ge=0.0, le=1.0)
+    min_state: Optional[str] = None  # None 表示不限制
+    required_clue_ids: List[str] = Field(default_factory=list)
+    required_topics: List[str] = Field(default_factory=list)
+    min_contradiction_count: int = 0
+    requires_any_signal_of: List[PressureSignalType] = Field(default_factory=list)
+
+
+class StoryBeatEffects(BaseModel):
+    """故事节拍触发后的效果"""
+    new_revelation: Optional[str] = None
+    state_transition: Optional[str] = None  # 如 "calm->pressured"
+    reveals_secret_index: Optional[int] = None
+    new_clue_hint: Optional[str] = None
+    unlocks_scene_id: Optional[str] = None
+    watson_comment: Optional[str] = None
+    suspect_voluntary_statement: Optional[str] = None
+
+
+class StoryBeat(BaseModel):
+    """故事节拍 — 一个叙事推进事件"""
+    id: str                                   # "beat-{suspect_id}-{index}"
+    suspect_id: str
+    title: str
+    description: str
+    trigger: StoryBeatTrigger
+    effects: StoryBeatEffects
+    triggered: bool = False
+    triggered_at: Optional[datetime] = None
+    priority: int = 0
+
+
+class NarrativeState(BaseModel):
+    """单个嫌疑人的叙事状态"""
+    suspect_id: str
+    pressure: float = Field(default=0.0, ge=0.0, le=1.0)
+    pressure_signals: List[PressureSignal] = Field(default_factory=list)
+    triggered_beat_ids: List[str] = Field(default_factory=list)
+    pending_beat_ids: List[str] = Field(default_factory=list)
+    contradictions_detected: int = 0
+    topics_discussed: List[str] = Field(default_factory=list)
+    last_analysis_at: Optional[datetime] = None
+    conversation_turn_count: int = 0
+
+
+class NarrativeEvent(BaseModel):
+    """叙事事件 — 前端 UI 可渲染的事件"""
+    type: str  # "state_change", "revelation", "beat_triggered", "pressure_warning", "watson_interjection"
+    message: str
+    data: Optional[Dict[str, Any]] = None
+
+
+class NarrativeDirectorResult(BaseModel):
+    """叙事导演单轮分析完整结果"""
+    suspect_id: str
+    pressure_delta: float = 0.0
+    new_pressure: float = 0.0
+    pressure_signals_detected: List[PressureSignal] = Field(default_factory=list)
+    triggered_beats: List[StoryBeat] = Field(default_factory=list)
+    state_transition: Optional[Dict[str, str]] = None  # {"from": "calm", "to": "pressured"}
+    narrative_events: List[NarrativeEvent] = Field(default_factory=list)
+    watson_interjection: Optional[str] = None

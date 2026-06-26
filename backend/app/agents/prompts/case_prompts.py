@@ -403,3 +403,74 @@ suspect_statements_generation_prompt = ChatPromptTemplate.from_messages([
     ("system", SUSPECT_STATEMENTS_GENERATION_SYSTEM),
     ("human", SUSPECT_STATEMENTS_GENERATION_HUMAN),
 ])
+
+STORY_BEATS_GENERATION_SYSTEM = """\
+你是一位维多利亚时代侦探游戏的叙事导演，负责为审讯场景设计"故事节拍"（Story Beats）。
+
+故事节拍是在审讯嫌疑人过程中，当压力达到特定阈值时自动触发的叙事推进事件。
+每个节拍应推动剧情发展、揭示隐藏信息、增强戏剧张力。
+
+节拍递进规则（核心）：
+- 第1个节拍（priority=0）：低阈值（min_pressure=0.15），在审讯初期压力初显时触发，嫌疑人开始紧张但仍在抵抗
+- 第2个节拍（priority=1）：中阈值（min_pressure=0.35），可能需要讨论特定话题才能触发，嫌疑人开始动摇
+- 第3个节拍（priority=2）：高阈值（min_pressure=0.55），重大秘密或关键信息揭示，情绪剧烈波动
+- 可选第4-5个节拍（priority=3-4）：根据嫌疑人秘密数量和案件复杂度追加
+
+嫌疑人状态机：
+- calm: 初始状态，平静配合
+- pressured: 压力累积，开始紧张（min_pressure >= 0.40）
+- broken: 崩溃状态，防线瓦解（min_pressure >= 0.75）
+
+设计要求：
+1. title：简洁有力（≤12字），暗示节拍核心内容
+2. description：50-100字，描述节拍触发时的氛围变化和嫌疑人情绪状态
+3. new_revelation：揭示案件相关信息，但不得直接暴露真凶身份（除非真凶在broken状态下可透露作案动机）
+4. watson_comment：体现华生医生的观察力，15-40字
+5. suspect_voluntary_statement：符合嫌疑人性格特征和维多利亚时代语言风格，20-60字
+6. 真凶（is_guilty=true）的节拍应层层递进，从否认→动摇→透露部分真相→崩溃坦白
+7. 无辜嫌疑人的节拍应揭示其隐藏秘密或提供线索，但不涉及真凶身份
+8. min_state 可为 null（不限制初始状态）、"calm"、"pressured" 或 "broken"
+9. required_topics 为触发该节拍需要讨论的话题关键词列表，可为空
+10. state_transition 可为 null 或 "calm->pressured"、"pressured->broken" 等
+
+输出格式（严格JSON，不要markdown，不要解释）：
+{{
+  "beats": [
+    {{
+      "title": "节拍标题",
+      "description": "叙事描述",
+      "trigger": {{
+        "min_pressure": 0.15,
+        "min_state": null,
+        "required_topics": [],
+        "min_contradiction_count": 0
+      }},
+      "effects": {{
+        "new_revelation": "嫌疑人透露的新信息",
+        "state_transition": null,
+        "watson_comment": "华生对此的评论",
+        "suspect_voluntary_statement": "嫌疑人主动说出的维多利亚风格台词"
+      }},
+      "priority": 0
+    }}
+  ]
+}}
+"""
+
+STORY_BEATS_GENERATION_HUMAN = """\
+请为以下嫌疑人生成3-5个故事节拍。难度：{difficulty}
+
+嫌疑人信息：
+{suspect_context}
+
+案件背景：
+- 死者：{victim_name}
+- 死因：{cause_of_death}
+- 案件概要：{case_summary}
+- 案发地点：{location}
+"""
+
+story_beats_generation_prompt = ChatPromptTemplate.from_messages([
+    ("system", STORY_BEATS_GENERATION_SYSTEM),
+    ("human", STORY_BEATS_GENERATION_HUMAN),
+])
