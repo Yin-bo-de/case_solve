@@ -76,6 +76,8 @@ class NarrativeDirectorAgent:
         recent_history: List[Dict[str, str]],
         narrative_state: NarrativeState,
         pending_beats: List[StoryBeat],
+        suspect_state: str = "calm",
+        discovered_clue_ids: Optional[List[str]] = None,
     ) -> NarrativeDirectorResult:
         """
         分析一轮对话，返回完整的 NarrativeDirectorResult。
@@ -119,16 +121,11 @@ class NarrativeDirectorAgent:
             )
 
             # Step 3: Check story beats (deterministic)
-            # 获取当前嫌疑人状态和已验证线索
-            settings = get_settings()
-            suspect_state = "calm"  # 默认；实际应由 game state 传入
-            discovered_clue_ids: List[str] = []  # 实际应由 game state 传入
-
             triggered_beats = self._check_story_beats(
                 pending_beats=pending_beats,
                 narrative_state=narrative_state,
                 suspect_state=suspect_state,
-                discovered_clue_ids=discovered_clue_ids,
+                discovered_clue_ids=discovered_clue_ids or [],
                 new_pressure=new_pressure,
             )
             if triggered_beats:
