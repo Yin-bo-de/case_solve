@@ -17,6 +17,7 @@ _KEY_ALIASES: Dict[str, str] = {
     "narr": "narrative",
     "narration": "narrative",
     "text": "narrative",
+    "narrary": "narrative",  # 修复拼写错误
     "matched_objects": "matched_object_ids",
     "clues": "clue_candidates",
     "options": "dialog_options",

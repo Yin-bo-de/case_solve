@@ -79,7 +79,7 @@ class CaseGeneratorAgent:
                 inputs={"difficulty": difficulty},
                 fallback_fn=lambda: None,
                 max_retries=2,
-                timeout=120.0,
+                timeout=600.0,
                 parse_json=True,
             )
 

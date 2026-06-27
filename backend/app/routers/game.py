@@ -23,7 +23,7 @@ from app.agents.narrative_director_agent import get_narrative_director
 from app.config import get_settings
 
 router = APIRouter()
-
+settings = get_settings()
 
 def _filter_visible_clues(game: GameState) -> GameState:
     """过滤未发现的线索，防止客户端提前获知案件信息。"""
